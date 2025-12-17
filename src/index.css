@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  /* Hathor Forge color scheme - inspired by Ganache's dark theme */
+  --color-background: #1a1a2e;
+  --color-foreground: #eaeaea;
+  --color-card: #16213e;
+  --color-card-foreground: #eaeaea;
+  --color-popover: #16213e;
+  --color-popover-foreground: #eaeaea;
+  --color-primary: #e94560;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #0f3460;
+  --color-secondary-foreground: #eaeaea;
+  --color-muted: #0f3460;
+  --color-muted-foreground: #a0a0a0;
+  --color-accent: #e94560;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+  --color-border: #0f3460;
+  --color-input: #0f3460;
+  --color-ring: #e94560;
+
+  /* Mining status colors */
+  --color-success: #22c55e;
+  --color-warning: #f59e0b;
+  --color-info: #3b82f6;
+
+  --radius: 0.5rem;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+}
+
+/* Base styles */
+body {
+  @apply bg-background text-foreground;
+  font-family: var(--font-sans);
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-secondary);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
+}
+
+/* Utility for monospace addresses/hashes */
+.font-mono {
+  font-family: var(--font-mono);
+}
