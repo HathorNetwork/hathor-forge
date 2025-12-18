@@ -169,6 +169,10 @@
             # Add local scripts to PATH
             export PATH="$PWD/scripts/bin:$PATH"
 
+            # Point to GitHub sources from flake inputs
+            export HATHOR_CORE_SRC="${hathor-core-src}"
+            export CPUMINER_SRC="${cpuminer-src}"
+
             echo "Hathor Forge Development Environment"
             echo "====================================="
             echo ""
