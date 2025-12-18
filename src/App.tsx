@@ -18,6 +18,7 @@ import {
 
 type NodeStatusType = "stopped" | "starting" | "running" | "error";
 type MinerStatusType = "stopped" | "starting" | "mining" | "error";
+type PageType = "dashboard" | "blocks" | "transactions" | "tokens" | "mining" | "logs" | "settings";
 
 interface NodeStatus {
   running: boolean;
@@ -47,6 +48,7 @@ function stripAnsi(str: string): string {
 }
 
 function App() {
+  const [currentPage, setCurrentPage] = useState<PageType>("dashboard");
   const [nodeStatus, setNodeStatus] = useState<NodeStatusType>("stopped");
   const [minerStatus, setMinerStatus] = useState<MinerStatusType>("stopped");
   const [blockHeight, setBlockHeight] = useState(0);
@@ -67,13 +69,15 @@ function App() {
       level: parseLogLevel(cleanMessage),
       message: cleanMessage,
     };
-    setLogs((prev) => [...prev.slice(-500), entry]);
+    setLogs((prev) => [...prev.slice(-1000), entry]);
   };
 
-  // Auto-scroll logs
+  // Auto-scroll logs only on logs page
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [logs]);
+    if (currentPage === "logs") {
+      logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [logs, currentPage]);
 
   // Poll node status when running
   useEffect(() => {
@@ -116,9 +120,12 @@ function App() {
     });
 
     const unlistenMinerStats = listen<string>("miner-stats", (event) => {
-      const match = event.payload.match(/(\d+\.?\d*)\s*(H|KH|MH|GH)\/s/i);
+      // Match formats like "1423 khash/s" or "1.5 MH/s"
+      const match = event.payload.match(/(\d+\.?\d*)\s*(k|M|G|T)?hash\/s/i);
       if (match) {
-        setHashRate(`${match[1]} ${match[2]}/s`);
+        const value = match[1];
+        const unit = match[2] ? match[2].toUpperCase() + "H/s" : "H/s";
+        setHashRate(`${value} ${unit}`);
       }
       addLog("miner", event.payload);
     });
@@ -187,14 +194,14 @@ function App() {
 
   const isLoading = nodeStatus === "starting" || minerStatus === "starting";
 
-  const navItems = [
-    { icon: Activity, label: "Dashboard", active: true },
-    { icon: Layers, label: "Blocks", active: false },
-    { icon: FileText, label: "Transactions", active: false },
-    { icon: Coins, label: "Tokens", active: false },
-    { icon: Cpu, label: "Mining", active: false },
-    { icon: Terminal, label: "Logs", active: false },
-    { icon: Settings, label: "Settings", active: false },
+  const navItems: { icon: typeof Activity; label: string; page: PageType }[] = [
+    { icon: Activity, label: "Dashboard", page: "dashboard" },
+    { icon: Layers, label: "Blocks", page: "blocks" },
+    { icon: FileText, label: "Transactions", page: "transactions" },
+    { icon: Coins, label: "Tokens", page: "tokens" },
+    { icon: Cpu, label: "Mining", page: "mining" },
+    { icon: Terminal, label: "Logs", page: "logs" },
+    { icon: Settings, label: "Settings", page: "settings" },
   ];
 
   const getLogLevelStyle = (level: LogEntry["level"]) => {
@@ -207,6 +214,223 @@ function App() {
         return "text-slate-500";
       default:
         return "text-emerald-400";
+    }
+  };
+
+  const renderDashboard = () => (
+    <>
+      {/* Action Bar */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Dashboard</h2>
+          <p className="text-sm text-slate-500 mt-1">Manage your local Hathor network</p>
+        </div>
+        <div className="flex gap-3">
+          {nodeStatus === "stopped" || nodeStatus === "error" ? (
+            <button
+              onClick={handleStartNode}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {nodeStatus === "starting" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+              Start Network
+            </button>
+          ) : (
+            <button
+              onClick={handleStopNode}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white font-semibold text-sm shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 transition-all duration-200 disabled:opacity-50"
+            >
+              <Square className="w-4 h-4" />
+              Stop Network
+            </button>
+          )}
+          {nodeStatus === "running" && minerStatus === "stopped" && (
+            <button
+              onClick={handleStartMiner}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-sm hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
+            >
+              {minerStatus === "starting" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Cpu className="w-4 h-4" />
+              )}
+              Start Mining
+            </button>
+          )}
+          {(minerStatus === "mining" || minerStatus === "starting") && (
+            <button
+              onClick={handleStopMiner}
+              disabled={minerStatus === "starting"}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-sm hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
+            >
+              <Square className="w-4 h-4" />
+              Stop Mining
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        {[
+          { icon: Layers, label: "Block Height", value: blockHeight.toLocaleString(), color: "amber" },
+          { icon: Cpu, label: "Hash Rate", value: hashRate, color: "emerald" },
+          { icon: FileText, label: "Transactions", value: "0", color: "blue" },
+          { icon: Coins, label: "Tokens", value: "1", sublabel: "HTR", color: "purple" },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-xl bg-[#0d1117] border border-slate-800/50 p-5 hover:border-slate-700/50 transition-colors"
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <stat.icon className={`w-4 h-4 text-${stat.color}-400`} />
+              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</span>
+            </div>
+            <div className="text-3xl font-bold text-white font-mono">{stat.value}</div>
+            {stat.sublabel && <span className="text-xs text-slate-500 font-medium">{stat.sublabel}</span>}
+          </div>
+        ))}
+      </div>
+
+      {/* Recent Blocks Section */}
+      {nodeStatus === "running" && (
+        <div className="rounded-xl bg-[#0d1117] border border-slate-800/50 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-800/50">
+            <div className="flex items-center gap-3">
+              <Layers className="w-4 h-4 text-amber-400" />
+              <h3 className="text-sm font-semibold text-white">Recent Blocks</h3>
+            </div>
+          </div>
+          <div className="p-4">
+            <div className="space-y-2">
+              {blockHeight > 0 ? (
+                Array.from({ length: Math.min(blockHeight, 10) }, (_, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50 border border-slate-800/30"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                        <Layers className="w-4 h-4 text-amber-400" />
+                      </div>
+                      <span className="font-mono font-semibold text-white">Block #{blockHeight - i}</span>
+                    </div>
+                    {blockHeight - i === 0 && (
+                      <span className="px-2 py-1 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase">
+                        Genesis
+                      </span>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50 border border-slate-800/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                      <Layers className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <span className="font-mono font-semibold text-white">Block #0</span>
+                  </div>
+                  <span className="px-2 py-1 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase">
+                    Genesis
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+
+  const renderLogs = () => (
+    <>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Logs</h2>
+          <p className="text-sm text-slate-500 mt-1">Real-time node and miner output</p>
+        </div>
+        <button
+          onClick={() => setLogs([])}
+          className="px-4 py-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 text-sm font-medium hover:bg-slate-700 transition-colors"
+        >
+          Clear Logs
+        </button>
+      </div>
+
+      <div className="rounded-xl bg-[#0d1117] border border-slate-800/50 overflow-hidden flex-1 flex flex-col">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800/50">
+          <Terminal className="w-4 h-4 text-amber-400" />
+          <h3 className="text-sm font-semibold text-white">Live Output</h3>
+          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">
+            {logs.length} entries
+          </span>
+        </div>
+        <div className="flex-1 overflow-auto bg-[#080b10] p-4 font-mono text-sm min-h-0" style={{ maxHeight: 'calc(100vh - 280px)' }}>
+          {logs.length > 0 ? (
+            <div className="space-y-1">
+              {logs.map((log) => (
+                <div key={log.id} className="flex gap-3 leading-relaxed hover:bg-slate-900/30 px-2 py-1 rounded">
+                  <span className="text-slate-600 text-xs shrink-0">
+                    {log.timestamp.toLocaleTimeString()}
+                  </span>
+                  <span
+                    className={`text-xs font-semibold uppercase shrink-0 w-12 ${
+                      log.source === "miner" ? "text-purple-400" : "text-blue-400"
+                    }`}
+                  >
+                    {log.source}
+                  </span>
+                  <span className={`${getLogLevelStyle(log.level)} break-all`}>{log.message}</span>
+                </div>
+              ))}
+              <div ref={logsEndRef} />
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center text-slate-600">
+              <div className="text-center">
+                <Terminal className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No logs yet. Start the network to see activity.</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+
+  const renderPlaceholder = (title: string) => (
+    <div className="flex items-center justify-center h-full">
+      <div className="text-center">
+        <h2 className="text-2xl font-bold text-white mb-2">{title}</h2>
+        <p className="text-slate-500">Coming soon</p>
+      </div>
+    </div>
+  );
+
+  const renderContent = () => {
+    switch (currentPage) {
+      case "dashboard":
+        return renderDashboard();
+      case "logs":
+        return renderLogs();
+      case "blocks":
+        return renderPlaceholder("Blocks");
+      case "transactions":
+        return renderPlaceholder("Transactions");
+      case "tokens":
+        return renderPlaceholder("Tokens");
+      case "mining":
+        return renderPlaceholder("Mining");
+      case "settings":
+        return renderPlaceholder("Settings");
+      default:
+        return renderDashboard();
     }
   };
 
@@ -230,14 +454,20 @@ function App() {
           {navItems.map((item) => (
             <button
               key={item.label}
+              onClick={() => setCurrentPage(item.page)}
               className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 ${
-                item.active
+                currentPage === item.page
                   ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                   : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent"
               }`}
             >
               <item.icon className="h-4 w-4" />
               {item.label}
+              {item.page === "logs" && logs.length > 0 && (
+                <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300">
+                  {logs.length}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -354,182 +584,9 @@ function App() {
           </div>
         )}
 
-        {/* Dashboard Content */}
+        {/* Page Content */}
         <div className="flex-1 overflow-auto p-6">
-          {/* Action Bar */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-bold text-white">Dashboard</h2>
-              <p className="text-sm text-slate-500 mt-1">Manage your local Hathor network</p>
-            </div>
-            <div className="flex gap-3">
-              {nodeStatus === "stopped" || nodeStatus === "error" ? (
-                <button
-                  onClick={handleStartNode}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {nodeStatus === "starting" ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Play className="w-4 h-4" />
-                  )}
-                  Start Network
-                </button>
-              ) : (
-                <button
-                  onClick={handleStopNode}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-rose-500 to-rose-600 text-white font-semibold text-sm shadow-lg shadow-rose-500/25 hover:shadow-rose-500/40 transition-all duration-200 disabled:opacity-50"
-                >
-                  <Square className="w-4 h-4" />
-                  Stop Network
-                </button>
-              )}
-              {nodeStatus === "running" && minerStatus === "stopped" && (
-                <button
-                  onClick={handleStartMiner}
-                  disabled={isLoading}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-sm hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
-                >
-                  {minerStatus === "starting" ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Cpu className="w-4 h-4" />
-                  )}
-                  Start Mining
-                </button>
-              )}
-              {(minerStatus === "mining" || minerStatus === "starting") && (
-                <button
-                  onClick={handleStopMiner}
-                  disabled={minerStatus === "starting"}
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 font-semibold text-sm hover:bg-slate-700 transition-all duration-200 disabled:opacity-50"
-                >
-                  <Square className="w-4 h-4" />
-                  Stop Mining
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Stats Grid */}
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            {[
-              { icon: Layers, label: "Block Height", value: blockHeight.toLocaleString(), color: "amber" },
-              { icon: Cpu, label: "Hash Rate", value: hashRate, color: "emerald" },
-              { icon: FileText, label: "Transactions", value: "0", color: "blue" },
-              { icon: Coins, label: "Tokens", value: "1", sublabel: "HTR", color: "purple" },
-            ].map((stat) => (
-              <div
-                key={stat.label}
-                className="rounded-xl bg-[#0d1117] border border-slate-800/50 p-5 hover:border-slate-700/50 transition-colors"
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <stat.icon className={`w-4 h-4 text-${stat.color}-400`} />
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{stat.label}</span>
-                </div>
-                <div className="text-3xl font-bold text-white font-mono">{stat.value}</div>
-                {stat.sublabel && <span className="text-xs text-slate-500 font-medium">{stat.sublabel}</span>}
-              </div>
-            ))}
-          </div>
-
-          {/* Logs Section - Full Width */}
-          <div className="rounded-xl bg-[#0d1117] border border-slate-800/50 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800/50">
-              <div className="flex items-center gap-3">
-                <Terminal className="w-4 h-4 text-amber-400" />
-                <h3 className="text-sm font-semibold text-white">Live Logs</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">
-                  {logs.length} entries
-                </span>
-              </div>
-              <button
-                onClick={() => setLogs([])}
-                className="text-xs text-slate-500 hover:text-slate-300 font-medium transition-colors"
-              >
-                Clear
-              </button>
-            </div>
-            <div className="h-80 overflow-auto bg-[#080b10] p-4 font-mono text-sm">
-              {logs.length > 0 ? (
-                <div className="space-y-1">
-                  {logs.map((log) => (
-                    <div key={log.id} className="flex gap-3 leading-relaxed hover:bg-slate-900/30 px-2 py-1 rounded">
-                      <span className="text-slate-600 text-xs shrink-0">
-                        {log.timestamp.toLocaleTimeString()}
-                      </span>
-                      <span
-                        className={`text-xs font-semibold uppercase shrink-0 w-12 ${
-                          log.source === "miner" ? "text-purple-400" : "text-blue-400"
-                        }`}
-                      >
-                        {log.source}
-                      </span>
-                      <span className={`${getLogLevelStyle(log.level)} break-all`}>{log.message}</span>
-                    </div>
-                  ))}
-                  <div ref={logsEndRef} />
-                </div>
-              ) : (
-                <div className="h-full flex items-center justify-center text-slate-600">
-                  <div className="text-center">
-                    <Terminal className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p>No logs yet. Start the network to see activity.</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Recent Blocks Section */}
-          {nodeStatus === "running" && (
-            <div className="mt-6 rounded-xl bg-[#0d1117] border border-slate-800/50 overflow-hidden">
-              <div className="px-5 py-4 border-b border-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <Layers className="w-4 h-4 text-amber-400" />
-                  <h3 className="text-sm font-semibold text-white">Recent Blocks</h3>
-                </div>
-              </div>
-              <div className="p-4">
-                <div className="space-y-2">
-                  {blockHeight > 0 ? (
-                    Array.from({ length: Math.min(blockHeight, 5) }, (_, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50 border border-slate-800/30"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                            <Layers className="w-4 h-4 text-amber-400" />
-                          </div>
-                          <span className="font-mono font-semibold text-white">Block #{blockHeight - i}</span>
-                        </div>
-                        {blockHeight - i === 0 && (
-                          <span className="px-2 py-1 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase">
-                            Genesis
-                          </span>
-                        )}
-                      </div>
-                    ))
-                  ) : (
-                    <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/50 border border-slate-800/30">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                          <Layers className="w-4 h-4 text-amber-400" />
-                        </div>
-                        <span className="font-mono font-semibold text-white">Block #0</span>
-                      </div>
-                      <span className="px-2 py-1 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase">
-                        Genesis
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
+          {renderContent()}
         </div>
       </main>
     </div>

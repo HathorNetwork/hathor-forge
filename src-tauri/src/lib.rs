@@ -52,7 +52,7 @@ impl Default for MinerConfig {
     fn default() -> Self {
         Self {
             stratum_port: 8000,
-            address: "HNBUHhzkVuSFUNW21TBktYBQ5rJj5FYAh6".to_string(), // Default localnet address
+            address: "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string(), // Default localnet address (from HD wallet)
             threads: 1,
         }
     }
@@ -92,11 +92,20 @@ fn get_binary_path(name: &str) -> std::path::PathBuf {
         "x86_64-pc-windows-msvc"
     };
 
-    // For dev, look relative to the cargo manifest dir
-    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("binaries")
-        .join(format!("{}-{}", name, target));
+    let binaries_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
 
+    // hathor-core uses onedir mode (folder with binary inside)
+    if name == "hathor-core" {
+        let onedir_path = binaries_dir
+            .join(format!("{}-{}", name, target))
+            .join(name);
+        if onedir_path.exists() {
+            return onedir_path;
+        }
+    }
+
+    // For single-file binaries (cpuminer)
+    let dev_path = binaries_dir.join(format!("{}-{}", name, target));
     if dev_path.exists() {
         return dev_path;
     }
@@ -125,8 +134,17 @@ async fn start_node(
     fs::create_dir_all(&config.data_dir)
         .map_err(|e| format!("Failed to create data directory: {}", e))?;
 
+    // Development HD wallet seed (DO NOT use in production!)
+    // This is a fixed seed for local development only
+    let dev_wallet_words = "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level";
+
+    // Set DYLD_FALLBACK_LIBRARY_PATH for macOS to find bundled libraries
+    // This prevents the "loading libcrypto in an unsafe way" abort
+    let internal_dir = binary_path.parent().unwrap().join("_internal");
+
     // Spawn the process using tokio
     let mut child = TokioCommand::new(&binary_path)
+        .env("DYLD_FALLBACK_LIBRARY_PATH", &internal_dir)
         .args([
             "run_node",
             "--localnet",
@@ -138,11 +156,15 @@ async fn start_node(
             &config.data_dir,
             "--wallet",
             "hd",
+            "--words",
+            dev_wallet_words,
+            "--wallet-enable-api",
             "--allow-mining-without-peers",
             "--test-mode-tx-weight",
             "--unsafe-mode",
             "privatenet",
         ])
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -262,13 +284,16 @@ async fn start_miner(
     // Spawn the process using tokio
     let mut child = TokioCommand::new(&binary_path)
         .args([
+            "--algo",
+            "sha256d",
             "--url",
             &format!("stratum+tcp://127.0.0.1:{}", config.stratum_port),
-            "--user",
+            "--coinbase-addr",
             &config.address,
             "--threads",
             &config.threads.to_string(),
         ])
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

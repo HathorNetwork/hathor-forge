@@ -34,5 +34,9 @@ src-tauri/target
 # Hathor data
 data/
 
+# Build artifacts
+build/
+src-tauri/binaries/
+
 # Claude
 .claude/

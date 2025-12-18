@@ -111,8 +111,14 @@
             # cpuminer dependencies
             curl
 
-            # Database
+            # Database and native deps for hathor-core
             rocksdb
+            snappy
+            lz4
+            bzip2
+            xz
+            zlib
+            cmake
           ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
             pkgs.darwin.apple_sdk.frameworks.WebKit
             pkgs.darwin.apple_sdk.frameworks.Security
@@ -130,14 +136,17 @@
             echo "====================================="
             echo ""
             echo "Available commands:"
-            echo "  npm run tauri dev    - Start development server"
-            echo "  npm run tauri build  - Build release"
-            echo "  nix build .#cpuminer - Build cpuminer"
+            echo "  npm run tauri dev          - Start development server"
+            echo "  npm run tauri build        - Build release"
+            echo "  nix build .#cpuminer       - Build cpuminer"
+            echo "  ./scripts/build-hathor-core.sh - Build hathor-core standalone binary"
             echo ""
 
-            # Set up environment for RocksDB
-            export CFLAGS="-I${pkgs.rocksdb}/include"
-            export LDFLAGS="-L${pkgs.rocksdb}/lib"
+            # Set up environment for RocksDB and native builds
+            export CFLAGS="-I${pkgs.rocksdb}/include -I${pkgs.snappy}/include -I${pkgs.lz4}/include"
+            export LDFLAGS="-L${pkgs.rocksdb}/lib -L${pkgs.snappy}/lib -L${pkgs.lz4}/lib"
+            export ROCKSDB_INCLUDE_DIR="${pkgs.rocksdb}/include"
+            export ROCKSDB_LIB_DIR="${pkgs.rocksdb}/lib"
           '';
         };
       }
