@@ -14,11 +14,14 @@ import {
   Loader2,
   Terminal,
   Zap,
+  Compass,
+  AlertTriangle,
+  Trash2,
 } from "lucide-react";
 
 type NodeStatusType = "stopped" | "starting" | "running" | "error";
 type MinerStatusType = "stopped" | "starting" | "mining" | "error";
-type PageType = "dashboard" | "blocks" | "transactions" | "tokens" | "mining" | "logs" | "settings";
+type PageType = "dashboard" | "explorer" | "blocks" | "transactions" | "tokens" | "mining" | "logs" | "settings";
 
 interface NodeStatus {
   running: boolean;
@@ -151,6 +154,12 @@ function App() {
     try {
       await invoke("start_node", { config: null });
       setNodeStatus("running");
+      // Auto-start explorer server
+      try {
+        await invoke("start_explorer_server");
+      } catch (e) {
+        console.warn("Explorer server failed to start:", e);
+      }
     } catch (e) {
       setError(String(e));
       setNodeStatus("error");
@@ -160,6 +169,7 @@ function App() {
   const handleStopNode = async () => {
     try {
       await invoke("stop_miner").catch(() => {});
+      await invoke("stop_explorer_server").catch(() => {});
       await invoke("stop_node");
       setNodeStatus("stopped");
       setMinerStatus("stopped");
@@ -196,6 +206,7 @@ function App() {
 
   const navItems: { icon: typeof Activity; label: string; page: PageType }[] = [
     { icon: Activity, label: "Dashboard", page: "dashboard" },
+    { icon: Compass, label: "Explorer", page: "explorer" },
     { icon: Layers, label: "Blocks", page: "blocks" },
     { icon: FileText, label: "Transactions", page: "transactions" },
     { icon: Coins, label: "Tokens", page: "tokens" },
@@ -404,6 +415,42 @@ function App() {
     </>
   );
 
+  const renderExplorer = () => {
+    if (nodeStatus !== "running") {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <Compass className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+            <h2 className="text-2xl font-bold text-white mb-2">Explorer</h2>
+            <p className="text-slate-500 mb-4">Start the network to use the explorer</p>
+            <button
+              onClick={handleStartNode}
+              disabled={isLoading}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed mx-auto"
+            >
+              {nodeStatus === "starting" ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Play className="w-4 h-4" />
+              )}
+              Start Network
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-full flex flex-col -m-6">
+        <iframe
+          src="http://localhost:3001"
+          className="w-full flex-1 border-0"
+          title="Hathor Explorer"
+        />
+      </div>
+    );
+  };
+
   const renderPlaceholder = (title: string) => (
     <div className="flex items-center justify-center h-full">
       <div className="text-center">
@@ -413,10 +460,124 @@ function App() {
     </div>
   );
 
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
+  const [resetMessage, setResetMessage] = useState("");
+
+  const handleResetData = async () => {
+    if (nodeStatus === "running") {
+      setResetMessage("Stop the node before resetting data");
+      setResetStatus("error");
+      return;
+    }
+
+    setResetStatus("resetting");
+    try {
+      const result = await invoke<string>("reset_data");
+      setResetMessage(result);
+      setResetStatus("success");
+      setShowResetConfirm(false);
+    } catch (error) {
+      setResetMessage(String(error));
+      setResetStatus("error");
+    }
+  };
+
+  const renderSettings = () => (
+    <div className="p-8 space-y-8">
+      <div>
+        <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
+        <p className="text-slate-500">Configure your local development environment</p>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="border border-red-500/30 rounded-xl bg-red-500/5 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <AlertTriangle className="w-5 h-5 text-red-400" />
+          <h3 className="text-lg font-semibold text-red-400">Danger Zone</h3>
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+            <div>
+              <h4 className="font-medium text-white">Reset Blockchain Data</h4>
+              <p className="text-sm text-slate-500 mt-1">
+                Delete all blockchain data and start fresh. This will remove all blocks, transactions, and wallet history.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              disabled={nodeStatus === "running" || resetStatus === "resetting"}
+              className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Reset Data
+            </button>
+          </div>
+
+          {resetStatus !== "idle" && (
+            <div className={`p-3 rounded-lg text-sm ${
+              resetStatus === "success" ? "bg-green-500/10 text-green-400 border border-green-500/30" :
+              resetStatus === "error" ? "bg-red-500/10 text-red-400 border border-red-500/30" :
+              "bg-slate-800 text-slate-400"
+            }`}>
+              {resetStatus === "resetting" ? "Resetting data..." : resetMessage}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-red-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">Reset Blockchain Data?</h3>
+            </div>
+            <p className="text-slate-400 mb-6">
+              This will permanently delete all blockchain data including blocks, transactions, and wallet history.
+              You will need to mine from block 0 again. This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetData}
+                disabled={resetStatus === "resetting"}
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {resetStatus === "resetting" ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Yes, Reset Data
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   const renderContent = () => {
     switch (currentPage) {
       case "dashboard":
         return renderDashboard();
+      case "explorer":
+        return renderExplorer();
       case "logs":
         return renderLogs();
       case "blocks":
@@ -428,7 +589,7 @@ function App() {
       case "mining":
         return renderPlaceholder("Mining");
       case "settings":
-        return renderPlaceholder("Settings");
+        return renderSettings();
       default:
         return renderDashboard();
     }

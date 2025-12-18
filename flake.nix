@@ -2,7 +2,7 @@
   description = "Hathor Forge - Local development environment for Hathor Network";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -16,9 +16,13 @@
       url = "github:hathornetwork/cpuminer";
       flake = false;
     };
+    hathor-explorer-src = {
+      url = "github:hathornetwork/hathor-explorer";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, hathor-core-src, cpuminer-src }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, hathor-core-src, cpuminer-src, hathor-explorer-src }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -64,7 +68,7 @@
 
             nativeBuildInputs = with pkgs; [
               rustToolchain
-              nodejs_20
+              nodejs_22
               pkg-config
             ];
 
@@ -95,14 +99,14 @@
             type = "app";
             program = toString (pkgs.writeShellScript "dev" ''
               cd ${toString ./.}
-              ${pkgs.nodejs_20}/bin/npx tauri dev
+              ${pkgs.nodejs_22}/bin/npx tauri dev
             '');
           };
           build = {
             type = "app";
             program = toString (pkgs.writeShellScript "build" ''
               cd ${toString ./.}
-              ${pkgs.nodejs_20}/bin/npx tauri build
+              ${pkgs.nodejs_22}/bin/npx tauri build
             '');
           };
           build-core = {
@@ -126,8 +130,8 @@
             # Rust toolchain
             rustToolchain
 
-            # Node.js
-            nodejs_20
+            # Node.js (22+ required for hathor-explorer)
+            nodejs_22
 
             # Tauri dependencies
             pkg-config
@@ -172,6 +176,7 @@
             # Point to GitHub sources from flake inputs
             export HATHOR_CORE_SRC="${hathor-core-src}"
             export CPUMINER_SRC="${cpuminer-src}"
+            export HATHOR_EXPLORER_SRC="${hathor-explorer-src}"
 
             echo "Hathor Forge Development Environment"
             echo "====================================="
@@ -181,6 +186,7 @@
             echo "  build-release  - Build release"
             echo "  build-core     - Build hathor-core binary"
             echo "  build-cpuminer - Build cpuminer binary"
+            echo "  build-explorer - Build hathor-explorer for embedding"
             echo ""
 
             # Set up environment for RocksDB and native builds

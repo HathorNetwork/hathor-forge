@@ -37,6 +37,7 @@ data/
 # Build artifacts
 build/
 src-tauri/binaries/
+src-tauri/explorer-dist/
 
 # Claude
 .claude/

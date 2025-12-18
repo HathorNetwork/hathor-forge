@@ -36,6 +36,9 @@
     "externalBin": [
       "binaries/hathor-core",
       "binaries/cpuminer"
+    ],
+    "resources": [
+      "explorer-dist/**/*"
     ]
   }
 }

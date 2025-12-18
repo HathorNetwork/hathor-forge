@@ -37,11 +37,11 @@
     "hathor-core-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1765558692,
-        "narHash": "sha256-BEG7xcpW/ccPeDANUL48093Vsbg/0lKzkEJsWpYeotw=",
+        "lastModified": 1766081326,
+        "narHash": "sha256-FeS5RAusmKF1BRwaz8RERaDL4haHmKLNq5A60RXWYjY=",
         "owner": "hathornetwork",
         "repo": "hathor-core",
-        "rev": "e6d5726c8e932f98649347314c02bd82740e100c",
+        "rev": "e3bba0da013b27f87d64a9ca5f9dacdd0b16e512",
         "type": "github"
       },
       "original": {
@@ -50,18 +50,34 @@
         "type": "github"
       }
     },
+    "hathor-explorer-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1766067957,
+        "narHash": "sha256-DG+XNWFaRFujBcN5DLsnF59yeApMz4mVZgfZ3yY+FuE=",
+        "owner": "hathornetwork",
+        "repo": "hathor-explorer",
+        "rev": "51a0ed053998b44e0b465bdffe385e3a4c0f580d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hathornetwork",
+        "repo": "hathor-explorer",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1735563628,
-        "narHash": "sha256-OnSAY7XDSx7CtDoqNh8jwVwh4xNL/2HaJxGjryLWzX8=",
+        "lastModified": 1751274312,
+        "narHash": "sha256-/bVBlRpECLVzjV19t5KMdMFWSwKLtb5RyXdjz3LJT+g=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "b134951a4c9f3c995fd7be05f3243f8ecd65d798",
+        "rev": "50ab793786d9de88ee30ec4e4c24fb4236fc2674",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-24.05",
+        "ref": "nixos-24.11",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -71,6 +87,7 @@
         "cpuminer-src": "cpuminer-src",
         "flake-utils": "flake-utils",
         "hathor-core-src": "hathor-core-src",
+        "hathor-explorer-src": "hathor-explorer-src",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay"
       }
