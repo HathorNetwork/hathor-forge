@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "cpuminer-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1688474572,
+        "narHash": "sha256-ShJePuWB/QPAILm5yHJ5YtJBkUelGyUckxlgohgmBb4=",
+        "owner": "hathornetwork",
+        "repo": "cpuminer",
+        "rev": "06240a0bd91f178aa135090ada3497992e7c1ec0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hathornetwork",
+        "repo": "cpuminer",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -15,6 +31,22 @@
       "original": {
         "owner": "numtide",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "hathor-core-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1765558692,
+        "narHash": "sha256-BEG7xcpW/ccPeDANUL48093Vsbg/0lKzkEJsWpYeotw=",
+        "owner": "hathornetwork",
+        "repo": "hathor-core",
+        "rev": "e6d5726c8e932f98649347314c02bd82740e100c",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hathornetwork",
+        "repo": "hathor-core",
         "type": "github"
       }
     },
@@ -36,7 +68,9 @@
     },
     "root": {
       "inputs": {
+        "cpuminer-src": "cpuminer-src",
         "flake-utils": "flake-utils",
+        "hathor-core-src": "hathor-core-src",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay"
       }
@@ -48,11 +82,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1765939271,
-        "narHash": "sha256-7F/d+ZrTYyOxnBZcleQZjOOEWc1IMXR/CLLRLLsVtHo=",
+        "lastModified": 1766025663,
+        "narHash": "sha256-VSrZmhM22nZckbbE8Cmmc5I2RUGtwo1aii77T/i8YPU=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "8028944c1339469124639da276d403d8ab7929a8",
+        "rev": "96617c96d4c455770e6664b5e3aad999b677fae6",
         "type": "github"
       },
       "original": {

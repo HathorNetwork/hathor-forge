@@ -8,9 +8,17 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    hathor-core-src = {
+      url = "github:hathornetwork/hathor-core";
+      flake = false;
+    };
+    cpuminer-src = {
+      url = "github:hathornetwork/cpuminer";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, hathor-core-src, cpuminer-src }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -24,22 +32,16 @@
           targets = [ "aarch64-apple-darwin" "x86_64-apple-darwin" ];
         };
 
-        # For local development, sources are loaded at build time
-        # Users should set HATHOR_CORE_SRC and CPUMINER_SRC environment variables
-        # or use the default paths
-        defaultHathorCorePath = /Users/andrecardoso/Dev/hathor/hathor-core;
-        defaultCpuminerPath = /Users/andrecardoso/Dev/hathor/cpuminer;
-
-        # Build cpuminer from local source
+        # Build cpuminer from GitHub
         cpuminer = import ./nix/cpuminer.nix {
           inherit pkgs;
-          src = defaultCpuminerPath;
+          src = cpuminer-src;
         };
 
-        # Build hathor-core from local source
+        # Build hathor-core from GitHub
         hathorCore = import ./nix/hathor-core.nix {
           inherit pkgs;
-          src = defaultHathorCorePath;
+          src = hathor-core-src;
         };
 
       in {
