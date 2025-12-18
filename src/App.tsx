@@ -17,11 +17,15 @@ import {
   Compass,
   AlertTriangle,
   Trash2,
+  Wallet,
+  Copy,
+  Send,
+  Check,
 } from "lucide-react";
 
 type NodeStatusType = "stopped" | "starting" | "running" | "error";
 type MinerStatusType = "stopped" | "starting" | "mining" | "error";
-type PageType = "dashboard" | "explorer" | "blocks" | "transactions" | "tokens" | "mining" | "logs" | "settings";
+type PageType = "dashboard" | "explorer" | "wallet" | "blocks" | "transactions" | "tokens" | "mining" | "logs" | "settings";
 
 interface NodeStatus {
   running: boolean;
@@ -36,6 +40,12 @@ interface LogEntry {
   source: "node" | "miner";
   level: "info" | "warning" | "error" | "debug";
   message: string;
+}
+
+interface WalletAddress {
+  address: string;
+  index: number;
+  balance: number | null;
 }
 
 function parseLogLevel(line: string): "info" | "warning" | "error" | "debug" {
@@ -207,6 +217,7 @@ function App() {
   const navItems: { icon: typeof Activity; label: string; page: PageType }[] = [
     { icon: Activity, label: "Dashboard", page: "dashboard" },
     { icon: Compass, label: "Explorer", page: "explorer" },
+    { icon: Wallet, label: "Wallet", page: "wallet" },
     { icon: Layers, label: "Blocks", page: "blocks" },
     { icon: FileText, label: "Transactions", page: "transactions" },
     { icon: Coins, label: "Tokens", page: "tokens" },
@@ -572,12 +583,230 @@ function App() {
     </div>
   );
 
+  const [walletAddresses, setWalletAddresses] = useState<WalletAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+  const [faucetAddress, setFaucetAddress] = useState("");
+  const [faucetAmount, setFaucetAmount] = useState("100");
+  const [sendingTx, setSendingTx] = useState(false);
+  const [txResult, setTxResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  const loadWalletAddresses = async () => {
+    if (nodeStatus !== "running") return;
+
+    setLoadingAddresses(true);
+    try {
+      const addresses = await invoke<WalletAddress[]>("get_wallet_addresses");
+      setWalletAddresses(addresses);
+    } catch (error) {
+      console.error("Failed to load wallet addresses:", error);
+    } finally {
+      setLoadingAddresses(false);
+    }
+  };
+
+  const copyAddress = async (address: string) => {
+    await navigator.clipboard.writeText(address);
+    setCopiedAddress(address);
+    setTimeout(() => setCopiedAddress(null), 2000);
+  };
+
+  const handleSendTx = async () => {
+    if (!faucetAddress || !faucetAmount) {
+      setTxResult({ type: "error", message: "Please enter address and amount" });
+      return;
+    }
+
+    setSendingTx(true);
+    setTxResult(null);
+
+    try {
+      const amountInCents = Math.floor(parseFloat(faucetAmount) * 100);
+      const result = await invoke<string>("send_tx", {
+        request: {
+          address: faucetAddress,
+          amount: amountInCents,
+        },
+      });
+      setTxResult({ type: "success", message: result });
+      setFaucetAddress("");
+      setFaucetAmount("100");
+      // Reload addresses to update balances
+      setTimeout(loadWalletAddresses, 1000);
+    } catch (error) {
+      setTxResult({ type: "error", message: String(error) });
+    } finally {
+      setSendingTx(false);
+    }
+  };
+
+  const renderWallet = () => {
+    if (nodeStatus !== "running") {
+      return (
+        <div className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <Wallet className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-white mb-2">Node Not Running</h2>
+            <p className="text-slate-500">Start the node to access your wallet</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="p-8 space-y-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-white mb-2">Wallet & Accounts</h2>
+            <p className="text-slate-500">Manage addresses and send transactions</p>
+          </div>
+          <button
+            onClick={loadWalletAddresses}
+            disabled={loadingAddresses}
+            className="px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-lg hover:bg-amber-500/20 transition-colors disabled:opacity-50 flex items-center gap-2"
+          >
+            {loadingAddresses ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              "Refresh"
+            )}
+          </button>
+        </div>
+
+        {/* Addresses List */}
+        <div className="border border-slate-800 rounded-xl bg-slate-900/30 overflow-hidden">
+          <div className="p-4 border-b border-slate-800 bg-slate-900/50">
+            <h3 className="font-semibold text-white flex items-center gap-2">
+              <Database className="w-4 h-4" />
+              Addresses ({walletAddresses.length})
+            </h3>
+          </div>
+          <div className="divide-y divide-slate-800">
+            {walletAddresses.length === 0 ? (
+              <div className="p-8 text-center text-slate-500">
+                <p>No addresses loaded. Click "Refresh" to load wallet addresses.</p>
+              </div>
+            ) : (
+              walletAddresses.map((addr) => (
+                <div key={addr.address} className="p-4 hover:bg-slate-800/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="text-xs font-mono px-2 py-1 bg-slate-800 text-slate-400 rounded">
+                          #{addr.index}
+                        </span>
+                        <code className="text-sm text-slate-300 font-mono">{addr.address}</code>
+                        <button
+                          onClick={() => copyAddress(addr.address)}
+                          className="p-1 hover:bg-slate-700 rounded transition-colors"
+                          title="Copy address"
+                        >
+                          {copiedAddress === addr.address ? (
+                            <Check className="w-4 h-4 text-green-400" />
+                          ) : (
+                            <Copy className="w-4 h-4 text-slate-500" />
+                          )}
+                        </button>
+                      </div>
+                      <div className="text-sm text-slate-500">
+                        Balance:{" "}
+                        {addr.balance !== null ? (
+                          <span className="text-white font-semibold">
+                            {(addr.balance / 100).toFixed(2)} HTR
+                          </span>
+                        ) : (
+                          <span className="text-slate-600">Loading...</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Faucet */}
+        <div className="border border-amber-500/30 rounded-xl bg-amber-500/5 p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Send className="w-5 h-5 text-amber-400" />
+            <h3 className="text-lg font-semibold text-amber-400">Send HTR (Faucet)</h3>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Destination Address
+              </label>
+              <input
+                type="text"
+                value={faucetAddress}
+                onChange={(e) => setFaucetAddress(e.target.value)}
+                placeholder="Enter Hathor address..."
+                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Amount (HTR)
+              </label>
+              <input
+                type="number"
+                value={faucetAmount}
+                onChange={(e) => setFaucetAmount(e.target.value)}
+                min="0.01"
+                step="0.01"
+                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-500/50"
+              />
+            </div>
+
+            {txResult && (
+              <div
+                className={`p-3 rounded-lg text-sm ${
+                  txResult.type === "success"
+                    ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                    : "bg-red-500/10 text-red-400 border border-red-500/30"
+                }`}
+              >
+                {txResult.message}
+              </div>
+            )}
+
+            <button
+              onClick={handleSendTx}
+              disabled={sendingTx || !faucetAddress || !faucetAmount}
+              className="w-full px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {sendingTx ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Sending Transaction...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Send HTR
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (currentPage) {
       case "dashboard":
         return renderDashboard();
       case "explorer":
         return renderExplorer();
+      case "wallet":
+        return renderWallet();
       case "logs":
         return renderLogs();
       case "blocks":

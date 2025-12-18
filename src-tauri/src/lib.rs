@@ -98,6 +98,19 @@ pub struct MinerStatus {
     pub hash_rate: Option<f64>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WalletAddress {
+    pub address: String,
+    pub index: u32,
+    pub balance: Option<u64>, // Balance in HTR cents (1 HTR = 100 cents)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SendTxRequest {
+    pub address: String,
+    pub amount: u64, // Amount in HTR cents
+}
+
 // Get the path to a binary (handles dev vs production)
 fn get_binary_path(name: &str) -> std::path::PathBuf {
     // In dev mode, binaries are in src-tauri/binaries/
@@ -521,6 +534,114 @@ async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<String, Stri
     Ok(format!("Data directory removed: {:?}", data_dir))
 }
 
+// Get wallet addresses with balances
+#[tauri::command]
+async fn get_wallet_addresses(state: tauri::State<'_, SharedState>) -> Result<Vec<WalletAddress>, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Get all addresses from the wallet
+    let addresses_response = client
+        .get("http://127.0.0.1:8080/wallet/addresses")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch addresses: {}", e))?;
+
+    let addresses_json: serde_json::Value = addresses_response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse addresses response: {}", e))?;
+
+    let addresses = addresses_json["addresses"]
+        .as_array()
+        .ok_or("Invalid addresses format")?;
+
+    let mut wallet_addresses = Vec::new();
+
+    // Get balance for each address
+    for (index, addr) in addresses.iter().enumerate() {
+        let address = addr.as_str().ok_or("Invalid address")?.to_string();
+
+        // Get balance for this address
+        let balance_response = client
+            .get(format!("http://127.0.0.1:8080/wallet/address-balance?address={}", address))
+            .send()
+            .await;
+
+        let balance = if let Ok(resp) = balance_response {
+            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                json["balance"]["unlocked"].as_u64()
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        wallet_addresses.push(WalletAddress {
+            address,
+            index: index as u32,
+            balance,
+        });
+    }
+
+    Ok(wallet_addresses)
+}
+
+// Send HTR to an address (faucet)
+#[tauri::command]
+async fn send_tx(
+    state: tauri::State<'_, SharedState>,
+    request: SendTxRequest,
+) -> Result<String, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Use the simple-send-tx endpoint
+    let response = client
+        .post("http://127.0.0.1:8080/wallet/simple-send-tx")
+        .json(&serde_json::json!({
+            "address": request.address,
+            "value": request.amount,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send transaction: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        let tx_hash = result["hash"]
+            .as_str()
+            .unwrap_or("unknown")
+            .to_string();
+        Ok(format!("Transaction sent! Hash: {}", tx_hash))
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Transaction failed: {}", message))
+    }
+}
+
 // Proxy HTTP requests to the fullnode
 async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
     // Include query string if present
@@ -858,6 +979,8 @@ pub fn run() {
             get_miner_status,
             get_state,
             reset_data,
+            get_wallet_addresses,
+            send_tx,
             start_explorer_server,
             stop_explorer_server,
         ])
