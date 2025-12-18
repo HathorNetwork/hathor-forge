@@ -28,11 +28,14 @@ A one-click local blockchain for Hathor Network developers. Think Ganache, but f
 ### Development
 
 ```bash
-# Install dependencies
+# Enter dev shell (auto-loads with direnv, or run manually)
+nix develop
+
+# Install npm dependencies
 npm install
 
-# Run in development mode
-npm run tauri dev
+# Start development server
+dev-server
 ```
 
 ### Building Binaries
@@ -40,17 +43,17 @@ npm run tauri dev
 Before running the app, you need to build the hathor-core and cpuminer binaries:
 
 ```bash
-# Build hathor-core (requires hathor-core source at ../hathor-core)
-./scripts/build-hathor-core.sh
+# Build hathor-core standalone binary
+build-core
 
-# Build cpuminer (requires cpuminer source at ../cpuminer)
-./scripts/build-cpuminer.sh
+# Build cpuminer binary
+build-cpuminer
 ```
 
 ### Production Build
 
 ```bash
-npm run tauri build
+build-release
 ```
 
 ## Architecture

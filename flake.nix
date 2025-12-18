@@ -89,6 +89,38 @@
           };
         };
 
+        # Runnable apps
+        apps = {
+          dev = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "dev" ''
+              cd ${toString ./.}
+              ${pkgs.nodejs_20}/bin/npx tauri dev
+            '');
+          };
+          build = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "build" ''
+              cd ${toString ./.}
+              ${pkgs.nodejs_20}/bin/npx tauri build
+            '');
+          };
+          build-core = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "build-core" ''
+              cd ${toString ./.}
+              ./scripts/build-hathor-core.sh
+            '');
+          };
+          build-cpuminer = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "build-cpuminer" ''
+              cd ${toString ./.}
+              ./scripts/build-cpuminer.sh
+            '');
+          };
+        };
+
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             # Rust toolchain
@@ -134,14 +166,17 @@
           ];
 
           shellHook = ''
+            # Add local scripts to PATH
+            export PATH="$PWD/scripts/bin:$PATH"
+
             echo "Hathor Forge Development Environment"
             echo "====================================="
             echo ""
             echo "Available commands:"
-            echo "  npm run tauri dev          - Start development server"
-            echo "  npm run tauri build        - Build release"
-            echo "  nix build .#cpuminer       - Build cpuminer"
-            echo "  ./scripts/build-hathor-core.sh - Build hathor-core standalone binary"
+            echo "  dev-server     - Start development server"
+            echo "  build-release  - Build release"
+            echo "  build-core     - Build hathor-core binary"
+            echo "  build-cpuminer - Build cpuminer binary"
             echo ""
 
             # Set up environment for RocksDB and native builds
