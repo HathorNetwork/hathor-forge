@@ -34,10 +34,12 @@ interface NodeStatus {
   peer_count: number | null;
 }
 
+type LogSource = "node" | "miner" | "headless";
+
 interface LogEntry {
   id: number;
   timestamp: Date;
-  source: "node" | "miner";
+  source: LogSource;
   level: "info" | "warning" | "error" | "debug";
   message: string;
 }
@@ -54,6 +56,7 @@ interface HeadlessWallet {
   status_code: number | null;
   balance?: { available: number; locked: number };
   addresses?: string[];
+  seed?: string; // Stored in memory for dev convenience (not persisted)
 }
 
 interface HeadlessStatus {
@@ -81,10 +84,23 @@ function App() {
   const [hashRate, setHashRate] = useState("0 H/s");
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [logFilters, setLogFilters] = useState<Set<LogSource>>(new Set(["node", "miner", "headless"]));
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logIdRef = useRef(0);
 
-  const addLog = (source: "node" | "miner", message: string) => {
+  const toggleLogFilter = (source: LogSource) => {
+    setLogFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(source)) {
+        next.delete(source);
+      } else {
+        next.add(source);
+      }
+      return next;
+    });
+  };
+
+  const addLog = (source: LogSource, message: string) => {
     const cleanMessage = stripAnsi(message);
     if (!cleanMessage.trim()) return;
 
@@ -105,11 +121,11 @@ function App() {
     }
   }, [logs, currentPage]);
 
-  // Poll node status when running
+  // Poll node status and faucet balance when running
   useEffect(() => {
     if (nodeStatus !== "running") return;
 
-    const interval = setInterval(async () => {
+    const fetchStatus = async () => {
       try {
         const status = await invoke<NodeStatus>("get_node_status");
         if (status.block_height !== null) {
@@ -118,7 +134,20 @@ function App() {
       } catch (e) {
         console.error("Failed to get node status:", e);
       }
-    }, 2000);
+
+      // Also fetch faucet balance
+      try {
+        const balance = await invoke<{ available: number; locked: number }>("get_fullnode_balance");
+        setFaucetBalance(balance);
+      } catch (e) {
+        console.error("Failed to fetch faucet balance:", e);
+      }
+    };
+
+    // Fetch immediately
+    fetchStatus();
+
+    const interval = setInterval(fetchStatus, 3000);
 
     return () => clearInterval(interval);
   }, [nodeStatus]);
@@ -162,7 +191,7 @@ function App() {
     });
 
     const unlistenHeadlessLog = listen<string>("headless-log", (event) => {
-      addLog("node", `[headless] ${event.payload}`);
+      addLog("headless", event.payload);
     });
 
     const unlistenHeadlessTerminated = listen<number | null>("headless-terminated", () => {
@@ -404,12 +433,25 @@ function App() {
     </>
   );
 
+  const getSourceStyle = (source: LogSource) => {
+    switch (source) {
+      case "node":
+        return "text-blue-400 bg-blue-400/10";
+      case "miner":
+        return "text-purple-400 bg-purple-400/10";
+      case "headless":
+        return "text-amber-400 bg-amber-400/10";
+    }
+  };
+
+  const filteredLogs = logs.filter((log) => logFilters.has(log.source));
+
   const renderLogs = () => (
     <>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white">Logs</h2>
-          <p className="text-sm text-slate-500 mt-1">Real-time node and miner output</p>
+          <p className="text-sm text-slate-500 mt-1">Real-time service output</p>
         </div>
         <button
           onClick={() => setLogs([])}
@@ -420,25 +462,41 @@ function App() {
       </div>
 
       <div className="rounded-xl bg-[#0d1117] border border-slate-800/50 overflow-hidden flex-1 flex flex-col">
-        <div className="flex items-center gap-3 px-5 py-4 border-b border-slate-800/50">
-          <Terminal className="w-4 h-4 text-amber-400" />
-          <h3 className="text-sm font-semibold text-white">Live Output</h3>
-          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">
-            {logs.length} entries
-          </span>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800/50">
+          <div className="flex items-center gap-3">
+            <Terminal className="w-4 h-4 text-amber-400" />
+            <h3 className="text-sm font-semibold text-white">Live Output</h3>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">
+              {filteredLogs.length} / {logs.length}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 mr-2">Filter:</span>
+            {(["node", "miner", "headless"] as LogSource[]).map((source) => (
+              <button
+                key={source}
+                onClick={() => toggleLogFilter(source)}
+                className={`px-3 py-1 rounded text-xs font-semibold uppercase transition-all ${
+                  logFilters.has(source)
+                    ? getSourceStyle(source)
+                    : "text-slate-600 bg-slate-800/50 opacity-50"
+                }`}
+              >
+                {source}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex-1 overflow-auto bg-[#080b10] p-4 font-mono text-sm min-h-0" style={{ maxHeight: 'calc(100vh - 280px)' }}>
-          {logs.length > 0 ? (
+          {filteredLogs.length > 0 ? (
             <div className="space-y-1">
-              {logs.map((log) => (
+              {filteredLogs.map((log) => (
                 <div key={log.id} className="flex gap-3 leading-relaxed hover:bg-slate-900/30 px-2 py-1 rounded">
                   <span className="text-slate-600 text-xs shrink-0">
                     {log.timestamp.toLocaleTimeString()}
                   </span>
                   <span
-                    className={`text-xs font-semibold uppercase shrink-0 w-12 ${
-                      log.source === "miner" ? "text-purple-400" : "text-blue-400"
-                    }`}
+                    className={`text-xs font-semibold uppercase shrink-0 w-16 px-1.5 py-0.5 rounded ${getSourceStyle(log.source)}`}
                   >
                     {log.source}
                   </span>
@@ -451,7 +509,7 @@ function App() {
             <div className="h-full flex items-center justify-center text-slate-600">
               <div className="text-center">
                 <Terminal className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                <p>No logs yet. Start the network to see activity.</p>
+                <p>{logs.length > 0 ? "No logs match the current filter." : "No logs yet. Start the network to see activity."}</p>
               </div>
             </div>
           )}
@@ -622,6 +680,7 @@ function App() {
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const [faucetAddress, setFaucetAddress] = useState("");
   const [faucetAmount, setFaucetAmount] = useState("100");
+  const [faucetBalance, setFaucetBalance] = useState<{ available: number; locked: number } | null>(null);
   const [sendingTx, setSendingTx] = useState(false);
   const [txResult, setTxResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -654,6 +713,16 @@ function App() {
     await navigator.clipboard.writeText(address);
     setCopiedAddress(address);
     setTimeout(() => setCopiedAddress(null), 2000);
+  };
+
+  const fetchFaucetBalance = async () => {
+    if (nodeStatus !== "running") return;
+    try {
+      const balance = await invoke<{ available: number; locked: number }>("get_fullnode_balance");
+      setFaucetBalance(balance);
+    } catch (e) {
+      console.error("Failed to fetch faucet balance:", e);
+    }
   };
 
   const handleSendTx = async () => {
@@ -740,13 +809,14 @@ function App() {
         },
       });
 
-      // Add to local state
+      // Add to local state (store seed for dev convenience)
       setHeadlessWallets((prev) => [
         ...prev,
         {
           wallet_id: newWalletId,
           status: "starting",
           status_code: null,
+          seed: seed,
         },
       ]);
 
@@ -771,7 +841,7 @@ function App() {
       await new Promise((resolve) => setTimeout(resolve, 1000));
       try {
         const status = await invoke<HeadlessWallet>("get_headless_wallet_status", {
-          wallet_id: walletId,
+          walletId: walletId,
         });
 
         setHeadlessWallets((prev) =>
@@ -798,9 +868,9 @@ function App() {
     try {
       const [balance, addresses] = await Promise.all([
         invoke<{ available: number; locked: number }>("get_headless_wallet_balance", {
-          wallet_id: walletId,
+          walletId: walletId,
         }),
-        invoke<string[]>("get_headless_wallet_addresses", { wallet_id: walletId }),
+        invoke<string[]>("get_headless_wallet_addresses", { walletId: walletId }),
       ]);
 
       setHeadlessWallets((prev) =>
@@ -815,7 +885,7 @@ function App() {
 
   const closeWallet = async (walletId: string) => {
     try {
-      await invoke("close_headless_wallet", { wallet_id: walletId });
+      await invoke("close_headless_wallet", { walletId: walletId });
       setHeadlessWallets((prev) => prev.filter((w) => w.wallet_id !== walletId));
     } catch (e) {
       setError(String(e));
@@ -836,6 +906,43 @@ function App() {
       await loadWalletDetails(walletId);
     } catch (e) {
       setTxResult({ type: "error", message: String(e) });
+    }
+  };
+
+  const fundWallet = async (walletId: string) => {
+    const wallet = headlessWallets.find((w) => w.wallet_id === walletId);
+    if (!wallet?.addresses?.length) {
+      setError("Wallet has no addresses. Wait for it to sync.");
+      return;
+    }
+
+    // Calculate smart amount: 10% of available, max 100 HTR, min 1 HTR
+    const available = faucetBalance?.available ?? 0;
+    if (available <= 0) {
+      setError("Faucet has no funds. Wait for blocks to be mined.");
+      return;
+    }
+
+    // Use 10% of available, capped at 100 HTR (10000 cents), minimum 1 HTR (100 cents)
+    const tenPercent = Math.floor(available * 0.1);
+    const amount = Math.max(100, Math.min(tenPercent, 10000)); // Between 1 HTR and 100 HTR
+
+    const firstAddress = wallet.addresses[0];
+    try {
+      await invoke("send_tx", { request: { address: firstAddress, amount } });
+      setTxResult({ type: "success", message: `Sent ${(amount / 100).toFixed(2)} HTR to ${walletId}` });
+      // Reload wallet details after a short delay
+      setTimeout(() => loadWalletDetails(walletId), 1000);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  const copySeed = (wallet: HeadlessWallet) => {
+    if (wallet.seed) {
+      navigator.clipboard.writeText(wallet.seed);
+      setCopiedAddress(wallet.wallet_id + "-seed"); // Reuse copiedAddress state for feedback
+      setTimeout(() => setCopiedAddress(null), 2000);
     }
   };
 
@@ -930,6 +1037,26 @@ function App() {
                         >
                           {expandedWallet === wallet.wallet_id ? "Collapse" : "Expand"}
                         </button>
+                        <button
+                          onClick={() => fundWallet(wallet.wallet_id)}
+                          disabled={wallet.status_code !== 3 || !faucetBalance?.available}
+                          className="px-3 py-1 text-sm bg-emerald-500/10 text-emerald-400 rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title={!faucetBalance?.available ? "Wait for blocks to be mined" : "Send funds from faucet"}
+                        >
+                          Fund
+                        </button>
+                        {wallet.seed && (
+                          <button
+                            onClick={() => copySeed(wallet)}
+                            className="px-3 py-1 text-sm bg-amber-500/10 text-amber-400 rounded hover:bg-amber-500/20 transition-colors flex items-center gap-1"
+                          >
+                            {copiedAddress === wallet.wallet_id + "-seed" ? (
+                              <><Check className="w-3 h-3" /> Copied</>
+                            ) : (
+                              <><Copy className="w-3 h-3" /> Seed</>
+                            )}
+                          </button>
+                        )}
                         <button
                           onClick={() => loadWalletDetails(wallet.wallet_id)}
                           className="px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors"
@@ -1035,10 +1162,21 @@ function App() {
 
         {/* Fullnode Wallet (Faucet) */}
         <div className="border border-amber-500/30 rounded-xl bg-amber-500/5 p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <Send className="w-5 h-5 text-amber-400" />
-            <h3 className="text-lg font-semibold text-amber-400">Fullnode Faucet</h3>
-            <span className="text-xs text-slate-500">(Send HTR from fullnode's built-in wallet)</span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Send className="w-5 h-5 text-amber-400" />
+              <h3 className="text-lg font-semibold text-amber-400">Fullnode Faucet</h3>
+              <span className="text-xs text-slate-500">(Send HTR from fullnode's built-in wallet)</span>
+            </div>
+            {faucetBalance && (
+              <div className="text-sm">
+                <span className="text-slate-400">Available: </span>
+                <span className="text-amber-400 font-semibold">{(faucetBalance.available / 100).toFixed(2)} HTR</span>
+                {faucetBalance.locked > 0 && (
+                  <span className="text-slate-500 ml-2">({(faucetBalance.locked / 100).toFixed(2)} locked)</span>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="space-y-4">

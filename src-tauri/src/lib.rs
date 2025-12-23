@@ -136,6 +136,12 @@ pub struct SendTxRequest {
     pub amount: u64, // Amount in HTR cents
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FullnodeBalance {
+    pub available: i64,
+    pub locked: i64,
+}
+
 // Headless wallet structures
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HeadlessWallet {
@@ -732,6 +738,50 @@ async fn get_wallet_addresses(state: tauri::State<'_, SharedState>) -> Result<Ve
     Ok(wallet_addresses)
 }
 
+// Get fullnode wallet balance
+#[tauri::command]
+async fn get_fullnode_balance(
+    state: tauri::State<'_, SharedState>,
+) -> Result<FullnodeBalance, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get("http://127.0.0.1:8080/v1a/wallet/balance/")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get balance: {}", e))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        let balance = &result["balance"];
+        Ok(FullnodeBalance {
+            available: balance["available"].as_i64().unwrap_or(0),
+            locked: balance["locked"].as_i64().unwrap_or(0),
+        })
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Failed to get balance: {}", message))
+    }
+}
+
 // Send HTR to an address (faucet)
 #[tauri::command]
 async fn send_tx(
@@ -748,21 +798,29 @@ async fn send_tx(
 
     let client = reqwest::Client::new();
 
-    // Use the simple-send-tx endpoint
+    // Use the fullnode's wallet send_tokens endpoint
     let response = client
-        .post("http://127.0.0.1:8080/v1a/wallet/simple-send-tx")
+        .post("http://127.0.0.1:8080/v1a/wallet/send_tokens/")
         .json(&serde_json::json!({
-            "address": request.address,
-            "value": request.amount,
+            "data": {
+                "inputs": [],
+                "outputs": [{
+                    "address": request.address,
+                    "value": request.amount,
+                }]
+            }
         }))
         .send()
         .await
         .map_err(|e| format!("Failed to send transaction: {}", e))?;
 
-    let result: serde_json::Value = response
-        .json()
+    let response_text = response
+        .text()
         .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
 
     if result["success"].as_bool().unwrap_or(false) {
         let tx_hash = result["hash"]
@@ -958,10 +1016,10 @@ async fn create_headless_wallet(
 
     // Start a wallet with the provided seed
     let response = client
-        .post("http://127.0.0.1:8001/start")
+        .post("http://localhost:8001/start")
         .json(&serde_json::json!({
             "wallet-id": request.wallet_id,
-            "seedKey": request.seed,
+            "seed": request.seed,
         }))
         .send()
         .await
@@ -1004,7 +1062,7 @@ async fn get_headless_wallet_status(
     let client = reqwest::Client::new();
 
     let response = client
-        .get("http://127.0.0.1:8001/wallet/status")
+        .get("http://localhost:8001/wallet/status")
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -1045,7 +1103,7 @@ async fn get_headless_wallet_balance(
     let client = reqwest::Client::new();
 
     let response = client
-        .get("http://127.0.0.1:8001/wallet/balance")
+        .get("http://localhost:8001/wallet/balance")
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -1079,7 +1137,7 @@ async fn get_headless_wallet_addresses(
     let client = reqwest::Client::new();
 
     let response = client
-        .get("http://127.0.0.1:8001/wallet/addresses")
+        .get("http://localhost:8001/wallet/addresses")
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -1119,7 +1177,7 @@ async fn headless_wallet_send_tx(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://127.0.0.1:8001/wallet/simple-send-tx")
+        .post("http://localhost:8001/wallet/simple-send-tx")
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({
             "address": request.address,
@@ -1129,10 +1187,13 @@ async fn headless_wallet_send_tx(
         .await
         .map_err(|e| format!("Failed to send transaction: {}", e))?;
 
-    let result: serde_json::Value = response
-        .json()
+    let response_text = response
+        .text()
         .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
 
     if result["success"].as_bool().unwrap_or(false) {
         let tx_hash = result["hash"]
@@ -1141,9 +1202,11 @@ async fn headless_wallet_send_tx(
             .to_string();
         Ok(format!("Transaction sent! Hash: {}", tx_hash))
     } else {
+        // Try multiple error message locations
         let message = result["message"]
             .as_str()
-            .unwrap_or("Unknown error")
+            .or_else(|| result["error"].as_str())
+            .unwrap_or(&response_text)
             .to_string();
         Err(format!("Transaction failed: {}", message))
     }
@@ -1166,7 +1229,7 @@ async fn close_headless_wallet(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://127.0.0.1:8001/wallet/stop")
+        .post("http://localhost:8001/wallet/stop")
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -1526,6 +1589,7 @@ pub fn run() {
             get_state,
             reset_data,
             get_wallet_addresses,
+            get_fullnode_balance,
             send_tx,
             start_explorer_server,
             stop_explorer_server,

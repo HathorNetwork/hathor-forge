@@ -1,0 +1,2 @@
+# Ignore wallet-headless distribution (config.js is generated at runtime)
+wallet-headless-dist/
