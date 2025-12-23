@@ -20,9 +20,13 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
       url = "github:hathornetwork/hathor-explorer";
       flake = false;
     };
+    wallet-headless-src = {
+      url = "github:hathornetwork/hathor-wallet-headless";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, hathor-core-src, cpuminer-src, hathor-explorer-src }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, hathor-core-src, cpuminer-src, hathor-explorer-src, wallet-headless-src }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -123,6 +127,13 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
               ./scripts/build-cpuminer.sh
             '');
           };
+          build-wallet-headless = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "build-wallet-headless" ''
+              cd ${toString ./.}
+              ./scripts/build-wallet-headless.sh
+            '');
+          };
         };
 
         devShells.default = pkgs.mkShell {
@@ -145,6 +156,7 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
             just
             autoconf
             automake
+            bun
 
             # cpuminer dependencies
             curl
@@ -177,16 +189,18 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
             export HATHOR_CORE_SRC="${hathor-core-src}"
             export CPUMINER_SRC="${cpuminer-src}"
             export HATHOR_EXPLORER_SRC="${hathor-explorer-src}"
+            export WALLET_HEADLESS_SRC="${wallet-headless-src}"
 
             echo "Hathor Forge Development Environment"
             echo "====================================="
             echo ""
             echo "Available commands:"
-            echo "  dev-server     - Start development server"
-            echo "  build-release  - Build release"
-            echo "  build-core     - Build hathor-core binary"
-            echo "  build-cpuminer - Build cpuminer binary"
-            echo "  build-explorer - Build hathor-explorer for embedding"
+            echo "  dev-server            - Start development server"
+            echo "  build-release         - Build release"
+            echo "  build-core            - Build hathor-core binary"
+            echo "  build-cpuminer        - Build cpuminer binary"
+            echo "  build-explorer        - Build hathor-explorer for embedding"
+            echo "  build-wallet-headless - Build wallet-headless for multi-wallet support"
             echo ""
 
             # Set up environment for RocksDB and native builds

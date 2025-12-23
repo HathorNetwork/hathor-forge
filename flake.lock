@@ -89,7 +89,8 @@
         "hathor-core-src": "hathor-core-src",
         "hathor-explorer-src": "hathor-explorer-src",
         "nixpkgs": "nixpkgs",
-        "rust-overlay": "rust-overlay"
+        "rust-overlay": "rust-overlay",
+        "wallet-headless-src": "wallet-headless-src"
       }
     },
     "rust-overlay": {
@@ -124,6 +125,22 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "wallet-headless-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1761853714,
+        "narHash": "sha256-js2a3ITSILvvcABkZZhlkILcJOVU/lFsCH6DQnGzVEE=",
+        "owner": "hathornetwork",
+        "repo": "hathor-wallet-headless",
+        "rev": "f79695366c753a184478a1a0d7309ff48c45eb3a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hathornetwork",
+        "repo": "hathor-wallet-headless",
         "type": "github"
       }
     }
