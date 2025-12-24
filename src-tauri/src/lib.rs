@@ -18,6 +18,8 @@ use tokio_tungstenite::tungstenite;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
 
+mod mcp;
+
 // Application state
 pub struct AppState {
     node_running: bool,
@@ -294,6 +296,348 @@ fn kill_process_on_port(port: u16) {
         }
     }
 }
+
+// ============================================================================
+// Internal Functions (used by both Tauri commands and MCP server)
+// ============================================================================
+
+/// Start the Hathor fullnode (internal version without Tauri AppHandle)
+pub async fn start_node_internal(state: &SharedState) -> Result<String, String> {
+    let config = NodeConfig::default();
+    let state_guard = state.lock().await;
+
+    if state_guard.node_running {
+        return Ok("Node is already running".to_string());
+    }
+
+    // Kill any zombie processes from previous runs
+    kill_process_on_port(config.api_port);
+    kill_process_on_port(config.stratum_port);
+    kill_process_on_port(8001); // wallet-headless port
+
+    drop(state_guard);
+
+    // Give the OS a moment to release the ports
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let mut state_guard = state.lock().await;
+
+    let binary_path = get_binary_path("hathor-core");
+
+    // Ensure data directory exists
+    fs::create_dir_all(&config.data_dir)
+        .map_err(|e| format!("Failed to create data directory: {}", e))?;
+
+    // Development HD wallet seed (DO NOT use in production!)
+    let dev_wallet_words = "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level";
+
+    // Set DYLD_FALLBACK_LIBRARY_PATH for macOS to find bundled libraries
+    let internal_dir = binary_path.parent().unwrap().join("_internal");
+
+    // Spawn the process using tokio
+    let mut child = TokioCommand::new(&binary_path)
+        .env("DYLD_FALLBACK_LIBRARY_PATH", &internal_dir)
+        .args([
+            "run_node",
+            "--localnet",
+            "--status",
+            &config.api_port.to_string(),
+            "--stratum",
+            &config.stratum_port.to_string(),
+            "--data",
+            &config.data_dir,
+            "--wallet",
+            "hd",
+            "--words",
+            dev_wallet_words,
+            "--wallet-enable-api",
+            "--wallet-index",
+            "--allow-mining-without-peers",
+            "--test-mode-tx-weight",
+            "--unsafe-mode",
+            "privatenet",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn hathor-core at {:?}: {}", binary_path, e))?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.node_running = true;
+    state_guard.node_child_id = Some(pid);
+    state_guard.data_dir = Some(config.data_dir.clone());
+
+    // Consume stdout/stderr in background tasks to prevent pipe buffer issues
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let state_clone = state.clone();
+
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {
+                // Just consume the output for MCP mode
+            }
+        });
+    }
+
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {
+                // Just consume the output for MCP mode
+            }
+        });
+    }
+
+    // Spawn task to wait for process termination and reset state
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+        let mut state_guard = state_clone.lock().await;
+        state_guard.node_running = false;
+        state_guard.node_child_id = None;
+    });
+
+    Ok(format!("Node started on port {}", config.api_port))
+}
+
+/// Stop the Hathor fullnode (internal version)
+pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    // First stop miner if running
+    if let Some(pid) = state_guard.miner_child_id {
+        kill_process(pid);
+        state_guard.miner_running = false;
+        state_guard.miner_child_id = None;
+    }
+
+    // Stop headless if running
+    if let Some(pid) = state_guard.headless_child_id {
+        kill_process(pid);
+        state_guard.headless_running = false;
+        state_guard.headless_child_id = None;
+    }
+
+    // Stop node
+    if !state_guard.node_running {
+        return Ok("Node is not running".to_string());
+    }
+
+    if let Some(pid) = state_guard.node_child_id {
+        kill_process(pid);
+    }
+
+    state_guard.node_running = false;
+    state_guard.node_child_id = None;
+
+    Ok("Node stopped".to_string())
+}
+
+/// Start the CPU miner (internal version)
+pub async fn start_miner_internal(state: &SharedState, address: Option<String>) -> Result<String, String> {
+    let config = MinerConfig {
+        address: address.unwrap_or_else(|| "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string()),
+        ..MinerConfig::default()
+    };
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node must be running before starting miner".to_string());
+    }
+
+    if state_guard.miner_running {
+        return Ok("Miner is already running".to_string());
+    }
+
+    let binary_path = get_binary_path("cpuminer");
+
+    let mut child = TokioCommand::new(&binary_path)
+        .args([
+            "--algo",
+            "sha256d",
+            "--url",
+            &format!("stratum+tcp://127.0.0.1:{}", config.stratum_port),
+            "--coinbase-addr",
+            &config.address,
+            "--threads",
+            &config.threads.to_string(),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn cpuminer at {:?}: {}", binary_path, e))?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.miner_running = true;
+    state_guard.miner_child_id = Some(pid);
+
+    // Consume stdout/stderr
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let state_clone = state.clone();
+
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {}
+        });
+    }
+
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {}
+        });
+    }
+
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+        let mut state_guard = state_clone.lock().await;
+        state_guard.miner_running = false;
+        state_guard.miner_child_id = None;
+    });
+
+    Ok(format!("Miner started with {} threads", config.threads))
+}
+
+/// Stop the CPU miner (internal version)
+pub async fn stop_miner_internal(state: &SharedState) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.miner_running {
+        return Ok("Miner is not running".to_string());
+    }
+
+    if let Some(pid) = state_guard.miner_child_id {
+        kill_process(pid);
+    }
+
+    state_guard.miner_running = false;
+    state_guard.miner_child_id = None;
+
+    Ok("Miner stopped".to_string())
+}
+
+/// Start the wallet-headless service (internal version)
+pub async fn start_headless_internal(state: &SharedState) -> Result<String, String> {
+    let config = HeadlessConfig::default();
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node must be running before starting wallet-headless".to_string());
+    }
+
+    if state_guard.headless_running {
+        return Ok("Wallet-headless is already running".to_string());
+    }
+
+    let headless_path = get_headless_dist_path();
+    if !headless_path.exists() {
+        return Err(format!(
+            "Wallet-headless dist not found at {:?}. Run 'build-wallet-headless' first.",
+            headless_path
+        ));
+    }
+
+    // Kill any zombie process on the headless port
+    kill_process_on_port(config.port);
+
+    drop(state_guard);
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+    let mut state_guard = state.lock().await;
+
+    // Generate config file
+    generate_headless_config(&config, &headless_path)?;
+
+    let entry_point = headless_path.join("dist").join("index.js");
+    let working_dir = headless_path.join("dist");
+
+    let mut child = TokioCommand::new("node")
+        .args([entry_point.to_string_lossy().as_ref()])
+        .current_dir(&working_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn wallet-headless: {}", e))?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.headless_running = true;
+    state_guard.headless_child_id = Some(pid);
+
+    // Consume stdout/stderr
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let state_clone = state.clone();
+
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {}
+        });
+    }
+
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {}
+        });
+    }
+
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+        let mut state_guard = state_clone.lock().await;
+        state_guard.headless_running = false;
+        state_guard.headless_child_id = None;
+    });
+
+    Ok(format!("Wallet-headless started on port {}", config.port))
+}
+
+/// Stop the wallet-headless service (internal version)
+pub async fn stop_headless_internal(state: &SharedState) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Ok("Wallet-headless is not running".to_string());
+    }
+
+    if let Some(pid) = state_guard.headless_child_id {
+        kill_process(pid);
+    }
+
+    state_guard.headless_running = false;
+    state_guard.headless_child_id = None;
+
+    Ok("Wallet-headless stopped".to_string())
+}
+
+/// Generate a new BIP39 seed phrase (internal version)
+pub fn generate_seed_internal() -> Result<String, String> {
+    use bip39::{Language, Mnemonic};
+
+    let mut entropy = [0u8; 32];
+    getrandom::getrandom(&mut entropy)
+        .map_err(|e| format!("Failed to generate random bytes: {}", e))?;
+
+    let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)
+        .map_err(|e| format!("Failed to generate mnemonic: {}", e))?;
+
+    Ok(mnemonic.to_string())
+}
+
+// ============================================================================
+// Tauri Commands
+// ============================================================================
 
 // Start the Hathor fullnode
 #[tauri::command]
@@ -1571,10 +1915,14 @@ fn kill_process(pid: u32) {
     }
 }
 
+// MCP Server port
+const MCP_SERVER_PORT: u16 = 9876;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let state = Arc::new(Mutex::new(AppState::default())) as SharedState;
     let cleanup_state = state.clone();
+    let mcp_state = state.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -1604,6 +1952,15 @@ pub fn run() {
             headless_wallet_send_tx,
             close_headless_wallet,
         ])
+        .setup(move |_app| {
+            // Start the MCP server in the background using Tauri's async runtime
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT).await {
+                    eprintln!("Failed to start MCP server: {}", e);
+                }
+            });
+            Ok(())
+        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |_app, event| {

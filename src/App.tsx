@@ -916,10 +916,19 @@ function App() {
       return;
     }
 
-    // Calculate smart amount: 10% of available, max 100 HTR, min 1 HTR
-    const available = faucetBalance?.available ?? 0;
+    // Fetch fresh balance right before sending to avoid race conditions
+    let available = 0;
+    try {
+      const freshBalance = await invoke<{ available: number; locked: number }>("get_fullnode_balance");
+      available = freshBalance.available;
+      setFaucetBalance(freshBalance); // Update UI state too
+    } catch {
+      setError("Failed to fetch faucet balance. Try again.");
+      return;
+    }
+
     if (available <= 0) {
-      setError("Faucet has no funds. Wait for blocks to be mined.");
+      setError("Faucet has no available funds. Wait for blocks to be mined and confirmed.");
       return;
     }
 
