@@ -66,15 +66,26 @@ import multiprocessing
 import os
 import sys
 
-# Set DYLD_FALLBACK_LIBRARY_PATH so subprocesses find bundled libraries instead of system ones
+# Set platform-specific library path so subprocesses find bundled libraries instead of system ones
 # This prevents macOS from aborting on "unversioned libcrypto" loads in multiprocessing subprocesses
 if getattr(sys, 'frozen', False):
     bundle_dir = os.path.dirname(sys.executable)
     internal_dir = os.path.join(bundle_dir, '_internal')
     if os.path.isdir(internal_dir):
-        current_path = os.environ.get('DYLD_FALLBACK_LIBRARY_PATH', '')
-        if internal_dir not in current_path:
-            os.environ['DYLD_FALLBACK_LIBRARY_PATH'] = internal_dir + (':' + current_path if current_path else '')
+        if sys.platform == 'darwin':
+            # macOS uses DYLD_FALLBACK_LIBRARY_PATH
+            env_var = 'DYLD_FALLBACK_LIBRARY_PATH'
+        elif sys.platform == 'linux':
+            # Linux uses LD_LIBRARY_PATH
+            env_var = 'LD_LIBRARY_PATH'
+        else:
+            # Windows handles DLL loading via PATH or same directory
+            env_var = None
+
+        if env_var:
+            current_path = os.environ.get(env_var, '')
+            if internal_dir not in current_path:
+                os.environ[env_var] = internal_dir + (':' + current_path if current_path else '')
 
 # CRITICAL: Must be called before any other code in frozen PyInstaller builds
 # This handles multiprocessing child process spawning correctly

@@ -34,10 +34,15 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
           inherit system overlays;
         };
 
-        # Rust toolchain for Tauri
+        # Rust toolchain for Tauri (cross-platform)
         rustToolchain = pkgs.rust-bin.stable.latest.default.override {
           extensions = [ "rust-src" "rust-analyzer" ];
-          targets = [ "aarch64-apple-darwin" "x86_64-apple-darwin" ];
+          targets = [
+            "aarch64-apple-darwin"
+            "x86_64-apple-darwin"
+            "aarch64-unknown-linux-gnu"
+            "x86_64-unknown-linux-gnu"
+          ];
         };
 
         # Build cpuminer from GitHub
@@ -82,6 +87,16 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
               pkgs.darwin.apple_sdk.frameworks.WebKit
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.CoreServices
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
+              pkgs.webkitgtk_4_1
+              pkgs.gtk3
+              pkgs.libsoup_3
+              pkgs.glib
+              pkgs.cairo
+              pkgs.pango
+              pkgs.gdk-pixbuf
+              pkgs.libappindicator-gtk3
+              pkgs.librsvg
             ];
 
             buildPhase = ''
@@ -175,10 +190,17 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
             pkgs.darwin.apple_sdk.frameworks.CoreServices
             pkgs.darwin.apple_sdk.frameworks.AppKit
           ] ++ pkgs.lib.optionals pkgs.stdenv.isLinux [
-            pkgs.webkitgtk
+            # Tauri 2.0 requires WebKitGTK 4.1 and libsoup 3
+            pkgs.webkitgtk_4_1
             pkgs.gtk3
-            pkgs.libsoup
+            pkgs.libsoup_3
             pkgs.glib
+            # Additional Tauri dependencies
+            pkgs.cairo
+            pkgs.pango
+            pkgs.gdk-pixbuf
+            pkgs.libappindicator-gtk3  # System tray support
+            pkgs.librsvg
           ];
 
           shellHook = ''
@@ -201,6 +223,7 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
             echo "  build-cpuminer        - Build cpuminer binary"
             echo "  build-explorer        - Build hathor-explorer for embedding"
             echo "  build-wallet-headless - Build wallet-headless for multi-wallet support"
+            echo "  build-linux           - Build Linux binaries using Docker (cross-platform)"
             echo ""
 
             # Set up environment for RocksDB and native builds

@@ -191,32 +191,54 @@ fn get_binary_path(name: &str) -> std::path::PathBuf {
         "x86_64-pc-windows-msvc"
     };
 
+    // Windows binaries have .exe extension
+    let exe_suffix = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
+
     let binaries_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
 
     // hathor-core uses onedir mode (folder with binary inside)
     if name == "hathor-core" {
+        let binary_name = format!("{}{}", name, exe_suffix);
         let onedir_path = binaries_dir
             .join(format!("{}-{}", name, target))
-            .join(name);
+            .join(&binary_name);
         if onedir_path.exists() {
             return onedir_path;
         }
     }
 
     // For single-file binaries (cpuminer)
-    let dev_path = binaries_dir.join(format!("{}-{}", name, target));
+    let dev_path = binaries_dir.join(format!("{}-{}{}", name, target, exe_suffix));
     if dev_path.exists() {
         return dev_path;
     }
 
     // Fallback to current dir
-    std::path::PathBuf::from("binaries").join(format!("{}-{}", name, target))
+    std::path::PathBuf::from("binaries").join(format!("{}-{}{}", name, target, exe_suffix))
+}
+
+// Set platform-specific library path environment variable for bundled libraries
+fn set_library_path_env(cmd: &mut TokioCommand, internal_dir: &std::path::Path) {
+    #[cfg(target_os = "macos")]
+    cmd.env("DYLD_FALLBACK_LIBRARY_PATH", internal_dir);
+
+    #[cfg(target_os = "linux")]
+    cmd.env("LD_LIBRARY_PATH", internal_dir);
+
+    // Windows uses PATH or same directory as executable, no special env needed
+    #[cfg(target_os = "windows")]
+    let _ = (cmd, internal_dir); // Suppress unused warnings
 }
 
 // Get the path to the wallet-headless-dist directory
 fn get_headless_dist_path() -> std::path::PathBuf {
     // In dev mode, wallet-headless-dist is in src-tauri/wallet-headless-dist/
-    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("wallet-headless-dist");
+    let dev_path =
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("wallet-headless-dist");
     if dev_path.exists() {
         return dev_path;
     }
@@ -226,7 +248,10 @@ fn get_headless_dist_path() -> std::path::PathBuf {
 }
 
 // Generate wallet-headless config file in the dist directory
-fn generate_headless_config(config: &HeadlessConfig, headless_dist_path: &std::path::Path) -> Result<(), String> {
+fn generate_headless_config(
+    config: &HeadlessConfig,
+    headless_dist_path: &std::path::Path,
+) -> Result<(), String> {
     // wallet-headless expects config.js in the dist directory (hardcoded as ./config.js)
     let config_path = headless_dist_path.join("dist").join("config.js");
 
@@ -269,7 +294,9 @@ fn kill_process_on_port(port: u16) {
             let pids = String::from_utf8_lossy(&output.stdout);
             for pid in pids.lines() {
                 if let Ok(pid_num) = pid.trim().parse::<u32>() {
-                    let _ = Command::new("kill").args(["-9", &pid_num.to_string()]).output();
+                    let _ = Command::new("kill")
+                        .args(["-9", &pid_num.to_string()])
+                        .output();
                 }
             }
         }
@@ -279,17 +306,12 @@ fn kill_process_on_port(port: u16) {
     {
         use std::process::Command;
         // On Windows, use netstat to find the PID and taskkill to kill it
-        if let Ok(output) = Command::new("netstat")
-            .args(["-ano", "-p", "TCP"])
-            .output()
-        {
+        if let Ok(output) = Command::new("netstat").args(["-ano", "-p", "TCP"]).output() {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
                 if line.contains(&format!(":{}", port)) && line.contains("LISTENING") {
                     if let Some(pid) = line.split_whitespace().last() {
-                        let _ = Command::new("taskkill")
-                            .args(["/PID", pid, "/F"])
-                            .output();
+                        let _ = Command::new("taskkill").args(["/PID", pid, "/F"]).output();
                     }
                 }
             }
@@ -331,12 +353,13 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     // Development HD wallet seed (DO NOT use in production!)
     let dev_wallet_words = "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level";
 
-    // Set DYLD_FALLBACK_LIBRARY_PATH for macOS to find bundled libraries
+    // Set platform-specific library path for bundled libraries
     let internal_dir = binary_path.parent().unwrap().join("_internal");
 
     // Spawn the process using tokio
-    let mut child = TokioCommand::new(&binary_path)
-        .env("DYLD_FALLBACK_LIBRARY_PATH", &internal_dir)
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_library_path_env(&mut cmd, &internal_dir);
+    let mut child = cmd
         .args([
             "run_node",
             "--localnet",
@@ -438,7 +461,10 @@ pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
 }
 
 /// Start the CPU miner (internal version)
-pub async fn start_miner_internal(state: &SharedState, address: Option<String>) -> Result<String, String> {
+pub async fn start_miner_internal(
+    state: &SharedState,
+    address: Option<String>,
+) -> Result<String, String> {
     let config = MinerConfig {
         address: address.unwrap_or_else(|| "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string()),
         ..MinerConfig::default()
@@ -657,7 +683,7 @@ async fn start_node(
     kill_process_on_port(config.api_port);
     kill_process_on_port(config.stratum_port);
     kill_process_on_port(8001); // wallet-headless port
-    // Give the OS a moment to release the ports
+                                // Give the OS a moment to release the ports
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let binary_path = get_binary_path("hathor-core");
@@ -670,13 +696,13 @@ async fn start_node(
     // This is a fixed seed for local development only
     let dev_wallet_words = "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level";
 
-    // Set DYLD_FALLBACK_LIBRARY_PATH for macOS to find bundled libraries
-    // This prevents the "loading libcrypto in an unsafe way" abort
+    // Set platform-specific library path for bundled libraries
     let internal_dir = binary_path.parent().unwrap().join("_internal");
 
     // Spawn the process using tokio
-    let mut child = TokioCommand::new(&binary_path)
-        .env("DYLD_FALLBACK_LIBRARY_PATH", &internal_dir)
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_library_path_env(&mut cmd, &internal_dir);
+    let mut child = cmd
         .args([
             "run_node",
             "--localnet",
@@ -1030,7 +1056,9 @@ async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<String, Stri
 
 // Get wallet addresses with balances
 #[tauri::command]
-async fn get_wallet_addresses(state: tauri::State<'_, SharedState>) -> Result<Vec<WalletAddress>, String> {
+async fn get_wallet_addresses(
+    state: tauri::State<'_, SharedState>,
+) -> Result<Vec<WalletAddress>, String> {
     let state_guard = state.lock().await;
 
     if !state_guard.node_running {
@@ -1167,10 +1195,7 @@ async fn send_tx(
         .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
 
     if result["success"].as_bool().unwrap_or(false) {
-        let tx_hash = result["hash"]
-            .as_str()
-            .unwrap_or("unknown")
-            .to_string();
+        let tx_hash = result["hash"].as_str().unwrap_or("unknown").to_string();
         Ok(format!("Transaction sent! Hash: {}", tx_hash))
     } else {
         let message = result["message"]
@@ -1317,12 +1342,18 @@ async fn stop_headless(state: tauri::State<'_, SharedState>) -> Result<String, S
 
 // Get headless status
 #[tauri::command]
-async fn get_headless_status(state: tauri::State<'_, SharedState>) -> Result<HeadlessStatus, String> {
+async fn get_headless_status(
+    state: tauri::State<'_, SharedState>,
+) -> Result<HeadlessStatus, String> {
     let state_guard = state.lock().await;
 
     Ok(HeadlessStatus {
         running: state_guard.headless_running,
-        port: if state_guard.headless_running { Some(8001) } else { None },
+        port: if state_guard.headless_running {
+            Some(8001)
+        } else {
+            None
+        },
     })
 }
 
@@ -1540,10 +1571,7 @@ async fn headless_wallet_send_tx(
         .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
 
     if result["success"].as_bool().unwrap_or(false) {
-        let tx_hash = result["hash"]
-            .as_str()
-            .unwrap_or("unknown")
-            .to_string();
+        let tx_hash = result["hash"].as_str().unwrap_or("unknown").to_string();
         Ok(format!("Transaction sent! Hash: {}", tx_hash))
     } else {
         // Try multiple error message locations
@@ -1598,7 +1626,11 @@ async fn close_headless_wallet(
 // Proxy HTTP requests to the fullnode
 async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
     // Include query string if present
-    let query = req.uri().query().map(|q| format!("?{}", q)).unwrap_or_default();
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{}", q))
+        .unwrap_or_default();
     let fullnode_url = format!("http://127.0.0.1:8080/v1a/{}{}", path, query);
 
     let client = reqwest::Client::new();
@@ -1653,9 +1685,7 @@ async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
 
                     // Forward response headers
                     for (name, value) in headers.iter() {
-                        if let Ok(header_name) =
-                            axum::http::HeaderName::try_from(name.as_str())
-                        {
+                        if let Ok(header_name) = axum::http::HeaderName::try_from(name.as_str()) {
                             if let Ok(header_value) =
                                 axum::http::HeaderValue::from_bytes(value.as_bytes())
                             {
@@ -1759,7 +1789,11 @@ async fn handle_ws_proxy(mut client_ws: WebSocket) {
                     }
                 }
                 Ok(tungstenite::Message::Binary(data)) => {
-                    if client_sink.send(Message::Binary(data.into())).await.is_err() {
+                    if client_sink
+                        .send(Message::Binary(data.into()))
+                        .await
+                        .is_err()
+                    {
                         break;
                     }
                 }

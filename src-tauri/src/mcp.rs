@@ -412,22 +412,14 @@ fn get_tools() -> Vec<McpTool> {
 // Tool Execution
 // ============================================================================
 
-async fn execute_tool(
-    state: &McpState,
-    name: &str,
-    params: &Value,
-) -> Result<String, String> {
+async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<String, String> {
     let client = reqwest::Client::new();
 
     match name {
         // Node Management
-        "start_node" => {
-            crate::start_node_internal(&state.app_state).await
-        }
+        "start_node" => crate::start_node_internal(&state.app_state).await,
 
-        "stop_node" => {
-            crate::stop_node_internal(&state.app_state).await
-        }
+        "stop_node" => crate::stop_node_internal(&state.app_state).await,
 
         "get_node_status" => {
             let app_state = state.app_state.lock().await;
@@ -447,13 +439,14 @@ async fn execute_tool(
 
         // Miner Management
         "start_miner" => {
-            let address = params.get("address").and_then(|v| v.as_str()).map(String::from);
+            let address = params
+                .get("address")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             crate::start_miner_internal(&state.app_state, address).await
         }
 
-        "stop_miner" => {
-            crate::stop_miner_internal(&state.app_state).await
-        }
+        "stop_miner" => crate::stop_miner_internal(&state.app_state).await,
 
         "get_miner_status" => {
             let app_state = state.app_state.lock().await;
@@ -461,29 +454,25 @@ async fn execute_tool(
         }
 
         // Wallet Service
-        "start_wallet_service" => {
-            crate::start_headless_internal(&state.app_state).await
-        }
+        "start_wallet_service" => crate::start_headless_internal(&state.app_state).await,
 
-        "stop_wallet_service" => {
-            crate::stop_headless_internal(&state.app_state).await
-        }
+        "stop_wallet_service" => crate::stop_headless_internal(&state.app_state).await,
 
         "get_wallet_service_status" => {
             let app_state = state.app_state.lock().await;
             Ok(json!({
                 "running": app_state.headless_running,
                 "port": if app_state.headless_running { Some(8001) } else { None }
-            }).to_string())
+            })
+            .to_string())
         }
 
         // Wallet Operations
-        "generate_seed" => {
-            crate::generate_seed_internal()
-        }
+        "generate_seed" => crate::generate_seed_internal(),
 
         "create_wallet" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
             let seed = params.get("seed").and_then(|v| v.as_str());
@@ -494,7 +483,11 @@ async fn execute_tool(
             };
 
             // Store seed
-            state.wallet_seeds.lock().await.insert(wallet_id.to_string(), wallet_seed.clone());
+            state
+                .wallet_seeds
+                .lock()
+                .await
+                .insert(wallet_id.to_string(), wallet_seed.clone());
 
             // Create wallet via API
             let resp = client
@@ -507,7 +500,10 @@ async fn execute_tool(
                 .await
                 .map_err(|e| format!("Failed to create wallet: {}", e))?;
 
-            let result: Value = resp.json().await.unwrap_or(json!({"error": "Failed to parse response"}));
+            let result: Value = resp
+                .json()
+                .await
+                .unwrap_or(json!({"error": "Failed to parse response"}));
             Ok(json!({
                 "success": result.get("success").and_then(|v| v.as_bool()).unwrap_or(false),
                 "wallet_id": wallet_id,
@@ -517,7 +513,8 @@ async fn execute_tool(
         }
 
         "get_wallet_seed" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
 
@@ -529,7 +526,8 @@ async fn execute_tool(
         }
 
         "get_wallet_status" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
 
@@ -545,7 +543,8 @@ async fn execute_tool(
         }
 
         "get_wallet_balance" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
 
@@ -561,7 +560,8 @@ async fn execute_tool(
         }
 
         "get_wallet_addresses" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
 
@@ -577,13 +577,16 @@ async fn execute_tool(
         }
 
         "send_from_wallet" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
-            let address = params.get("address")
+            let address = params
+                .get("address")
                 .and_then(|v| v.as_str())
                 .ok_or("address is required")?;
-            let amount = params.get("amount")
+            let amount = params
+                .get("amount")
                 .and_then(|v| v.as_f64())
                 .ok_or("amount is required")?;
 
@@ -603,7 +606,8 @@ async fn execute_tool(
         }
 
         "close_wallet" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
 
@@ -633,10 +637,12 @@ async fn execute_tool(
         }
 
         "send_from_faucet" => {
-            let address = params.get("address")
+            let address = params
+                .get("address")
                 .and_then(|v| v.as_str())
                 .ok_or("address is required")?;
-            let amount = params.get("amount")
+            let amount = params
+                .get("amount")
                 .and_then(|v| v.as_f64())
                 .ok_or("amount is required")?;
 
@@ -660,7 +666,8 @@ async fn execute_tool(
         }
 
         "fund_wallet" => {
-            let wallet_id = params.get("wallet_id")
+            let wallet_id = params
+                .get("wallet_id")
                 .and_then(|v| v.as_str())
                 .ok_or("wallet_id is required")?;
             let amount = params.get("amount").and_then(|v| v.as_f64());
@@ -673,10 +680,13 @@ async fn execute_tool(
                 .await
                 .map_err(|e| format!("Failed to get wallet addresses: {}", e))?;
 
-            let addresses: Value = addresses_resp.json().await
+            let addresses: Value = addresses_resp
+                .json()
+                .await
                 .map_err(|_| "Failed to parse addresses")?;
 
-            let first_address = addresses.get("addresses")
+            let first_address = addresses
+                .get("addresses")
                 .and_then(|a| a.as_array())
                 .and_then(|a| a.first())
                 .and_then(|a| a.as_str())
@@ -689,10 +699,13 @@ async fn execute_tool(
                 .await
                 .map_err(|e| format!("Failed to get faucet balance: {}", e))?;
 
-            let balance: Value = balance_resp.json().await
+            let balance: Value = balance_resp
+                .json()
+                .await
                 .map_err(|_| "Failed to parse faucet balance")?;
 
-            let available = balance.get("balance")
+            let available = balance
+                .get("balance")
                 .and_then(|b| b.get("available"))
                 .and_then(|a| a.as_i64())
                 .unwrap_or(0);
@@ -727,8 +740,12 @@ async fn execute_tool(
                 .map_err(|e| format!("Failed to send from faucet: {}", e))?;
 
             let text = send_resp.text().await.unwrap_or_default();
-            Ok(format!(r#"{{"funded": true, "wallet_id": "{}", "amount": {}, "result": {}}}"#,
-                wallet_id, fund_amount as f64 / 100.0, text))
+            Ok(format!(
+                r#"{{"funded": true, "wallet_id": "{}", "amount": {}, "result": {}}}"#,
+                wallet_id,
+                fund_amount as f64 / 100.0,
+                text
+            ))
         }
 
         // Blockchain
@@ -741,10 +758,13 @@ async fn execute_tool(
                 .await
                 .map_err(|e| format!("Failed to get status: {}", e))?;
 
-            let status: Value = status_resp.json().await
+            let status: Value = status_resp
+                .json()
+                .await
                 .map_err(|_| "Failed to parse status")?;
 
-            let height = status.get("dag")
+            let height = status
+                .get("dag")
                 .and_then(|d| d.get("best_block"))
                 .and_then(|b| b.get("height"))
                 .and_then(|h| h.as_i64())
@@ -753,7 +773,10 @@ async fn execute_tool(
             let mut blocks = Vec::new();
             for i in (height.saturating_sub(count)..=height).rev() {
                 if let Ok(resp) = client
-                    .get(format!("http://127.0.0.1:8080/v1a/block_at_height?height={}", i))
+                    .get(format!(
+                        "http://127.0.0.1:8080/v1a/block_at_height?height={}",
+                        i
+                    ))
                     .send()
                     .await
                 {
@@ -767,12 +790,16 @@ async fn execute_tool(
         }
 
         "get_transaction" => {
-            let tx_id = params.get("tx_id")
+            let tx_id = params
+                .get("tx_id")
                 .and_then(|v| v.as_str())
                 .ok_or("tx_id is required")?;
 
             let resp = client
-                .get(format!("http://127.0.0.1:8080/v1a/transaction?id={}", tx_id))
+                .get(format!(
+                    "http://127.0.0.1:8080/v1a/transaction?id={}",
+                    tx_id
+                ))
                 .send()
                 .await
                 .map_err(|e| format!("Failed to get transaction: {}", e))?;
@@ -809,9 +836,7 @@ async fn execute_tool(
             Ok(results.join("\n"))
         }
 
-        "quick_stop" => {
-            crate::stop_node_internal(&state.app_state).await
-        }
+        "quick_stop" => crate::stop_node_internal(&state.app_state).await,
 
         "get_full_status" => {
             let app_state = state.app_state.lock().await;
@@ -881,51 +906,49 @@ async fn handle_mcp_request(
     Json(request): Json<JsonRpcRequest>,
 ) -> Json<JsonRpcResponse> {
     let response = match request.method.as_str() {
-        "initialize" => {
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(json!({
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "tools": {
-                            "listChanged": false
-                        }
-                    },
-                    "serverInfo": {
-                        "name": "hathor-forge",
-                        "version": "1.0.0"
+        "initialize" => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: request.id,
+            result: Some(json!({
+                "protocolVersion": "2024-11-05",
+                "capabilities": {
+                    "tools": {
+                        "listChanged": false
                     }
-                })),
-                error: None,
-            }
-        }
+                },
+                "serverInfo": {
+                    "name": "hathor-forge",
+                    "version": "1.0.0"
+                }
+            })),
+            error: None,
+        },
 
-        "notifications/initialized" => {
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(json!({})),
-                error: None,
-            }
-        }
+        "notifications/initialized" => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: request.id,
+            result: Some(json!({})),
+            error: None,
+        },
 
-        "tools/list" => {
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(json!({
-                    "tools": get_tools()
-                })),
-                error: None,
-            }
-        }
+        "tools/list" => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: request.id,
+            result: Some(json!({
+                "tools": get_tools()
+            })),
+            error: None,
+        },
 
         "tools/call" => {
-            let tool_name = request.params.get("name")
+            let tool_name = request
+                .params
+                .get("name")
                 .and_then(|n| n.as_str())
                 .unwrap_or("");
-            let arguments = request.params.get("arguments")
+            let arguments = request
+                .params
+                .get("arguments")
                 .cloned()
                 .unwrap_or(json!({}));
 
@@ -956,27 +979,23 @@ async fn handle_mcp_request(
             }
         }
 
-        "ping" => {
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: Some(json!({})),
-                error: None,
-            }
-        }
+        "ping" => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: request.id,
+            result: Some(json!({})),
+            error: None,
+        },
 
-        _ => {
-            JsonRpcResponse {
-                jsonrpc: "2.0".to_string(),
-                id: request.id,
-                result: None,
-                error: Some(JsonRpcError {
-                    code: -32601,
-                    message: format!("Method not found: {}", request.method),
-                    data: None,
-                }),
-            }
-        }
+        _ => JsonRpcResponse {
+            jsonrpc: "2.0".to_string(),
+            id: request.id,
+            result: None,
+            error: Some(JsonRpcError {
+                code: -32601,
+                message: format!("Method not found: {}", request.method),
+                data: None,
+            }),
+        },
     };
 
     Json(response)
@@ -994,7 +1013,7 @@ async fn handle_sse(
     Sse::new(stream).keep_alive(
         axum::response::sse::KeepAlive::new()
             .interval(Duration::from_secs(15))
-            .text("keepalive")
+            .text("keepalive"),
     )
 }
 
@@ -1017,7 +1036,10 @@ pub fn create_mcp_router(app_state: SharedState) -> Router {
 }
 
 /// Start the MCP server on the specified port
-pub async fn start_mcp_server(app_state: SharedState, port: u16) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+pub async fn start_mcp_server(
+    app_state: SharedState,
+    port: u16,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let app = create_mcp_router(app_state);
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
