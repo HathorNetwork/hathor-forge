@@ -21,11 +21,14 @@ import {
   Copy,
   Send,
   Check,
+  BookOpen,
 } from "lucide-react";
+import { SwaggerUIComponent } from "@/components/SwaggerUI";
+import 'swagger-ui-react/swagger-ui.css';
 
 type NodeStatusType = "stopped" | "starting" | "running" | "error";
 type MinerStatusType = "stopped" | "starting" | "mining" | "error";
-type PageType = "dashboard" | "explorer" | "wallet" | "blocks" | "transactions" | "tokens" | "mining" | "logs" | "settings";
+type PageType = "dashboard" | "explorer" | "wallet" | "blocks" | "transactions" | "tokens" | "mining" | "logs" | "settings" | "api-explorer";
 
 interface NodeStatus {
   running: boolean;
@@ -78,6 +81,7 @@ function stripAnsi(str: string): string {
 
 function App() {
   const [currentPage, setCurrentPage] = useState<PageType>("dashboard");
+  const [selectedApi, setSelectedApi] = useState<"fullnode" | "wallet">("fullnode");
   const [nodeStatus, setNodeStatus] = useState<NodeStatusType>("stopped");
   const [minerStatus, setMinerStatus] = useState<MinerStatusType>("stopped");
   const [blockHeight, setBlockHeight] = useState(0);
@@ -285,6 +289,7 @@ function App() {
     { icon: FileText, label: "Transactions", page: "transactions" },
     { icon: Coins, label: "Tokens", page: "tokens" },
     { icon: Cpu, label: "Mining", page: "mining" },
+    { icon: BookOpen, label: "API Explorer", page: "api-explorer" },
     { icon: Terminal, label: "Logs", page: "logs" },
     { icon: Settings, label: "Settings", page: "settings" },
   ];
@@ -585,6 +590,69 @@ function App() {
       setResetStatus("error");
     }
   };
+
+  const renderApiExplorer = () => (
+    <div className="p-8 space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-white mb-2">API Explorer</h2>
+        <p className="text-slate-500">Interactive API documentation powered by Swagger UI</p>
+      </div>
+
+      {/* API Selector Tabs */}
+      <div className="flex gap-2 border-b border-slate-800/50 pb-4">
+        <button
+          onClick={() => setSelectedApi("fullnode")}
+          className={`px-4 py-2 rounded-lg transition-colors ${
+            selectedApi === "fullnode"
+              ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+              : "bg-slate-900/50 text-slate-400 border border-slate-800 hover:bg-slate-900/80"
+          }`}
+        >
+          Fullnode API (Port 8080)
+        </button>
+        <button
+          onClick={() => setSelectedApi("wallet")}
+          className={`px-4 py-2 rounded-lg transition-colors ${
+            selectedApi === "wallet"
+              ? "bg-amber-500/10 text-amber-400 border border-amber-500/30"
+              : "bg-slate-900/50 text-slate-400 border border-slate-800 hover:bg-slate-900/80"
+          }`}
+        >
+          Wallet Headless API (Port 8001)
+        </button>
+      </div>
+
+      {/* Service Status Warnings */}
+      {selectedApi === "fullnode" && nodeStatus !== "running" && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <h4 className="font-medium text-amber-400 mb-1">Fullnode Not Running</h4>
+            <p className="text-sm text-slate-400">
+              The fullnode is not currently running. Start it from the Dashboard to test API endpoints.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {selectedApi === "wallet" && !headlessStatus.running && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <h4 className="font-medium text-amber-400 mb-1">Wallet Headless Not Running</h4>
+            <p className="text-sm text-slate-400">
+              The wallet-headless service is not currently running. Start it from the Wallet page to test API endpoints.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Swagger UI Component */}
+      <div className="bg-[#0d1117] border border-slate-800/50 rounded-xl overflow-hidden">
+        <SwaggerUIComponent apiType={selectedApi} />
+      </div>
+    </div>
+  );
 
   const renderSettings = () => (
     <div className="p-8 space-y-8">
@@ -1364,6 +1432,8 @@ function App() {
         return renderPlaceholder("Tokens");
       case "mining":
         return renderPlaceholder("Mining");
+      case "api-explorer":
+        return renderApiExplorer();
       case "settings":
         return renderSettings();
       default:

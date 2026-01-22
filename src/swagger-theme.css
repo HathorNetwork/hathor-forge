@@ -1,0 +1,434 @@
+/* Swagger UI Dark Theme for Hathor Forge */
+
+.swagger-ui-wrapper {
+  @apply text-slate-300;
+}
+
+/* Main background and container */
+.swagger-ui {
+  background-color: #0a0e14 !important;
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .wrapper {
+  background-color: #0a0e14 !important;
+}
+
+/* Info section */
+.swagger-ui .info {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 8px !important;
+  padding: 1.5rem !important;
+  margin-bottom: 2rem !important;
+}
+
+.swagger-ui .info .title {
+  color: #f59e0b !important;
+}
+
+.swagger-ui .info .description,
+.swagger-ui .info p {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .info a {
+  color: #f59e0b !important;
+}
+
+.swagger-ui .info a:hover {
+  color: #fbbf24 !important;
+}
+
+/* Scheme container */
+.swagger-ui .scheme-container {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+  margin-bottom: 1rem !important;
+}
+
+/* Filter input */
+.swagger-ui .filter-container {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 8px !important;
+  padding: 0.5rem !important;
+  margin-bottom: 1rem !important;
+}
+
+.swagger-ui .filter input {
+  background-color: #0a0e14 !important;
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 4px !important;
+}
+
+.swagger-ui .filter input:focus {
+  border-color: #f59e0b !important;
+  outline: none !important;
+}
+
+/* Operation blocks */
+.swagger-ui .opblock {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 8px !important;
+  margin-bottom: 1rem !important;
+}
+
+.swagger-ui .opblock .opblock-summary {
+  background-color: #0d1117 !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1) !important;
+}
+
+.swagger-ui .opblock.is-open .opblock-summary {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2) !important;
+}
+
+.swagger-ui .opblock-summary-path {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .opblock-summary-description {
+  color: #94a3b8 !important;
+}
+
+/* HTTP method colors */
+.swagger-ui .opblock.opblock-get {
+  border-color: #3b82f6 !important;
+}
+
+.swagger-ui .opblock.opblock-get .opblock-summary-method {
+  background-color: #3b82f6 !important;
+}
+
+.swagger-ui .opblock.opblock-post {
+  border-color: #10b981 !important;
+}
+
+.swagger-ui .opblock.opblock-post .opblock-summary-method {
+  background-color: #10b981 !important;
+}
+
+.swagger-ui .opblock.opblock-put {
+  border-color: #f59e0b !important;
+}
+
+.swagger-ui .opblock.opblock-put .opblock-summary-method {
+  background-color: #f59e0b !important;
+}
+
+.swagger-ui .opblock.opblock-delete {
+  border-color: #ef4444 !important;
+}
+
+.swagger-ui .opblock.opblock-delete .opblock-summary-method {
+  background-color: #ef4444 !important;
+}
+
+.swagger-ui .opblock.opblock-patch {
+  border-color: #8b5cf6 !important;
+}
+
+.swagger-ui .opblock.opblock-patch .opblock-summary-method {
+  background-color: #8b5cf6 !important;
+}
+
+/* Operation body */
+.swagger-ui .opblock-body {
+  background-color: #0a0e14 !important;
+}
+
+/* Tables */
+.swagger-ui table {
+  background-color: #0d1117 !important;
+}
+
+.swagger-ui table thead tr th,
+.swagger-ui table thead tr td {
+  color: #f59e0b !important;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2) !important;
+}
+
+.swagger-ui table tbody tr td {
+  color: #cbd5e1 !important;
+  border-color: rgba(148, 163, 184, 0.1) !important;
+}
+
+/* Parameters */
+.swagger-ui .parameters-col_description {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .parameter__name {
+  color: #f59e0b !important;
+}
+
+.swagger-ui .parameter__type {
+  color: #94a3b8 !important;
+}
+
+/* Buttons */
+.swagger-ui .btn {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  color: #cbd5e1 !important;
+  border-radius: 4px !important;
+}
+
+.swagger-ui .btn:hover {
+  background-color: #1a1f2e !important;
+  border-color: #f59e0b !important;
+}
+
+.swagger-ui .btn.execute {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #0a0e14 !important;
+  font-weight: 600 !important;
+}
+
+.swagger-ui .btn.execute:hover {
+  background-color: #fbbf24 !important;
+  border-color: #fbbf24 !important;
+}
+
+.swagger-ui .btn.cancel {
+  background-color: #0d1117 !important;
+  border-color: rgba(148, 163, 184, 0.2) !important;
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .btn.try-out__btn {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #0a0e14 !important;
+  font-weight: 600 !important;
+}
+
+/* Responses */
+.swagger-ui .responses-inner {
+  background-color: #0d1117 !important;
+}
+
+.swagger-ui .response-col_status {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .response-col_description {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .response .response-col_description__inner p {
+  color: #94a3b8 !important;
+}
+
+/* Code blocks */
+.swagger-ui .highlight-code {
+  background-color: #0a0e14 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 4px !important;
+}
+
+.swagger-ui .highlight-code > pre {
+  background-color: #0a0e14 !important;
+  color: #cbd5e1 !important;
+}
+
+/* Models */
+.swagger-ui .model-box {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 4px !important;
+}
+
+.swagger-ui .model {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .model-title {
+  color: #f59e0b !important;
+}
+
+.swagger-ui .model .property {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .model .property.primitive {
+  color: #94a3b8 !important;
+}
+
+.swagger-ui section.models {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 8px !important;
+  padding: 1rem !important;
+}
+
+.swagger-ui section.models h4 {
+  color: #f59e0b !important;
+}
+
+/* JSON schema */
+.swagger-ui .model-box-control {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .prop-type {
+  color: #10b981 !important;
+}
+
+.swagger-ui .prop-format {
+  color: #94a3b8 !important;
+}
+
+/* Try it out section */
+.swagger-ui .body-param-options {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+}
+
+.swagger-ui textarea {
+  background-color: #0a0e14 !important;
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 4px !important;
+}
+
+.swagger-ui textarea:focus {
+  border-color: #f59e0b !important;
+  outline: none !important;
+}
+
+.swagger-ui input[type="text"],
+.swagger-ui input[type="password"],
+.swagger-ui input[type="email"] {
+  background-color: #0a0e14 !important;
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 4px !important;
+}
+
+.swagger-ui input[type="text"]:focus,
+.swagger-ui input[type="password"]:focus,
+.swagger-ui input[type="email"]:focus {
+  border-color: #f59e0b !important;
+  outline: none !important;
+}
+
+/* Responses section */
+.swagger-ui .responses-wrapper {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 4px !important;
+  padding: 1rem !important;
+  margin-top: 1rem !important;
+}
+
+.swagger-ui .response {
+  background-color: #0a0e14 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 4px !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* Authorization */
+.swagger-ui .auth-container {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 8px !important;
+}
+
+.swagger-ui .auth-wrapper {
+  background-color: #0a0e14 !important;
+}
+
+/* Links */
+.swagger-ui a {
+  color: #f59e0b !important;
+}
+
+.swagger-ui a:hover {
+  color: #fbbf24 !important;
+}
+
+/* Tabs */
+.swagger-ui .tab {
+  background-color: #0d1117 !important;
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .tab li {
+  color: #94a3b8 !important;
+}
+
+.swagger-ui .tab li.active {
+  color: #f59e0b !important;
+  background-color: #0a0e14 !important;
+}
+
+/* Markdown */
+.swagger-ui .markdown p,
+.swagger-ui .markdown pre,
+.swagger-ui .markdown code {
+  color: #cbd5e1 !important;
+}
+
+.swagger-ui .markdown code {
+  background-color: #0a0e14 !important;
+  border: 1px solid rgba(148, 163, 184, 0.1) !important;
+  border-radius: 3px !important;
+  padding: 2px 6px !important;
+}
+
+/* Copy button */
+.swagger-ui .copy-to-clipboard {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+}
+
+.swagger-ui .copy-to-clipboard:hover {
+  background-color: #1a1f2e !important;
+  border-color: #f59e0b !important;
+}
+
+/* Download button */
+.swagger-ui .download-contents {
+  background-color: #0d1117 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  color: #cbd5e1 !important;
+}
+
+/* Server selection */
+.swagger-ui select {
+  background-color: #0a0e14 !important;
+  color: #cbd5e1 !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+  border-radius: 4px !important;
+}
+
+.swagger-ui select:focus {
+  border-color: #f59e0b !important;
+  outline: none !important;
+}
+
+/* Scroll bars */
+.swagger-ui ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.swagger-ui ::-webkit-scrollbar-track {
+  background: #0a0e14;
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 4px;
+}
+
+.swagger-ui ::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}

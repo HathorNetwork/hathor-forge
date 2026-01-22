@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import './swagger-theme.css';
 
 @theme {
   /* Hathor Forge color scheme - inspired by Ganache's dark theme */

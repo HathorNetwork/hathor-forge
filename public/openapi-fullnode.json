@@ -1,0 +1,772 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Hathor Fullnode API",
+    "description": "Local Hathor fullnode API running on port 8080. This API allows you to interact with the blockchain, query transactions, blocks, and manage the built-in wallet.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Hathor Network",
+      "url": "https://hathor.network"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development fullnode"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Node",
+      "description": "Node status and information"
+    },
+    {
+      "name": "Wallet",
+      "description": "Built-in wallet operations"
+    },
+    {
+      "name": "Transactions",
+      "description": "Transaction queries"
+    },
+    {
+      "name": "Blocks",
+      "description": "Block queries"
+    },
+    {
+      "name": "Mining",
+      "description": "Mining operations"
+    }
+  ],
+  "paths": {
+    "/v1a/status": {
+      "get": {
+        "tags": ["Node"],
+        "summary": "Get node status",
+        "description": "Returns the current status of the fullnode including version, network, and peer information.",
+        "responses": {
+          "200": {
+            "description": "Node status information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "0.60.0"
+                    },
+                    "network": {
+                      "type": "string",
+                      "example": "testnet"
+                    },
+                    "state": {
+                      "type": "string",
+                      "example": "READY"
+                    },
+                    "connections": {
+                      "type": "object",
+                      "properties": {
+                        "connected_peers": {
+                          "type": "integer",
+                          "example": 0
+                        }
+                      }
+                    },
+                    "latest_timestamp": {
+                      "type": "integer",
+                      "description": "Unix timestamp of the latest block",
+                      "example": 1706789012
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/wallet/balance": {
+      "get": {
+        "tags": ["Wallet"],
+        "summary": "Get wallet balance",
+        "description": "Returns the balance of the built-in wallet for all tokens.",
+        "responses": {
+          "200": {
+            "description": "Wallet balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "balance": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "available": {
+                            "type": "integer",
+                            "description": "Available balance in cents (1 HTR = 100 cents)",
+                            "example": 100000
+                          },
+                          "locked": {
+                            "type": "integer",
+                            "description": "Locked balance in cents",
+                            "example": 0
+                          }
+                        }
+                      },
+                      "example": {
+                        "00": {
+                          "available": 100000,
+                          "locked": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/wallet/address": {
+      "get": {
+        "tags": ["Wallet"],
+        "summary": "Get wallet addresses",
+        "description": "Returns the current address and optionally generates a new address.",
+        "parameters": [
+          {
+            "name": "new_address",
+            "in": "query",
+            "description": "Generate a new address",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "mark_as_used",
+            "in": "query",
+            "description": "Mark the returned address as used",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "address": {
+                      "type": "string",
+                      "example": "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/wallet/address-info": {
+      "get": {
+        "tags": ["Wallet"],
+        "summary": "Get address information",
+        "description": "Returns information about a specific address including balance and transaction history.",
+        "parameters": [
+          {
+            "name": "address",
+            "in": "query",
+            "description": "The address to query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Address information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "total_transactions": {
+                      "type": "integer",
+                      "example": 5
+                    },
+                    "balance": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "integer"
+                      }
+                    },
+                    "index": {
+                      "type": "integer",
+                      "example": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/wallet/send_tokens/": {
+      "post": {
+        "tags": ["Wallet"],
+        "summary": "Send tokens",
+        "description": "Send HTR or custom tokens to one or more addresses.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["outputs"],
+                "properties": {
+                  "outputs": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["address", "value"],
+                      "properties": {
+                        "address": {
+                          "type": "string",
+                          "example": "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb"
+                        },
+                        "value": {
+                          "type": "integer",
+                          "description": "Amount in cents (1 HTR = 100 cents)",
+                          "example": 100
+                        },
+                        "token": {
+                          "type": "string",
+                          "description": "Token UID (defaults to HTR: 00)",
+                          "example": "00"
+                        }
+                      }
+                    }
+                  },
+                  "inputs": {
+                    "type": "array",
+                    "description": "Optional specific inputs to use",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "tx_id": {
+                          "type": "string"
+                        },
+                        "index": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "hash": {
+                      "type": "string",
+                      "description": "Transaction hash",
+                      "example": "00000000059dfb65633acacc402c881b128cc7f5c04b6cea537ea2136f1b97fb"
+                    },
+                    "nonce": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "timestamp": {
+                      "type": "integer",
+                      "example": 1706789012
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or insufficient funds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Insufficient funds"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/transaction": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Get transaction by ID",
+        "description": "Returns detailed information about a specific transaction or block.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Transaction or block hash",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "00000000059dfb65633acacc402c881b128cc7f5c04b6cea537ea2136f1b97fb"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "tx": {
+                      "type": "object",
+                      "properties": {
+                        "hash": {
+                          "type": "string"
+                        },
+                        "nonce": {
+                          "type": "integer"
+                        },
+                        "timestamp": {
+                          "type": "integer"
+                        },
+                        "version": {
+                          "type": "integer"
+                        },
+                        "weight": {
+                          "type": "number"
+                        },
+                        "parents": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "inputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "outputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "tokens": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "hash": {
+                          "type": "string"
+                        },
+                        "spent_outputs": {
+                          "type": "array"
+                        },
+                        "received_by": {
+                          "type": "array"
+                        },
+                        "first_block": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Transaction not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Transaction not found"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/decode": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Decode transaction hex",
+        "description": "Decodes a transaction from its hexadecimal representation.",
+        "parameters": [
+          {
+            "name": "hex_tx",
+            "in": "query",
+            "description": "Transaction in hexadecimal format",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decoded transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "tx": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/tips": {
+      "get": {
+        "tags": ["Blocks"],
+        "summary": "Get current tips",
+        "description": "Returns the current tips of the DAG (Directed Acyclic Graph).",
+        "responses": {
+          "200": {
+            "description": "Current tips",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "tips": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "00000000059dfb65633acacc402c881b128cc7f5c04b6cea537ea2136f1b97fb",
+                        "00000000000000000004b51e0d8ddd8c59fc6ad0bf87c9a78c8c5e6f8ffc8e0c"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/block_at_height": {
+      "get": {
+        "tags": ["Blocks"],
+        "summary": "Get block at height",
+        "description": "Returns the block at a specific height in the blockchain.",
+        "parameters": [
+          {
+            "name": "height",
+            "in": "query",
+            "description": "Block height",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "example": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Block information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "block": {
+                      "type": "object",
+                      "properties": {
+                        "hash": {
+                          "type": "string"
+                        },
+                        "height": {
+                          "type": "integer"
+                        },
+                        "timestamp": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Block not found at this height",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/tips-histogram": {
+      "get": {
+        "tags": ["Blocks"],
+        "summary": "Get tips histogram",
+        "description": "Returns a histogram of the tips in the DAG.",
+        "responses": {
+          "200": {
+            "description": "Tips histogram data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/graphviz": {
+      "get": {
+        "tags": ["Blocks"],
+        "summary": "Get graph visualization",
+        "description": "Returns a GraphViz representation of the DAG for visualization.",
+        "parameters": [
+          {
+            "name": "format",
+            "in": "query",
+            "description": "Output format",
+            "schema": {
+              "type": "string",
+              "enum": ["dot", "pdf", "png"],
+              "default": "dot"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "GraphViz representation"
+          }
+        }
+      }
+    },
+    "/v1a/mining_info": {
+      "get": {
+        "tags": ["Mining"],
+        "summary": "Get mining information",
+        "description": "Returns information for mining including the current difficulty.",
+        "responses": {
+          "200": {
+            "description": "Mining information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "hashrate": {
+                      "type": "number",
+                      "description": "Network hashrate",
+                      "example": 0
+                    },
+                    "difficulty": {
+                      "type": "number",
+                      "description": "Current mining difficulty",
+                      "example": 1.0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/getmininginfo": {
+      "get": {
+        "tags": ["Mining"],
+        "summary": "Get detailed mining info",
+        "description": "Returns detailed mining information including blocks and difficulty.",
+        "responses": {
+          "200": {
+            "description": "Detailed mining information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "blocks": {
+                      "type": "integer"
+                    },
+                    "difficulty": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1a/health": {
+      "get": {
+        "tags": ["Node"],
+        "summary": "Health check",
+        "description": "Simple health check endpoint to verify the node is running.",
+        "responses": {
+          "200": {
+            "description": "Node is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "Error description"
+          }
+        }
+      }
+    }
+  }
+}

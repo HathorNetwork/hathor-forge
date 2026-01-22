@@ -1,0 +1,880 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Hathor Wallet Headless API",
+    "description": "Local wallet-headless service API running on port 8001. This API provides multi-wallet support with HD wallet management. Most endpoints require the X-Wallet-Id header.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Hathor Network",
+      "url": "https://hathor.network"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8001",
+      "description": "Local wallet-headless service"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Wallet Management",
+      "description": "Create, start, stop, and manage wallets"
+    },
+    {
+      "name": "Wallet Info",
+      "description": "Query wallet information"
+    },
+    {
+      "name": "Transactions",
+      "description": "Send and query transactions"
+    },
+    {
+      "name": "Addresses",
+      "description": "Address management"
+    },
+    {
+      "name": "Tokens",
+      "description": "Custom token operations"
+    }
+  ],
+  "paths": {
+    "/start": {
+      "post": {
+        "tags": ["Wallet Management"],
+        "summary": "Start a wallet",
+        "description": "Initialize and start a wallet with a seed phrase. This must be called before using other wallet endpoints.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["wallet-id", "seedKey"],
+                "properties": {
+                  "wallet-id": {
+                    "type": "string",
+                    "description": "Unique identifier for this wallet",
+                    "example": "my-wallet"
+                  },
+                  "seedKey": {
+                    "type": "string",
+                    "description": "24-word BIP39 seed phrase",
+                    "example": "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level"
+                  },
+                  "passphrase": {
+                    "type": "string",
+                    "description": "Optional BIP39 passphrase",
+                    "example": ""
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Wallet started successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid seed or wallet already exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/stop": {
+      "post": {
+        "tags": ["Wallet Management"],
+        "summary": "Stop a wallet",
+        "description": "Stop and unload a wallet from memory.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet stopped successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/status": {
+      "get": {
+        "tags": ["Wallet Info"],
+        "summary": "Get wallet status",
+        "description": "Returns the current status of the wallet. StatusCode 3 means the wallet is ready.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "statusCode": {
+                      "type": "integer",
+                      "description": "0=loading, 1=not ready, 2=syncing, 3=ready",
+                      "example": 3
+                    },
+                    "statusMessage": {
+                      "type": "string",
+                      "example": "Ready"
+                    },
+                    "network": {
+                      "type": "string",
+                      "example": "testnet"
+                    },
+                    "serverUrl": {
+                      "type": "string",
+                      "example": "http://localhost:8080/v1a/"
+                    },
+                    "serverInfo": {
+                      "type": "object",
+                      "properties": {
+                        "version": {
+                          "type": "string"
+                        },
+                        "network": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/balance": {
+      "get": {
+        "tags": ["Wallet Info"],
+        "summary": "Get wallet balance",
+        "description": "Returns the balance for all tokens in the wallet.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Optional token UID to filter (defaults to all tokens)",
+            "schema": {
+              "type": "string",
+              "example": "00"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet balance",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "available": {
+                      "type": "integer",
+                      "description": "Available balance in cents (1 HTR = 100 cents)",
+                      "example": 50000
+                    },
+                    "locked": {
+                      "type": "integer",
+                      "description": "Locked balance in cents",
+                      "example": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/address": {
+      "get": {
+        "tags": ["Addresses"],
+        "summary": "Get current address",
+        "description": "Returns the current unused address or generates a new one.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "mark_as_used",
+            "in": "query",
+            "description": "Mark the returned address as used",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "address": {
+                      "type": "string",
+                      "example": "WewDeXWyvHPtB6jjjR3eGCNp5Ud6j1CpaV"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/addresses": {
+      "get": {
+        "tags": ["Addresses"],
+        "summary": "Get all addresses",
+        "description": "Returns all addresses generated by this wallet.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "addresses": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "WewDeXWyvHPtB6jjjR3eGCNp5Ud6j1CpaV",
+                        "WkZ5Gx6Z3qMm5xjfKcS8kD9VW2pGr8jYjH"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/address-index": {
+      "get": {
+        "tags": ["Addresses"],
+        "summary": "Get address at index",
+        "description": "Returns the address at a specific derivation path index.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "index",
+            "in": "query",
+            "required": true,
+            "description": "Derivation path index",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "example": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Address at index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "address": {
+                      "type": "string",
+                      "example": "WewDeXWyvHPtB6jjjR3eGCNp5Ud6j1CpaV"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/address-info": {
+      "get": {
+        "tags": ["Addresses"],
+        "summary": "Get address information",
+        "description": "Returns detailed information about a specific address.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "address",
+            "in": "query",
+            "required": true,
+            "description": "The address to query",
+            "schema": {
+              "type": "string",
+              "example": "WewDeXWyvHPtB6jjjR3eGCNp5Ud6j1CpaV"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Address information",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "index": {
+                      "type": "integer",
+                      "example": 0
+                    },
+                    "total_transactions": {
+                      "type": "integer",
+                      "example": 3
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/simple-send-tx": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Send transaction",
+        "description": "Send HTR or custom tokens to an address. This is the simplest way to send tokens.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["address", "value"],
+                "properties": {
+                  "address": {
+                    "type": "string",
+                    "description": "Destination address",
+                    "example": "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb"
+                  },
+                  "value": {
+                    "type": "integer",
+                    "description": "Amount in cents (1 HTR = 100 cents)",
+                    "example": 100
+                  },
+                  "token": {
+                    "type": "string",
+                    "description": "Token UID (defaults to HTR: 00)",
+                    "default": "00",
+                    "example": "00"
+                  },
+                  "change_address": {
+                    "type": "string",
+                    "description": "Optional change address (uses wallet address if not provided)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction sent successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "hash": {
+                      "type": "string",
+                      "description": "Transaction hash",
+                      "example": "00000000059dfb65633acacc402c881b128cc7f5c04b6cea537ea2136f1b97fb"
+                    },
+                    "nonce": {
+                      "type": "integer"
+                    },
+                    "timestamp": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or insufficient funds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/tx-history": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Get transaction history",
+        "description": "Returns the transaction history for the wallet.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Maximum number of transactions to return",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "history": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tx_id": {
+                            "type": "string"
+                          },
+                          "timestamp": {
+                            "type": "integer"
+                          },
+                          "balance": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/transaction": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Get transaction details",
+        "description": "Returns detailed information about a specific transaction.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "id",
+            "in": "query",
+            "required": true,
+            "description": "Transaction hash",
+            "schema": {
+              "type": "string",
+              "example": "00000000059dfb65633acacc402c881b128cc7f5c04b6cea537ea2136f1b97fb"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "tx": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/utxo-filter": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Get UTXOs",
+        "description": "Returns unspent transaction outputs (UTXOs) for the wallet.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "description": "Filter by token UID",
+            "schema": {
+              "type": "string",
+              "example": "00"
+            }
+          },
+          {
+            "name": "max_utxos",
+            "in": "query",
+            "description": "Maximum number of UTXOs to return",
+            "schema": {
+              "type": "integer",
+              "default": 255
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of UTXOs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "utxos": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "tx_id": {
+                            "type": "string"
+                          },
+                          "index": {
+                            "type": "integer"
+                          },
+                          "value": {
+                            "type": "integer"
+                          },
+                          "address": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/create-token": {
+      "post": {
+        "tags": ["Tokens"],
+        "summary": "Create custom token",
+        "description": "Create a new custom token on the Hathor network.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "symbol", "amount"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Token name",
+                    "example": "My Token"
+                  },
+                  "symbol": {
+                    "type": "string",
+                    "description": "Token symbol (3-5 characters)",
+                    "example": "MTK"
+                  },
+                  "amount": {
+                    "type": "integer",
+                    "description": "Initial supply in cents",
+                    "example": 100000
+                  },
+                  "address": {
+                    "type": "string",
+                    "description": "Optional destination address (uses wallet address if not provided)"
+                  },
+                  "change_address": {
+                    "type": "string",
+                    "description": "Optional change address"
+                  },
+                  "create_mint": {
+                    "type": "boolean",
+                    "description": "Create mint authority output",
+                    "default": false
+                  },
+                  "mint_authority_address": {
+                    "type": "string",
+                    "description": "Address for mint authority (if create_mint is true)"
+                  },
+                  "create_melt": {
+                    "type": "boolean",
+                    "description": "Create melt authority output",
+                    "default": false
+                  },
+                  "melt_authority_address": {
+                    "type": "string",
+                    "description": "Address for melt authority (if create_melt is true)"
+                  },
+                  "data": {
+                    "type": "array",
+                    "description": "Optional metadata (script output data)",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "hash": {
+                      "type": "string",
+                      "description": "Transaction hash (also the token UID)"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "symbol": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/configuration-string": {
+      "get": {
+        "tags": ["Tokens"],
+        "summary": "Get token configuration string",
+        "description": "Returns a configuration string that can be used to add a custom token to other wallets.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "token",
+            "in": "query",
+            "required": true,
+            "description": "Token UID",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Configuration string",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "configurationString": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/wallet/decode": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Decode transaction",
+        "description": "Decodes a transaction from hexadecimal format.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/WalletId"
+          },
+          {
+            "name": "txHex",
+            "in": "query",
+            "required": true,
+            "description": "Transaction in hexadecimal format",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decoded transaction",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "tx": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "WalletId": {
+        "name": "X-Wallet-Id",
+        "in": "header",
+        "description": "Wallet identifier (required for most endpoints)",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "example": "my-wallet"
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "error": {
+            "type": "string",
+            "example": "Error description"
+          }
+        }
+      }
+    }
+  }
+}
