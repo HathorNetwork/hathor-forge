@@ -37,11 +37,11 @@
     "hathor-core-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1766081326,
-        "narHash": "sha256-FeS5RAusmKF1BRwaz8RERaDL4haHmKLNq5A60RXWYjY=",
+        "lastModified": 1769028926,
+        "narHash": "sha256-sJ0O5IxWMg2PkNrY4UOWr/tTrfHQ6HM2YA7MAWwrPag=",
         "owner": "hathornetwork",
         "repo": "hathor-core",
-        "rev": "e3bba0da013b27f87d64a9ca5f9dacdd0b16e512",
+        "rev": "11f318d1ec81a47b4dc44a2609492b7ab7636a71",
         "type": "github"
       },
       "original": {
@@ -100,11 +100,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1766025663,
-        "narHash": "sha256-VSrZmhM22nZckbbE8Cmmc5I2RUGtwo1aii77T/i8YPU=",
+        "lastModified": 1768963622,
+        "narHash": "sha256-n6VHiUgrYD9yjagzG6ncVVqFbVTsKCI54tR9PNAFCo0=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "96617c96d4c455770e6664b5e3aad999b677fae6",
+        "rev": "2ef5b3362af585a83bafd34e7fc9b1f388c2e5e2",
         "type": "github"
       },
       "original": {
