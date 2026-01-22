@@ -53,11 +53,11 @@
     "hathor-explorer-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1766067957,
-        "narHash": "sha256-DG+XNWFaRFujBcN5DLsnF59yeApMz4mVZgfZ3yY+FuE=",
+        "lastModified": 1768919512,
+        "narHash": "sha256-e2/9S29yqEBDHNimknP3iF9tv96TBD4sUCYRIR6J8i0=",
         "owner": "hathornetwork",
         "repo": "hathor-explorer",
-        "rev": "51a0ed053998b44e0b465bdffe385e3a4c0f580d",
+        "rev": "1d43c185cf6bc13dece3f724a59120e23aeab9c3",
         "type": "github"
       },
       "original": {
