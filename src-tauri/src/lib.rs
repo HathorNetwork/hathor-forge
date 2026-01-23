@@ -1949,6 +1949,199 @@ fn kill_process(pid: u32) {
     }
 }
 
+// Get nano contract state
+#[tauri::command]
+async fn get_nano_contract_state(
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&format!("http://127.0.0.1:8080/v1a/nano_contract/state?id={}", id))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get contract state: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(json)
+}
+
+// Get nano contract history
+#[tauri::command]
+async fn get_nano_contract_history(
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&format!("http://127.0.0.1:8080/v1a/nano_contract/history?id={}", id))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get contract history: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(json)
+}
+
+// List available blueprints
+#[tauri::command]
+async fn list_blueprints(
+    state: tauri::State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get("http://127.0.0.1:8080/v1a/nano_contract/blueprints")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to list blueprints: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(json)
+}
+
+// Get blueprint information
+#[tauri::command]
+async fn get_blueprint_information(
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&format!("http://127.0.0.1:8080/v1a/nano_contract/blueprint?id={}", id))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get blueprint information: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(json)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateNanoContractRequest {
+    pub wallet_id: String,
+    pub blueprint_id: String,
+    pub args: Vec<serde_json::Value>,
+}
+
+// Create a new nano contract via wallet-headless (OCB)
+#[tauri::command]
+async fn headless_wallet_create_nano_contract(
+    state: tauri::State<'_, SharedState>,
+    request: CreateNanoContractRequest,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://localhost:8001/wallet/nano-contract/create")
+        .header("X-Wallet-Id", &request.wallet_id)
+        .json(&serde_json::json!({
+            "blueprint_id": request.blueprint_id,
+            "args": request.args,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to create nano contract: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(result)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CallNanoContractMethodRequest {
+    pub wallet_id: String,
+    pub nc_id: String,
+    pub method: String,
+    pub args: Vec<serde_json::Value>,
+}
+
+// Call a nano contract method via wallet-headless
+#[tauri::command]
+async fn headless_wallet_call_nano_contract_method(
+    state: tauri::State<'_, SharedState>,
+    request: CallNanoContractMethodRequest,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://localhost:8001/wallet/nano-contract/execute")
+        .header("X-Wallet-Id", &request.wallet_id)
+        .json(&serde_json::json!({
+            "nc_id": request.nc_id,
+            "method": request.method,
+            "args": request.args,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to call nano contract method: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(result)
+}
+
 // MCP Server port
 const MCP_SERVER_PORT: u16 = 9876;
 
@@ -1985,6 +2178,12 @@ pub fn run() {
             get_headless_wallet_addresses,
             headless_wallet_send_tx,
             close_headless_wallet,
+            get_nano_contract_state,
+            get_nano_contract_history,
+            list_blueprints,
+            get_blueprint_information,
+            headless_wallet_create_nano_contract,
+            headless_wallet_call_nano_contract_method,
         ])
         .setup(move |_app| {
             // Start the MCP server in the background using Tauri's async runtime
