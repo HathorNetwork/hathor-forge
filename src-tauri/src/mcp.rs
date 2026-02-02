@@ -593,6 +593,20 @@ fn get_tools() -> Vec<McpTool> {
                 "required": ["nc_id"]
             }),
         },
+        McpTool {
+            name: "get_nano_contract_logs".to_string(),
+            description: "Get the execution logs for a nano contract transaction.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "tx_id": {
+                        "type": "string",
+                        "description": "The transaction ID (hash) of the nano contract transaction"
+                    }
+                },
+                "required": ["tx_id"]
+            }),
+        },
     ]
 }
 
@@ -1276,6 +1290,25 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .send()
                 .await
                 .map_err(|e| format!("Failed to get nano contract history: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
+        }
+
+        "get_nano_contract_logs" => {
+            let tx_id = params
+                .get("tx_id")
+                .and_then(|v| v.as_str())
+                .ok_or("tx_id is required")?;
+
+            let resp = client
+                .get(format!(
+                    "http://127.0.0.1:8080/v1a/nano_contract/logs?id={}",
+                    tx_id
+                ))
+                .send()
+                .await
+                .map_err(|e| format!("Failed to get nano contract logs: {}", e))?;
 
             let text = resp.text().await.unwrap_or_default();
             Ok(text)

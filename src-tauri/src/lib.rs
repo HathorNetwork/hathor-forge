@@ -409,6 +409,8 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
             "--wallet-index",
             "--allow-mining-without-peers",
             "--test-mode-tx-weight",
+            "--nc-exec-logs",
+            "all",
             "--unsafe-mode",
             "privatenet",
         ])
@@ -880,6 +882,8 @@ async fn start_node(
             "--wallet-index",
             "--allow-mining-without-peers",
             "--test-mode-tx-weight",
+            "--nc-exec-logs",
+            "all",
             "--unsafe-mode",
             "privatenet",
         ])
