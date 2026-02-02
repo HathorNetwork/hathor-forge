@@ -1,6 +1,6 @@
 use std::io::{self, stdout};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
@@ -9,12 +9,12 @@ use crossterm::{
 };
 use ratatui::{
     prelude::*,
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap},
 };
 use crate::{
     start_headless_internal, start_miner_internal, start_node_internal,
     start_tx_mining_internal, stop_headless_internal, stop_miner_internal,
-    stop_node_internal, stop_tx_mining_internal, SharedState,
+    stop_node_internal, stop_tx_mining_internal, LogBuffer, SharedState,
 };
 
 /// Snapshot of dashboard state for rendering.
@@ -28,6 +28,9 @@ struct DashboardState {
     wallet_url: String,
     tx_mining_url: String,
     mcp_port: u16,
+    status_msg: Option<String>,
+    show_logs: bool,
+    log_lines: Vec<String>,
 }
 
 /// RAII guard to restore terminal on drop (including panics).
@@ -79,8 +82,24 @@ pub async fn run_tui(
     });
 
     let tick_rate = Duration::from_millis(500);
+    let mut status_msg: Option<(String, Instant)> = None;
+    let status_duration = Duration::from_secs(4);
+    let mut show_logs = false;
+
+    // Grab the log buffer once (it's Clone/Arc-based)
+    let log_buffer: LogBuffer = {
+        let s = state.lock().await;
+        s.log_buffer.clone()
+    };
 
     loop {
+        // Clear expired status message
+        if let Some((_, at)) = &status_msg {
+            if at.elapsed() >= status_duration {
+                status_msg = None;
+            }
+        }
+
         // Build snapshot
         let dash = {
             let s = state.lock().await;
@@ -94,6 +113,9 @@ pub async fn run_tui(
                 wallet_url: wallet_url.clone(),
                 tx_mining_url: tx_mining_url.clone(),
                 mcp_port,
+                status_msg: status_msg.as_ref().map(|(m, _)| m.clone()),
+                show_logs,
+                log_lines: if show_logs { log_buffer.lines() } else { vec![] },
             }
         };
 
@@ -105,9 +127,19 @@ pub async fn run_tui(
                 if key.kind != KeyEventKind::Press {
                     continue;
                 }
+                // Snapshot running states for toggle logic
+                let (node_up, miner_up, wallet_up, txm_up) = {
+                    let s = state.lock().await;
+                    (s.node_running, s.miner_running, s.headless_running, s.tx_mining_running)
+                };
+
                 match key.code {
                     KeyCode::Char('q') => break,
+                    KeyCode::Char('l') => {
+                        show_logs = !show_logs;
+                    }
                     KeyCode::Char('s') => {
+                        status_msg = Some(("Starting all services...".into(), Instant::now()));
                         let st = state.clone();
                         tokio::spawn(async move {
                             let _ = start_node_internal(&st).await;
@@ -119,6 +151,7 @@ pub async fn run_tui(
                         });
                     }
                     KeyCode::Char('x') => {
+                        status_msg = Some(("Stopping all services...".into(), Instant::now()));
                         let st = state.clone();
                         tokio::spawn(async move {
                             let _ = stop_miner_internal(&st).await;
@@ -126,6 +159,47 @@ pub async fn run_tui(
                             let _ = stop_tx_mining_internal(&st).await;
                             let _ = stop_node_internal(&st).await;
                         });
+                    }
+                    // Toggle individual services
+                    KeyCode::Char('1') => {
+                        let st = state.clone();
+                        if node_up {
+                            status_msg = Some(("Stopping Fullnode...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = stop_node_internal(&st).await; });
+                        } else {
+                            status_msg = Some(("Starting Fullnode...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = start_node_internal(&st).await; });
+                        }
+                    }
+                    KeyCode::Char('2') => {
+                        let st = state.clone();
+                        if miner_up {
+                            status_msg = Some(("Stopping Miner...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = stop_miner_internal(&st).await; });
+                        } else {
+                            status_msg = Some(("Starting Miner...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = start_miner_internal(&st, None).await; });
+                        }
+                    }
+                    KeyCode::Char('3') => {
+                        let st = state.clone();
+                        if wallet_up {
+                            status_msg = Some(("Stopping Wallet-Headless...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = stop_headless_internal(&st).await; });
+                        } else {
+                            status_msg = Some(("Starting Wallet-Headless...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = start_headless_internal(&st).await; });
+                        }
+                    }
+                    KeyCode::Char('4') => {
+                        let st = state.clone();
+                        if txm_up {
+                            status_msg = Some(("Stopping Tx-Mining...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = stop_tx_mining_internal(&st).await; });
+                        } else {
+                            status_msg = Some(("Starting Tx-Mining...".into(), Instant::now()));
+                            tokio::spawn(async move { let _ = start_tx_mining_internal(&st).await; });
+                        }
                     }
                     _ => {}
                 }
@@ -147,16 +221,34 @@ fn status_span(running: bool) -> Span<'static> {
 fn draw(f: &mut Frame, dash: &DashboardState) {
     let area = f.area();
 
+    // Top-level split: dashboard vs log pane
+    let main_chunks = if dash.show_logs {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(14), Constraint::Percentage(50)])
+            .split(area)
+    } else {
+        Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(14), Constraint::Length(0)])
+            .split(area)
+    };
+
+    let dash_area = main_chunks[0];
+    let log_area = main_chunks[1];
+
+    // Dashboard layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
         .constraints([
             Constraint::Length(3), // header
             Constraint::Min(8),   // table
-            Constraint::Length(3), // block height
-            Constraint::Length(2), // footer
+            Constraint::Length(1), // block height
+            Constraint::Length(1), // status message
+            Constraint::Length(1), // footer
         ])
-        .split(area);
+        .split(dash_area);
 
     // Header
     let header = Paragraph::new(Line::from(vec![
@@ -172,41 +264,53 @@ fn draw(f: &mut Frame, dash: &DashboardState) {
     // Service table
     let rows = vec![
         Row::new(vec![
-            Cell::from("Fullnode"),
+            Cell::from(Line::from(vec![
+                Span::styled("1", Style::default().fg(Color::Cyan).bold()),
+                Span::raw(" Fullnode"),
+            ])),
             Cell::from(status_span(dash.node_running)),
             Cell::from(dash.fullnode_url.as_str().to_string()),
         ]),
         Row::new(vec![
-            Cell::from("Miner"),
+            Cell::from(Line::from(vec![
+                Span::styled("2", Style::default().fg(Color::Cyan).bold()),
+                Span::raw(" Miner"),
+            ])),
             Cell::from(status_span(dash.miner_running)),
             Cell::from(""),
         ]),
         Row::new(vec![
-            Cell::from("Wallet-Headless"),
+            Cell::from(Line::from(vec![
+                Span::styled("3", Style::default().fg(Color::Cyan).bold()),
+                Span::raw(" Wallet-Headless"),
+            ])),
             Cell::from(status_span(dash.headless_running)),
             Cell::from(dash.wallet_url.as_str().to_string()),
         ]),
         Row::new(vec![
-            Cell::from("Tx-Mining"),
+            Cell::from(Line::from(vec![
+                Span::styled("4", Style::default().fg(Color::Cyan).bold()),
+                Span::raw(" Tx-Mining"),
+            ])),
             Cell::from(status_span(dash.tx_mining_running)),
             Cell::from(dash.tx_mining_url.as_str().to_string()),
         ]),
         Row::new(vec![
-            Cell::from("MCP Server"),
+            Cell::from("  MCP Server"),
             Cell::from(status_span(true)),
             Cell::from(format!("http://127.0.0.1:{}", dash.mcp_port)),
         ]),
     ];
 
     let widths = [
-        Constraint::Length(18),
+        Constraint::Length(20),
         Constraint::Length(10),
         Constraint::Min(20),
     ];
 
     let table = Table::new(rows, widths)
         .header(
-            Row::new(vec!["Service", "Status", "Details"])
+            Row::new(vec!["  Service", "Status", "Details"])
                 .style(Style::default().bold().fg(Color::White))
                 .bottom_margin(1),
         )
@@ -215,22 +319,55 @@ fn draw(f: &mut Frame, dash: &DashboardState) {
 
     // Block height
     let bh_text = match dash.block_height {
-        Some(h) => format!("Block Height: {}", h),
-        None if dash.node_running => "Block Height: ...".to_string(),
-        None => "Block Height: -".to_string(),
+        Some(h) => format!("  Block Height: {}", h),
+        None if dash.node_running => "  Block Height: ...".to_string(),
+        None => "  Block Height: -".to_string(),
     };
     let bh = Paragraph::new(bh_text).style(Style::default().fg(Color::Yellow));
     f.render_widget(bh, chunks[2]);
 
+    // Status message
+    if let Some(msg) = &dash.status_msg {
+        let status = Paragraph::new(format!("  {}", msg))
+            .style(Style::default().fg(Color::Yellow).bold());
+        f.render_widget(status, chunks[3]);
+    }
+
     // Footer keybindings
+    let log_hint = if dash.show_logs { "hide logs" } else { "show logs" };
     let footer = Paragraph::new(Line::from(vec![
+        Span::raw("  "),
         Span::styled("q", Style::default().fg(Color::Cyan).bold()),
         Span::raw(" quit │ "),
         Span::styled("s", Style::default().fg(Color::Cyan).bold()),
         Span::raw(" start all │ "),
         Span::styled("x", Style::default().fg(Color::Cyan).bold()),
-        Span::raw(" stop all"),
+        Span::raw(" stop all │ "),
+        Span::styled("1-4", Style::default().fg(Color::Cyan).bold()),
+        Span::raw(" toggle service │ "),
+        Span::styled("l", Style::default().fg(Color::Cyan).bold()),
+        Span::raw(format!(" {}", log_hint)),
     ]))
     .style(Style::default().fg(Color::DarkGray));
-    f.render_widget(footer, chunks[3]);
+    f.render_widget(footer, chunks[4]);
+
+    // Log pane
+    if dash.show_logs && log_area.height > 2 {
+        let visible_lines = (log_area.height - 2) as usize; // minus border
+        let start = dash.log_lines.len().saturating_sub(visible_lines);
+        let text: String = dash.log_lines[start..].join("\n");
+        let log_widget = Paragraph::new(text)
+            .style(Style::default().fg(Color::Gray))
+            .wrap(Wrap { trim: false })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_style(Style::default().fg(Color::DarkGray))
+                    .title(Span::styled(
+                        " Logs ",
+                        Style::default().fg(Color::White).bold(),
+                    )),
+            );
+        f.render_widget(log_widget, log_area);
+    }
 }

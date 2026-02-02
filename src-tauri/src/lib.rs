@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::fs;
 use std::process::Stdio;
 use std::sync::Arc;
@@ -8,6 +9,38 @@ use tokio::sync::Mutex;
 
 pub mod mcp;
 pub mod tui;
+
+/// Ring buffer for service log lines, shared across all service processes.
+const LOG_BUFFER_CAPACITY: usize = 1000;
+
+#[derive(Clone)]
+pub struct LogBuffer(Arc<std::sync::Mutex<VecDeque<String>>>);
+
+impl LogBuffer {
+    pub fn new() -> Self {
+        Self(Arc::new(std::sync::Mutex::new(VecDeque::with_capacity(
+            LOG_BUFFER_CAPACITY,
+        ))))
+    }
+
+    pub fn push(&self, line: String) {
+        let mut buf = self.0.lock().unwrap();
+        if buf.len() == LOG_BUFFER_CAPACITY {
+            buf.pop_front();
+        }
+        buf.push_back(line);
+    }
+
+    pub fn lines(&self) -> Vec<String> {
+        self.0.lock().unwrap().iter().cloned().collect()
+    }
+}
+
+impl Default for LogBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 // Application state
 pub struct AppState {
@@ -22,6 +55,7 @@ pub struct AppState {
     pub tx_mining_child_id: Option<u32>,
     pub explorer_shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     pub data_dir: Option<String>,
+    pub log_buffer: LogBuffer,
 }
 
 impl Default for AppState {
@@ -38,11 +72,28 @@ impl Default for AppState {
             tx_mining_child_id: None,
             explorer_shutdown: None,
             data_dir: None,
+            log_buffer: LogBuffer::new(),
         }
     }
 }
 
 pub type SharedState = Arc<Mutex<AppState>>;
+
+/// Spawn a background task that reads lines from an async reader and pushes them
+/// into the shared log buffer with a `[prefix]` tag.
+fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
+    reader: R,
+    log_buf: LogBuffer,
+    prefix: &'static str,
+) {
+    tokio::spawn(async move {
+        let br = BufReader::new(reader);
+        let mut lines = br.lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            log_buf.push(format!("[{}] {}", prefix, line));
+        }
+    });
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NodeConfig {
@@ -428,29 +479,17 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     state_guard.node_child_id = Some(pid);
     state_guard.data_dir = Some(config.data_dir.clone());
 
-    // Consume stdout/stderr in background tasks to prevent pipe buffer issues
+    // Route stdout/stderr to shared log buffer
+    let log_buf = state_guard.log_buffer.clone();
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let state_clone = state.clone();
 
-    if let Some(stdout) = stdout {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {
-                // Just consume the output for MCP mode
-            }
-        });
+    if let Some(out) = stdout {
+        spawn_log_reader(out, log_buf.clone(), "node");
     }
-
-    if let Some(stderr) = stderr {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {
-                // Just consume the output for MCP mode
-            }
-        });
+    if let Some(err) = stderr {
+        spawn_log_reader(err, log_buf, "node");
     }
 
     // Spawn task to wait for process termination and reset state
@@ -555,25 +594,16 @@ pub async fn start_miner_internal(
     state_guard.miner_running = true;
     state_guard.miner_child_id = Some(pid);
 
-    // Consume stdout/stderr
+    let log_buf = state_guard.log_buffer.clone();
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let state_clone = state.clone();
 
-    if let Some(stdout) = stdout {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {}
-        });
+    if let Some(out) = stdout {
+        spawn_log_reader(out, log_buf.clone(), "miner");
     }
-
-    if let Some(stderr) = stderr {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {}
-        });
+    if let Some(err) = stderr {
+        spawn_log_reader(err, log_buf, "miner");
     }
 
     tokio::spawn(async move {
@@ -651,25 +681,16 @@ pub async fn start_headless_internal(state: &SharedState) -> Result<String, Stri
     state_guard.headless_running = true;
     state_guard.headless_child_id = Some(pid);
 
-    // Consume stdout/stderr
+    let log_buf = state_guard.log_buffer.clone();
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let state_clone = state.clone();
 
-    if let Some(stdout) = stdout {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {}
-        });
+    if let Some(out) = stdout {
+        spawn_log_reader(out, log_buf.clone(), "wallet");
     }
-
-    if let Some(stderr) = stderr {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {}
-        });
+    if let Some(err) = stderr {
+        spawn_log_reader(err, log_buf, "wallet");
     }
 
     tokio::spawn(async move {
@@ -758,25 +779,16 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
     state_guard.tx_mining_running = true;
     state_guard.tx_mining_child_id = Some(pid);
 
-    // Consume stdout/stderr
+    let log_buf = state_guard.log_buffer.clone();
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
     let state_clone = state.clone();
 
-    if let Some(stdout) = stdout {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stdout);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {}
-        });
+    if let Some(out) = stdout {
+        spawn_log_reader(out, log_buf.clone(), "tx-mining");
     }
-
-    if let Some(stderr) = stderr {
-        tokio::spawn(async move {
-            let reader = BufReader::new(stderr);
-            let mut lines = reader.lines();
-            while lines.next_line().await.is_ok() {}
-        });
+    if let Some(err) = stderr {
+        spawn_log_reader(err, log_buf, "tx-mining");
     }
 
     tokio::spawn(async move {
