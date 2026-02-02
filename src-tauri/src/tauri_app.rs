@@ -1883,7 +1883,7 @@ pub fn run() {
 
             // Start the MCP server in the background using Tauri's async runtime
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT).await {
+                if let Err(e) = mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT, None, None, None).await {
                     eprintln!("Failed to start MCP server: {}", e);
                 }
             });

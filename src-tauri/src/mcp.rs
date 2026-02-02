@@ -14,7 +14,7 @@ use futures_util::stream::{self, Stream};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{collections::HashMap, convert::Infallible, sync::Arc, time::Duration};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::SharedState;
 
@@ -65,13 +65,30 @@ struct McpTool {
 pub struct McpState {
     app_state: SharedState,
     wallet_seeds: Mutex<HashMap<String, String>>,
+    pub fullnode_url: RwLock<String>,
+    pub wallet_headless_url: RwLock<String>,
+    pub tx_mining_url: RwLock<String>,
 }
 
 impl McpState {
-    pub fn new(app_state: SharedState) -> Self {
+    pub fn new(
+        app_state: SharedState,
+        fullnode_url: Option<String>,
+        wallet_headless_url: Option<String>,
+        tx_mining_url: Option<String>,
+    ) -> Self {
         Self {
             app_state,
             wallet_seeds: Mutex::new(HashMap::new()),
+            fullnode_url: RwLock::new(
+                fullnode_url.unwrap_or_else(|| "http://127.0.0.1:8080".to_string()),
+            ),
+            wallet_headless_url: RwLock::new(
+                wallet_headless_url.unwrap_or_else(|| "http://localhost:8001".to_string()),
+            ),
+            tx_mining_url: RwLock::new(
+                tx_mining_url.unwrap_or_else(|| "http://localhost:8002".to_string()),
+            ),
         }
     }
 }
@@ -607,6 +624,38 @@ fn get_tools() -> Vec<McpTool> {
                 "required": ["tx_id"]
             }),
         },
+        // Service URL Configuration
+        McpTool {
+            name: "get_service_urls".to_string(),
+            description: "Get the current service endpoint URLs (fullnode, wallet-headless, tx-mining).".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        },
+        McpTool {
+            name: "set_service_urls".to_string(),
+            description: "Update service endpoint URLs at runtime. Only provided URLs are changed.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "fullnode_url": {
+                        "type": "string",
+                        "description": "Fullnode API URL (e.g. http://127.0.0.1:8080)"
+                    },
+                    "wallet_headless_url": {
+                        "type": "string",
+                        "description": "Wallet-headless service URL (e.g. http://localhost:8001)"
+                    },
+                    "tx_mining_url": {
+                        "type": "string",
+                        "description": "Tx-mining service URL (e.g. http://localhost:8002)"
+                    }
+                },
+                "required": []
+            }),
+        },
     ]
 }
 
@@ -616,6 +665,9 @@ fn get_tools() -> Vec<McpTool> {
 
 async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<String, String> {
     let client = reqwest::Client::new();
+    let fullnode_url = state.fullnode_url.read().await.clone();
+    let wallet_headless_url = state.wallet_headless_url.read().await.clone();
+    let _tx_mining_url = state.tx_mining_url.read().await.clone();
 
     match name {
         // Node Management
@@ -630,7 +682,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             }
             drop(app_state);
 
-            match client.get("http://127.0.0.1:8080/v1a/status/").send().await {
+            match client.get(format!("{}/v1a/status/", fullnode_url)).send().await {
                 Ok(resp) => {
                     let text = resp.text().await.unwrap_or_default();
                     Ok(format!(r#"{{"running": true, "status": {}}}"#, text))
@@ -707,7 +759,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             // Create wallet via API
             let resp = client
-                .post("http://localhost:8001/start")
+                .post(format!("{}/start", wallet_headless_url))
                 .json(&json!({
                     "wallet-id": wallet_id,
                     "seed": wallet_seed,
@@ -748,7 +800,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .ok_or("wallet_id is required")?;
 
             let resp = client
-                .get("http://localhost:8001/wallet/status")
+                .get(format!("{}/wallet/status", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .send()
                 .await
@@ -765,7 +817,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .ok_or("wallet_id is required")?;
 
             let resp = client
-                .get("http://localhost:8001/wallet/balance")
+                .get(format!("{}/wallet/balance", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .send()
                 .await
@@ -782,7 +834,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .ok_or("wallet_id is required")?;
 
             let resp = client
-                .get("http://localhost:8001/wallet/addresses")
+                .get(format!("{}/wallet/addresses", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .send()
                 .await
@@ -807,7 +859,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .ok_or("amount is required")?;
 
             let resp = client
-                .post("http://localhost:8001/wallet/simple-send-tx")
+                .post(format!("{}/wallet/simple-send-tx", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "address": address,
@@ -828,7 +880,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .ok_or("wallet_id is required")?;
 
             let resp = client
-                .post("http://localhost:8001/wallet/stop")
+                .post(format!("{}/wallet/stop", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .send()
                 .await
@@ -843,7 +895,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
         // Faucet
         "get_faucet_balance" => {
             let resp = client
-                .get("http://127.0.0.1:8080/v1a/wallet/balance/")
+                .get(format!("{}/v1a/wallet/balance/", fullnode_url))
                 .send()
                 .await
                 .map_err(|e| format!("Failed to get faucet balance: {}", e))?;
@@ -863,7 +915,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .ok_or("amount is required")?;
 
             let resp = client
-                .post("http://127.0.0.1:8080/v1a/wallet/send_tokens/")
+                .post(format!("{}/v1a/wallet/send_tokens/", fullnode_url))
                 .json(&json!({
                     "data": {
                         "inputs": [],
@@ -890,7 +942,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             // Get wallet's first address
             let addresses_resp = client
-                .get("http://localhost:8001/wallet/addresses")
+                .get(format!("{}/wallet/addresses", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .send()
                 .await
@@ -910,7 +962,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             // Get faucet balance
             let balance_resp = client
-                .get("http://127.0.0.1:8080/v1a/wallet/balance/")
+                .get(format!("{}/v1a/wallet/balance/", fullnode_url))
                 .send()
                 .await
                 .map_err(|e| format!("Failed to get faucet balance: {}", e))?;
@@ -941,7 +993,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             // Send from faucet
             let send_resp = client
-                .post("http://127.0.0.1:8080/v1a/wallet/send_tokens/")
+                .post(format!("{}/v1a/wallet/send_tokens/", fullnode_url))
                 .json(&json!({
                     "data": {
                         "inputs": [],
@@ -969,7 +1021,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             let count = params.get("count").and_then(|v| v.as_i64()).unwrap_or(10) as usize;
 
             let status_resp = client
-                .get("http://127.0.0.1:8080/v1a/status/")
+                .get(format!("{}/v1a/status/", fullnode_url))
                 .send()
                 .await
                 .map_err(|e| format!("Failed to get status: {}", e))?;
@@ -990,8 +1042,8 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             for i in (height.saturating_sub(count)..=height).rev() {
                 if let Ok(resp) = client
                     .get(format!(
-                        "http://127.0.0.1:8080/v1a/block_at_height?height={}",
-                        i
+                        "{}/v1a/block_at_height?height={}",
+                        fullnode_url, i
                     ))
                     .send()
                     .await
@@ -1013,8 +1065,8 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             let resp = client
                 .get(format!(
-                    "http://127.0.0.1:8080/v1a/transaction?id={}",
-                    tx_id
+                    "{}/v1a/transaction?id={}",
+                    fullnode_url, tx_id
                 ))
                 .send()
                 .await
@@ -1092,7 +1144,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             // Try to get faucet balance
             if let Ok(resp) = reqwest::Client::new()
-                .get("http://127.0.0.1:8080/v1a/wallet/balance/")
+                .get(format!("{}/v1a/wallet/balance/", fullnode_url))
                 .send()
                 .await
             {
@@ -1125,7 +1177,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
         // Nano Contracts & Blueprints
         "list_blueprints" => {
             let resp = client
-                .get("http://127.0.0.1:8080/v1a/nano_contract/blueprints")
+                .get(format!("{}/v1a/nano_contract/blueprints", fullnode_url))
                 .send()
                 .await
                 .map_err(|e| format!("Failed to list blueprints: {}", e))?;
@@ -1142,8 +1194,8 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             let resp = client
                 .get(format!(
-                    "http://127.0.0.1:8080/v1a/nano_contract/blueprint?id={}",
-                    blueprint_id
+                    "{}/v1a/nano_contract/blueprint?id={}",
+                    fullnode_url, blueprint_id
                 ))
                 .send()
                 .await
@@ -1168,7 +1220,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .ok_or("address is required")?;
 
             let resp = client
-                .post("http://localhost:8001/wallet/nano-contracts/create-on-chain-blueprint")
+                .post(format!("{}/wallet/nano-contracts/create-on-chain-blueprint", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "code": code,
@@ -1199,7 +1251,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             let actions = params.get("actions").cloned().unwrap_or(json!([]));
 
             let resp = client
-                .post("http://localhost:8001/wallet/nano-contracts/create")
+                .post(format!("{}/wallet/nano-contracts/create", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "blueprint_id": blueprint_id,
@@ -1238,7 +1290,7 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             let actions = params.get("actions").cloned().unwrap_or(json!([]));
 
             let resp = client
-                .post("http://localhost:8001/wallet/nano-contracts/execute")
+                .post(format!("{}/wallet/nano-contracts/execute", wallet_headless_url))
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "nc_id": nc_id,
@@ -1265,8 +1317,8 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             let resp = client
                 .get(format!(
-                    "http://127.0.0.1:8080/v1a/nano_contract/state?id={}",
-                    nc_id
+                    "{}/v1a/nano_contract/state?id={}",
+                    fullnode_url, nc_id
                 ))
                 .send()
                 .await
@@ -1284,8 +1336,8 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             let resp = client
                 .get(format!(
-                    "http://127.0.0.1:8080/v1a/nano_contract/history?id={}",
-                    nc_id
+                    "{}/v1a/nano_contract/history?id={}",
+                    fullnode_url, nc_id
                 ))
                 .send()
                 .await
@@ -1303,8 +1355,8 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             let resp = client
                 .get(format!(
-                    "http://127.0.0.1:8080/v1a/nano_contract/logs?id={}",
-                    tx_id
+                    "{}/v1a/nano_contract/logs?id={}",
+                    fullnode_url, tx_id
                 ))
                 .send()
                 .await
@@ -1312,6 +1364,38 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
 
             let text = resp.text().await.unwrap_or_default();
             Ok(text)
+        }
+
+        // Service URL Configuration
+        "get_service_urls" => Ok(json!({
+            "fullnode_url": fullnode_url,
+            "wallet_headless_url": wallet_headless_url,
+            "tx_mining_url": _tx_mining_url,
+        })
+        .to_string()),
+
+        "set_service_urls" => {
+            if let Some(url) = params.get("fullnode_url").and_then(|v| v.as_str()) {
+                *state.fullnode_url.write().await = url.to_string();
+            }
+            if let Some(url) = params.get("wallet_headless_url").and_then(|v| v.as_str()) {
+                *state.wallet_headless_url.write().await = url.to_string();
+            }
+            if let Some(url) = params.get("tx_mining_url").and_then(|v| v.as_str()) {
+                *state.tx_mining_url.write().await = url.to_string();
+            }
+
+            let fullnode_url = state.fullnode_url.read().await.clone();
+            let wallet_headless_url = state.wallet_headless_url.read().await.clone();
+            let tx_mining_url = state.tx_mining_url.read().await.clone();
+
+            Ok(json!({
+                "updated": true,
+                "fullnode_url": fullnode_url,
+                "wallet_headless_url": wallet_headless_url,
+                "tx_mining_url": tx_mining_url,
+            })
+            .to_string())
         }
 
         _ => Err(format!("Unknown tool: {}", name)),
@@ -1446,8 +1530,18 @@ async fn handle_health() -> impl IntoResponse {
 // Router
 // ============================================================================
 
-pub fn create_mcp_router(app_state: SharedState) -> Router {
-    let mcp_state = Arc::new(McpState::new(app_state));
+pub fn create_mcp_router(
+    app_state: SharedState,
+    fullnode_url: Option<String>,
+    wallet_headless_url: Option<String>,
+    tx_mining_url: Option<String>,
+) -> Router {
+    let mcp_state = Arc::new(McpState::new(
+        app_state,
+        fullnode_url,
+        wallet_headless_url,
+        tx_mining_url,
+    ));
 
     Router::new()
         .route("/mcp", post(handle_mcp_request))
@@ -1460,8 +1554,11 @@ pub fn create_mcp_router(app_state: SharedState) -> Router {
 pub async fn start_mcp_server(
     app_state: SharedState,
     port: u16,
+    fullnode_url: Option<String>,
+    wallet_headless_url: Option<String>,
+    tx_mining_url: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let app = create_mcp_router(app_state);
+    let app = create_mcp_router(app_state, fullnode_url, wallet_headless_url, tx_mining_url);
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
     eprintln!("MCP Server listening on http://127.0.0.1:{}", port);

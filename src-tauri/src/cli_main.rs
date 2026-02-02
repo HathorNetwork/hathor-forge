@@ -260,7 +260,15 @@ async fn main() {
 
     // Start MCP server
     let mcp_handle = tokio::spawn(async move {
-        if let Err(e) = hathor_forge_lib::mcp::start_mcp_server(state, mcp_port).await {
+        if let Err(e) = hathor_forge_lib::mcp::start_mcp_server(
+            state,
+            mcp_port,
+            fullnode_url.clone(),
+            None,
+            tx_mining_url.clone(),
+        )
+        .await
+        {
             let msg = e.to_string();
             if msg.contains("Address already in use") {
                 eprintln!();
