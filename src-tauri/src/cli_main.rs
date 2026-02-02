@@ -4,6 +4,7 @@ use hathor_forge_lib::{
     start_tx_mining_internal, stop_node_internal, AppState, MCP_SERVER_PORT,
 };
 use serde::{Deserialize, Serialize};
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -56,6 +57,10 @@ struct Cli {
     /// Mining address (default: built-in dev wallet address)
     #[arg(long)]
     mining_address: Option<String>,
+
+    /// Disable TUI dashboard (use plain log output)
+    #[arg(long)]
+    no_tui: bool,
 
     /// Save current flags as default settings
     #[arg(long)]
@@ -167,6 +172,14 @@ async fn main() {
     let tx_mining_url = cli.tx_mining_url.clone().or(saved.tx_mining_url.clone());
     let mining_address = cli.mining_address.clone().or(saved.mining_address.clone());
 
+    // Resolved URLs for display (TUI and MCP use the same defaults)
+    let fullnode_url_resolved = fullnode_url
+        .clone()
+        .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
+    let tx_mining_url_resolved = tx_mining_url
+        .clone()
+        .unwrap_or_else(|| "http://localhost:8002".to_string());
+
     // Save settings if requested
     if cli.save_settings {
         let settings = Settings {
@@ -248,15 +261,17 @@ async fn main() {
         eprintln!();
     }
 
-    // Start MCP server
-    eprintln!("  MCP Server ...... http://127.0.0.1:{}", mcp_port);
-    eprintln!();
-    eprintln!("Press Ctrl+C to stop all services and exit.");
+    let use_tui = !cli.no_tui && std::io::stdout().is_terminal();
+
+    if !use_tui {
+        // Headless mode: plain log output
+        eprintln!("  MCP Server ...... http://127.0.0.1:{}", mcp_port);
+        eprintln!();
+        eprintln!("Press Ctrl+C to stop all services and exit.");
+    }
 
     let shutdown_state = state.clone();
-
-    // Install Ctrl+C handler
-    let ctrl_c = tokio::signal::ctrl_c();
+    let tui_state = state.clone();
 
     // Start MCP server
     let mcp_handle = tokio::spawn(async move {
@@ -281,14 +296,34 @@ async fn main() {
         }
     });
 
-    // Wait for Ctrl+C
-    tokio::select! {
-        _ = ctrl_c => {
-            eprintln!();
-            eprintln!("Shutting down...");
+    if use_tui {
+        // TUI mode
+        let fn_url = fullnode_url_resolved.clone();
+        let wh_url = "http://localhost:8001".to_string();
+        let tm_url = tx_mining_url_resolved.clone();
+        if let Err(e) = hathor_forge_lib::tui::run_tui(
+            tui_state,
+            mcp_port,
+            fn_url,
+            wh_url,
+            tm_url,
+        )
+        .await
+        {
+            eprintln!("TUI error: {}", e);
         }
-        _ = mcp_handle => {
-            eprintln!("MCP server stopped unexpectedly.");
+        eprintln!("Shutting down...");
+    } else {
+        // Headless mode: wait for Ctrl+C
+        let ctrl_c = tokio::signal::ctrl_c();
+        tokio::select! {
+            _ = ctrl_c => {
+                eprintln!();
+                eprintln!("Shutting down...");
+            }
+            _ = mcp_handle => {
+                eprintln!("MCP server stopped unexpectedly.");
+            }
         }
     }
 

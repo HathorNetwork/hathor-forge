@@ -7,6 +7,7 @@ use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex;
 
 pub mod mcp;
+pub mod tui;
 
 // Application state
 pub struct AppState {
