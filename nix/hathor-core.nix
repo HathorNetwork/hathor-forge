@@ -1,65 +1,32 @@
 { pkgs, src }:
 
-let
-  python = pkgs.python312;
-in
-pkgs.stdenv.mkDerivation rec {
-  pname = "hathor-core";
-  version = "0.69.0";
+# hathor-core wrapper that sets up a Python venv on first run.
+# The venv is cached in ~/.cache/hathor-forge/hathor-core-venv/
+pkgs.writeShellScriptBin "hathor-core" ''
+  set -euo pipefail
 
-  inherit src;
+  CACHE_DIR="''${XDG_CACHE_HOME:-$HOME/.cache}/hathor-forge"
+  VENV_DIR="$CACHE_DIR/hathor-core-venv"
+  STAMP="$VENV_DIR/.installed-0.69.0"
 
-  nativeBuildInputs = with pkgs; [
-    python
-    poetry
-    pkg-config
-    cmake
-  ];
+  if [ ! -f "$STAMP" ]; then
+    echo "Setting up hathor-core (first run, may take a minute)..." >&2
+    rm -rf "$VENV_DIR"
+    mkdir -p "$CACHE_DIR"
 
-  buildInputs = with pkgs; [
-    rocksdb
-    snappy
-    openssl
-    readline
-    zlib
-    xz
-    bzip2
-    lz4
-  ];
+    export CFLAGS="-I${pkgs.rocksdb}/include -I${pkgs.snappy}/include"
+    export LDFLAGS="-L${pkgs.rocksdb}/lib -L${pkgs.snappy}/lib"
+    export ROCKSDB_INCLUDE_DIR="${pkgs.rocksdb}/include"
+    export ROCKSDB_LIB_DIR="${pkgs.rocksdb}/lib"
 
-  # Don't run the normal build phases - we'll use poetry
-  dontBuild = true;
-  dontConfigure = true;
+    ${pkgs.python312}/bin/python3 -m venv "$VENV_DIR"
+    "$VENV_DIR/bin/pip" install --upgrade pip wheel setuptools >&2
+    "$VENV_DIR/bin/pip" install "${src}" >&2
 
-  installPhase = ''
-    mkdir -p $out/bin $out/lib/hathor-core
+    touch "$STAMP"
+    echo "hathor-core ready." >&2
+  fi
 
-    # Copy source
-    cp -r . $out/lib/hathor-core/
-
-    # Create wrapper script that sets up the environment
-    cat > $out/bin/hathor-cli << EOF
-#!/usr/bin/env bash
-SCRIPT_DIR="\$(cd "\$(dirname "\''${BASH_SOURCE[0]}")" && pwd)"
-HATHOR_DIR="\$SCRIPT_DIR/../lib/hathor-core"
-
-# Set up environment
-export CFLAGS="-I${pkgs.rocksdb}/include"
-export LDFLAGS="-L${pkgs.rocksdb}/lib"
-export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.rocksdb pkgs.openssl pkgs.snappy ]}:\$LD_LIBRARY_PATH"
-export DYLD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.rocksdb pkgs.openssl pkgs.snappy ]}:\$DYLD_LIBRARY_PATH"
-
-# Use poetry to run hathor-cli
-cd "\$HATHOR_DIR"
-exec ${pkgs.poetry}/bin/poetry run hathor-cli "\$@"
-EOF
-    chmod +x $out/bin/hathor-cli
-  '';
-
-  meta = with pkgs.lib; {
-    description = "Hathor Network full-node";
-    homepage = "https://github.com/HathorNetwork/hathor-core";
-    license = licenses.asl20;
-    platforms = platforms.unix;
-  };
-}
+  export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.rocksdb pkgs.openssl pkgs.snappy pkgs.zlib ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+  exec "$VENV_DIR/bin/hathor-cli" "$@"
+''

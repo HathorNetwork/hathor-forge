@@ -2,7 +2,7 @@
   description = "Hathor Forge - Local development environment for Hathor Network";
 
   inputs = {
-nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
@@ -61,22 +61,56 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
           src = hathor-core-src;
         };
 
-        # CLI binary (no Tauri, no GUI dependencies)
-        hathorForgeCli = import ./nix/cli.nix {
+        # Build tx-mining-service from GitHub
+        txMiningService = import ./nix/tx-mining-service.nix {
+          inherit pkgs;
+          src = tx-mining-service-src;
+        };
+
+        # Build wallet-headless from GitHub
+        walletHeadless = import ./nix/wallet-headless.nix {
+          inherit pkgs;
+          src = wallet-headless-src;
+        };
+
+        # CLI binary (Rust, no Tauri)
+        cliUnwrapped = import ./nix/cli.nix {
           inherit pkgs rustToolchain;
         };
+
+        # Assemble a binaries directory that the CLI can find
+        binariesDir = pkgs.linkFarm "hathor-forge-binaries" [
+          { name = "hathor-core"; path = "${hathorCore}/bin/hathor-core"; }
+          { name = "cpuminer"; path = "${cpuminer}/bin/minerd"; }
+          { name = "tx-mining-service"; path = "${txMiningService}/bin/tx-mining-service"; }
+        ];
+
+        # Wrapped CLI with all service binaries and lazy setup
+        hathorForgeCli = pkgs.writeShellScriptBin "hathor-forge-cli" ''
+          export HATHOR_FORGE_BINARIES_DIR="${binariesDir}"
+          export PATH="${pkgs.nodejs_22}/bin:${pkgs.python312}/bin:$PATH"
+
+          # Lazy-setup wallet-headless on first use
+          HEADLESS_DIR=$(${walletHeadless}/bin/wallet-headless-setup)
+          export HATHOR_FORGE_HEADLESS_DIR="$HEADLESS_DIR"
+
+          exec ${cliUnwrapped}/bin/hathor-forge-cli "$@"
+        '';
 
       in {
         packages = {
           default = self.packages.${system}.hathor-forge-cli;
           hathor-forge-cli = hathorForgeCli;
+          hathor-forge-cli-unwrapped = cliUnwrapped;
           hathor-core = hathorCore;
           cpuminer = cpuminer;
+          tx-mining-service = txMiningService;
+          wallet-headless = walletHeadless;
 
           # Combined runtime bundle
           runtime = pkgs.symlinkJoin {
             name = "hathor-forge-runtime";
-            paths = [ hathorCore cpuminer ];
+            paths = [ hathorCore cpuminer txMiningService ];
           };
 
           # Placeholder for the full Tauri app (will be built via cargo)
@@ -124,6 +158,10 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
 
         # Runnable apps
         apps = {
+          default = {
+            type = "app";
+            program = "${hathorForgeCli}/bin/hathor-forge-cli";
+          };
           dev = {
             type = "app";
             program = toString (pkgs.writeShellScript "dev" ''
