@@ -20,6 +20,8 @@ pkgs.stdenv.mkDerivation rec {
   configureFlags = [
     "--with-crypto"
     "--with-curl"
+  ] ++ pkgs.lib.optionals pkgs.stdenv.isAarch64 [
+    "--disable-assembly"
   ];
 
   enableParallelBuilding = true;
