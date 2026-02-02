@@ -36,13 +36,64 @@ The app provides a clean dashboard with:
 
 ## Quick Start
 
-### Prerequisites
+### CLI (Headless — no GUI required)
+
+Run the CLI directly with Nix — no clone or install needed:
+
+```bash
+# Start MCP server only (control services via MCP tools)
+nix run github:HathorNetwork/hathor-forge
+
+# Start all local services (node + miner + wallet-headless + MCP)
+nix run github:HathorNetwork/hathor-forge -- --start
+
+# Start only wallet-headless pointing to an external node
+nix run github:HathorNetwork/hathor-forge -- --wallet-only --fullnode-url http://mynode:8080
+
+# Start without the miner
+nix run github:HathorNetwork/hathor-forge -- --start --no-miner
+
+# Save your preferred configuration
+nix run github:HathorNetwork/hathor-forge -- --start --no-miner --save-settings
+# Next time, just run without flags — settings are loaded from ~/.config/hathor-forge/cli-settings.json
+nix run github:HathorNetwork/hathor-forge
+```
+
+#### CLI Options
+
+| Flag | Description |
+|------|-------------|
+| `--start` | Auto-start all local services |
+| `--wallet-only` | Start only wallet-headless + MCP server |
+| `--no-miner` | Skip starting the CPU miner |
+| `--no-wallet` | Skip starting wallet-headless |
+| `--no-tx-mining` | Skip starting tx-mining-service |
+| `--fullnode-url <URL>` | Connect to an external fullnode (skip local node) |
+| `--tx-mining-url <URL>` | Connect to an external tx-mining-service |
+| `--mining-address <ADDR>` | Custom mining reward address |
+| `--mcp-port <PORT>` | MCP server port (default: 9876) |
+| `--save-settings` | Persist current flags to settings file |
+| `--settings-file <PATH>` | Custom settings file path |
+
+#### Building from source
+
+```bash
+# With cargo (no Tauri dependency)
+cargo build --manifest-path src-tauri/Cargo.toml --no-default-features --bin hathor-forge-cli
+
+# With Nix
+nix build .#hathor-forge-cli
+```
+
+### Desktop App (GUI)
+
+#### Prerequisites
 
 - Node.js 18+
 - Rust 1.70+ (for Tauri)
 - Nix (recommended) or manual dependency management
 
-### Development
+#### Development
 
 ```bash
 # Enter dev shell (auto-loads with direnv, or run manually)
@@ -55,7 +106,7 @@ npm install
 dev-server
 ```
 
-### Building Binaries
+#### Building Binaries
 
 Before running the app, build the required binaries:
 
@@ -73,7 +124,7 @@ build-wallet-headless
 build-explorer
 ```
 
-### Production Build
+#### Production Build
 
 ```bash
 build-release
@@ -147,8 +198,13 @@ Hathor Forge includes an embedded MCP (Model Context Protocol) server that allow
 
 ### Setup for Claude Code
 
+Start the CLI (or desktop app), then add the MCP server:
+
 ```bash
-# Add the MCP server to Claude Code
+# In one terminal: start the environment
+nix run github:HathorNetwork/hathor-forge -- --start
+
+# In another terminal: register the MCP server with Claude Code
 claude mcp add --transport http hathor-forge http://127.0.0.1:9876/mcp
 ```
 
@@ -287,8 +343,10 @@ hathor-dev-env/
 │   └── index.css                 # Tailwind styles
 ├── src-tauri/
 │   ├── src/
-│   │   ├── lib.rs                # Rust backend (process management, API proxy)
-│   │   └── mcp.rs                # Embedded MCP server
+│   │   ├── lib.rs                # Shared backend (process management, state)
+│   │   ├── mcp.rs                # Embedded MCP server
+│   │   ├── cli_main.rs           # CLI entry point (headless mode)
+│   │   └── tauri_app.rs          # Tauri GUI commands and desktop entry point
 │   ├── binaries/                 # Bundled executables (gitignored)
 │   │   ├── hathor-core-*/        # Fullnode binary (PyInstaller onedir)
 │   │   └── cpuminer-*            # Miner binary

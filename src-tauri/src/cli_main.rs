@@ -261,7 +261,15 @@ async fn main() {
     // Start MCP server
     let mcp_handle = tokio::spawn(async move {
         if let Err(e) = hathor_forge_lib::mcp::start_mcp_server(state, mcp_port).await {
-            eprintln!("MCP server error: {}", e);
+            let msg = e.to_string();
+            if msg.contains("Address already in use") {
+                eprintln!();
+                eprintln!("ERROR: Port {} is already in use.", mcp_port);
+                eprintln!("  Another hathor-forge instance may be running.");
+                eprintln!("  Use --mcp-port <PORT> to pick a different port.");
+            } else {
+                eprintln!("MCP server error: {}", e);
+            }
         }
     });
 
