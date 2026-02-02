@@ -24,9 +24,13 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
       url = "github:hathornetwork/hathor-wallet-headless";
       flake = false;
     };
+    tx-mining-service-src = {
+      url = "github:hathornetwork/tx-mining-service";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, hathor-core-src, cpuminer-src, hathor-explorer-src, wallet-headless-src }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, hathor-core-src, cpuminer-src, hathor-explorer-src, wallet-headless-src, tx-mining-service-src }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
@@ -149,6 +153,13 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
               ./scripts/build-wallet-headless.sh
             '');
           };
+          build-tx-mining-service = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "build-tx-mining-service" ''
+              cd ${toString ./.}
+              ./scripts/build-tx-mining-service.sh
+            '');
+          };
         };
 
         devShells.default = pkgs.mkShell {
@@ -212,6 +223,7 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
             export CPUMINER_SRC="${cpuminer-src}"
             export HATHOR_EXPLORER_SRC="${hathor-explorer-src}"
             export WALLET_HEADLESS_SRC="${wallet-headless-src}"
+            export TX_MINING_SERVICE_SRC="${tx-mining-service-src}"
 
             echo "Hathor Forge Development Environment"
             echo "====================================="
@@ -223,6 +235,7 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
             echo "  build-cpuminer        - Build cpuminer binary"
             echo "  build-explorer        - Build hathor-explorer for embedding"
             echo "  build-wallet-headless - Build wallet-headless for multi-wallet support"
+            echo "  build-tx-mining-service - Build tx-mining-service for transaction mining"
             echo "  build-linux           - Build Linux binaries using Docker (cross-platform)"
             echo ""
 

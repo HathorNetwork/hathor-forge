@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   Cpu,
   Database,
@@ -25,6 +26,10 @@ import {
   Plus,
   ExternalLink,
   BookOpen,
+  FileCode,
+  RefreshCw,
+  Clock,
+  Power,
 } from "lucide-react";
 import { useNanoContractStore } from "./store/useNanoContractStore";
 import { SwaggerUIComponent } from "@/components/SwaggerUI";
@@ -202,25 +207,22 @@ function App() {
   }, [nodeStatus, contracts.length]);
 
   // Fetch blueprints
+  const fetchBlueprints = async () => {
+    try {
+      const response = await invoke<any>("list_blueprints");
+      if (response.success && Array.isArray(response.blueprints)) {
+        setBlueprints(response.blueprints);
+      }
+    } catch (e) {
+      console.error("Failed to fetch blueprints:", e);
+    }
+  };
+
   useEffect(() => {
     if (nodeStatus !== "running") return;
-
-    const fetchBlueprints = async () => {
-      try {
-        const response = await invoke<any>("list_blueprints");
-        if (response.success) {
-          const blueprintList = Object.entries(response.blueprints).map(([id, name]) => ({
-            id,
-            name: name as string,
-          }));
-          setBlueprints(blueprintList);
-        }
-      } catch (e) {
-        console.error("Failed to fetch blueprints:", e);
-      }
-    };
-
     fetchBlueprints();
+    const interval = setInterval(fetchBlueprints, 10000);
+    return () => clearInterval(interval);
   }, [nodeStatus]);
 
   // Listen for events from the backend
@@ -269,6 +271,12 @@ function App() {
       setHeadlessStatus({ running: false, port: null });
       setHeadlessWallets([]);
     });
+
+    // TODO: re-enable close intercept once Tauri 2 event delivery is resolved
+    // const unlistenCloseRequested = getCurrentWindow().listen("show-exit-dialog", () => {
+    //   if (isShuttingDownRef.current) return;
+    //   setShowExitConfirm(true);
+    // });
 
     return () => {
       unlistenLog.then((f) => f());
@@ -787,6 +795,63 @@ function App() {
           />
         </div>
 
+        {/* Blueprints on Network */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Blueprints on Network</h3>
+            <button
+              onClick={fetchBlueprints}
+              className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-800"
+              title="Refresh blueprints"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {blueprints.length === 0 ? (
+            <div className="border border-slate-800 rounded-lg bg-slate-900/30 p-6 text-center">
+              <FileCode className="w-8 h-8 text-slate-600 mx-auto mb-2" />
+              <p className="text-sm text-slate-500">No blueprints published on the network yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {blueprints.map((bp: any) => (
+                <div key={bp.id} className="border border-slate-800 rounded-lg bg-slate-900/30 p-4 hover:border-amber-500/30 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <FileCode className="w-4 h-4 text-amber-400" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold text-white text-sm">{bp.name}</div>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="text-[11px] text-slate-500 font-mono truncate">{bp.id.slice(0, 20)}...</span>
+                        <button onClick={() => navigator.clipboard.writeText(bp.id)} className="p-0.5 hover:bg-slate-800 rounded shrink-0">
+                          <Copy className="w-2.5 h-2.5 text-slate-500" />
+                        </button>
+                      </div>
+                      {bp.timestamp > 0 && (
+                        <div className="flex items-center gap-1 mt-1.5 text-[10px] text-slate-600">
+                          <Clock className="w-3 h-3" />
+                          {new Date(bp.timestamp * 1000).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowInitWizard(true);
+                      handleSelectBlueprint(bp.id);
+                    }}
+                    className="mt-3 w-full px-3 py-1.5 text-xs font-medium bg-slate-800 text-slate-300 rounded-md hover:bg-slate-700 hover:text-white transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <Zap className="w-3 h-3" />
+                    Initialize Contract
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Contracts List */}
         <div className="space-y-4">
           {filteredContracts.length === 0 ? (
@@ -1195,8 +1260,22 @@ function App() {
   );
 
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [isShuttingDown, setIsShuttingDown] = useState(false);
+  const isShuttingDownRef = useRef(false);
   const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
   const [resetMessage, setResetMessage] = useState("");
+
+  const handleConfirmExit = async () => {
+    setIsShuttingDown(true);
+    isShuttingDownRef.current = true;
+    try {
+      await invoke("graceful_shutdown");
+    } catch (_) {
+      // Best effort — proceed to close regardless
+    }
+    await getCurrentWindow().destroy();
+  };
 
   const handleResetData = async () => {
     if (nodeStatus === "running") {
@@ -1333,6 +1412,49 @@ function App() {
                   <>
                     <Trash2 className="w-4 h-4" />
                     Yes, Reset Data
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Exit Confirmation Modal */}
+      {showExitConfirm && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <Power className="w-5 h-5 text-amber-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">Exit Hathor Forge?</h3>
+            </div>
+            <p className="text-slate-400 mb-6">
+              Are you sure you want to exit? Running services will be stopped gracefully.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                disabled={isShuttingDown}
+                className="px-4 py-2 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmExit}
+                disabled={isShuttingDown}
+                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                {isShuttingDown ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Shutting down...
+                  </>
+                ) : (
+                  <>
+                    <Power className="w-4 h-4" />
+                    Yes, Exit
                   </>
                 )}
               </button>

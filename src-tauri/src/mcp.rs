@@ -173,6 +173,34 @@ fn get_tools() -> Vec<McpTool> {
                 "required": []
             }),
         },
+        // Tx Mining Service
+        McpTool {
+            name: "start_tx_mining".to_string(),
+            description: "Start the tx-mining-service. Required for wallet-headless transactions (send, publish blueprint, nano contracts). Node must be running first.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        },
+        McpTool {
+            name: "stop_tx_mining".to_string(),
+            description: "Stop the tx-mining-service.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        },
+        McpTool {
+            name: "get_tx_mining_status".to_string(),
+            description: "Get the status of the tx-mining-service.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        },
         // Wallet Operations
         McpTool {
             name: "generate_seed".to_string(),
@@ -405,6 +433,166 @@ fn get_tools() -> Vec<McpTool> {
                 "required": []
             }),
         },
+        // Nano Contracts & Blueprints
+        McpTool {
+            name: "list_blueprints".to_string(),
+            description: "List all available blueprints on the network.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {},
+                "required": []
+            }),
+        },
+        McpTool {
+            name: "get_blueprint_info".to_string(),
+            description: "Get detailed information about a blueprint including its methods and arguments.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "blueprint_id": {
+                        "type": "string",
+                        "description": "The blueprint ID"
+                    }
+                },
+                "required": ["blueprint_id"]
+            }),
+        },
+        McpTool {
+            name: "publish_blueprint".to_string(),
+            description: "Publish an on-chain blueprint (Python source code) to the Hathor network. Requires wallet-headless running.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "wallet_id": {
+                        "type": "string",
+                        "description": "The wallet ID to use for publishing"
+                    },
+                    "code": {
+                        "type": "string",
+                        "description": "The blueprint Python source code"
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The caller address (must belong to the wallet)"
+                    }
+                },
+                "required": ["wallet_id", "code", "address"]
+            }),
+        },
+        McpTool {
+            name: "create_nano_contract".to_string(),
+            description: "Create (initialize) a new nano contract from a blueprint. Requires wallet-headless running.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "wallet_id": {
+                        "type": "string",
+                        "description": "The wallet ID to use"
+                    },
+                    "blueprint_id": {
+                        "type": "string",
+                        "description": "The blueprint ID to instantiate"
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The caller address (must belong to the wallet)"
+                    },
+                    "args": {
+                        "type": "array",
+                        "description": "Constructor arguments for the blueprint's initialize method",
+                        "items": {}
+                    },
+                    "actions": {
+                        "type": "array",
+                        "description": "Actions to perform (deposit/withdrawal). Each action: {type: 'deposit'|'withdrawal', token: string, amount: number, address?: string}",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": { "type": "string", "enum": ["deposit", "withdrawal"] },
+                                "token": { "type": "string" },
+                                "amount": { "type": "number" },
+                                "address": { "type": "string" }
+                            },
+                            "required": ["type", "token", "amount"]
+                        }
+                    }
+                },
+                "required": ["wallet_id", "blueprint_id", "address"]
+            }),
+        },
+        McpTool {
+            name: "execute_nano_contract".to_string(),
+            description: "Execute a method on an existing nano contract. Requires wallet-headless running.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "wallet_id": {
+                        "type": "string",
+                        "description": "The wallet ID to use"
+                    },
+                    "nc_id": {
+                        "type": "string",
+                        "description": "The nano contract ID"
+                    },
+                    "method": {
+                        "type": "string",
+                        "description": "The method name to call"
+                    },
+                    "address": {
+                        "type": "string",
+                        "description": "The caller address (must belong to the wallet)"
+                    },
+                    "args": {
+                        "type": "array",
+                        "description": "Arguments for the method call",
+                        "items": {}
+                    },
+                    "actions": {
+                        "type": "array",
+                        "description": "Actions to perform (deposit/withdrawal). Each action: {type: 'deposit'|'withdrawal', token: string, amount: number, address?: string}",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": { "type": "string", "enum": ["deposit", "withdrawal"] },
+                                "token": { "type": "string" },
+                                "amount": { "type": "number" },
+                                "address": { "type": "string" }
+                            },
+                            "required": ["type", "token", "amount"]
+                        }
+                    }
+                },
+                "required": ["wallet_id", "nc_id", "method", "address"]
+            }),
+        },
+        McpTool {
+            name: "get_nano_contract_state".to_string(),
+            description: "Get the current state of a nano contract from the fullnode.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "nc_id": {
+                        "type": "string",
+                        "description": "The nano contract ID"
+                    }
+                },
+                "required": ["nc_id"]
+            }),
+        },
+        McpTool {
+            name: "get_nano_contract_history".to_string(),
+            description: "Get the transaction history of a nano contract.".to_string(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "nc_id": {
+                        "type": "string",
+                        "description": "The nano contract ID"
+                    }
+                },
+                "required": ["nc_id"]
+            }),
+        },
     ]
 }
 
@@ -451,6 +639,20 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
         "get_miner_status" => {
             let app_state = state.app_state.lock().await;
             Ok(json!({"running": app_state.miner_running}).to_string())
+        }
+
+        // Tx Mining Service
+        "start_tx_mining" => crate::start_tx_mining_internal(&state.app_state).await,
+
+        "stop_tx_mining" => crate::stop_tx_mining_internal(&state.app_state).await,
+
+        "get_tx_mining_status" => {
+            let app_state = state.app_state.lock().await;
+            Ok(json!({
+                "running": app_state.tx_mining_running,
+                "port": if app_state.tx_mining_running { Some(8002) } else { None }
+            })
+            .to_string())
         }
 
         // Wallet Service
@@ -821,6 +1023,15 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             // Wait a bit for node to be ready
             tokio::time::sleep(Duration::from_secs(2)).await;
 
+            // Start tx-mining-service (needed for wallet-headless transactions)
+            match crate::start_tx_mining_internal(&state.app_state).await {
+                Ok(msg) => results.push(msg),
+                Err(e) => results.push(format!("TxMining: {}", e)),
+            }
+
+            // Wait for tx-mining-service to be ready
+            tokio::time::sleep(Duration::from_secs(1)).await;
+
             // Start miner
             match crate::start_miner_internal(&state.app_state, None).await {
                 Ok(msg) => results.push(msg),
@@ -854,6 +1065,10 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 "headless": {
                     "running": app_state.headless_running,
                     "port": if app_state.headless_running { Some(8001) } else { None },
+                },
+                "tx_mining": {
+                    "running": app_state.tx_mining_running,
+                    "port": if app_state.tx_mining_running { Some(8002) } else { None },
                 },
                 "activeWallets": seeds.keys().collect::<Vec<_>>(),
             });
@@ -891,6 +1106,179 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             }
 
             Ok("All data cleared. Start the node again to begin fresh.".to_string())
+        }
+
+        // Nano Contracts & Blueprints
+        "list_blueprints" => {
+            let resp = client
+                .get("http://127.0.0.1:8080/v1a/nano_contract/blueprints")
+                .send()
+                .await
+                .map_err(|e| format!("Failed to list blueprints: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
+        }
+
+        "get_blueprint_info" => {
+            let blueprint_id = params
+                .get("blueprint_id")
+                .and_then(|v| v.as_str())
+                .ok_or("blueprint_id is required")?;
+
+            let resp = client
+                .get(format!(
+                    "http://127.0.0.1:8080/v1a/nano_contract/blueprint?id={}",
+                    blueprint_id
+                ))
+                .send()
+                .await
+                .map_err(|e| format!("Failed to get blueprint info: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
+        }
+
+        "publish_blueprint" => {
+            let wallet_id = params
+                .get("wallet_id")
+                .and_then(|v| v.as_str())
+                .ok_or("wallet_id is required")?;
+            let code = params
+                .get("code")
+                .and_then(|v| v.as_str())
+                .ok_or("code is required")?;
+            let address = params
+                .get("address")
+                .and_then(|v| v.as_str())
+                .ok_or("address is required")?;
+
+            let resp = client
+                .post("http://localhost:8001/wallet/nano-contracts/create-on-chain-blueprint")
+                .header("X-Wallet-Id", wallet_id)
+                .json(&json!({
+                    "code": code,
+                    "address": address,
+                }))
+                .send()
+                .await
+                .map_err(|e| format!("Failed to publish blueprint: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
+        }
+
+        "create_nano_contract" => {
+            let wallet_id = params
+                .get("wallet_id")
+                .and_then(|v| v.as_str())
+                .ok_or("wallet_id is required")?;
+            let blueprint_id = params
+                .get("blueprint_id")
+                .and_then(|v| v.as_str())
+                .ok_or("blueprint_id is required")?;
+            let address = params
+                .get("address")
+                .and_then(|v| v.as_str())
+                .ok_or("address is required")?;
+            let args = params.get("args").cloned().unwrap_or(json!([]));
+            let actions = params.get("actions").cloned().unwrap_or(json!([]));
+
+            let resp = client
+                .post("http://localhost:8001/wallet/nano-contracts/create")
+                .header("X-Wallet-Id", wallet_id)
+                .json(&json!({
+                    "blueprint_id": blueprint_id,
+                    "address": address,
+                    "data": {
+                        "args": args,
+                        "actions": actions,
+                    },
+                }))
+                .send()
+                .await
+                .map_err(|e| format!("Failed to create nano contract: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
+        }
+
+        "execute_nano_contract" => {
+            let wallet_id = params
+                .get("wallet_id")
+                .and_then(|v| v.as_str())
+                .ok_or("wallet_id is required")?;
+            let nc_id = params
+                .get("nc_id")
+                .and_then(|v| v.as_str())
+                .ok_or("nc_id is required")?;
+            let method = params
+                .get("method")
+                .and_then(|v| v.as_str())
+                .ok_or("method is required")?;
+            let address = params
+                .get("address")
+                .and_then(|v| v.as_str())
+                .ok_or("address is required")?;
+            let args = params.get("args").cloned().unwrap_or(json!([]));
+            let actions = params.get("actions").cloned().unwrap_or(json!([]));
+
+            let resp = client
+                .post("http://localhost:8001/wallet/nano-contracts/execute")
+                .header("X-Wallet-Id", wallet_id)
+                .json(&json!({
+                    "nc_id": nc_id,
+                    "method": method,
+                    "address": address,
+                    "data": {
+                        "args": args,
+                        "actions": actions,
+                    },
+                }))
+                .send()
+                .await
+                .map_err(|e| format!("Failed to execute nano contract: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
+        }
+
+        "get_nano_contract_state" => {
+            let nc_id = params
+                .get("nc_id")
+                .and_then(|v| v.as_str())
+                .ok_or("nc_id is required")?;
+
+            let resp = client
+                .get(format!(
+                    "http://127.0.0.1:8080/v1a/nano_contract/state?id={}",
+                    nc_id
+                ))
+                .send()
+                .await
+                .map_err(|e| format!("Failed to get nano contract state: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
+        }
+
+        "get_nano_contract_history" => {
+            let nc_id = params
+                .get("nc_id")
+                .and_then(|v| v.as_str())
+                .ok_or("nc_id is required")?;
+
+            let resp = client
+                .get(format!(
+                    "http://127.0.0.1:8080/v1a/nano_contract/history?id={}",
+                    nc_id
+                ))
+                .send()
+                .await
+                .map_err(|e| format!("Failed to get nano contract history: {}", e))?;
+
+            let text = resp.text().await.unwrap_or_default();
+            Ok(text)
         }
 
         _ => Err(format!("Unknown tool: {}", name)),

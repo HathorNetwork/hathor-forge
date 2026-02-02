@@ -90,6 +90,7 @@
         "hathor-explorer-src": "hathor-explorer-src",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay",
+        "tx-mining-service-src": "tx-mining-service-src",
         "wallet-headless-src": "wallet-headless-src"
       }
     },
@@ -125,6 +126,22 @@
       "original": {
         "owner": "nix-systems",
         "repo": "default",
+        "type": "github"
+      }
+    },
+    "tx-mining-service-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1767796152,
+        "narHash": "sha256-Wb8eBOY9kHKo0/ssId7wSr4OTwHjERUgVnM16M/7KrE=",
+        "owner": "hathornetwork",
+        "repo": "tx-mining-service",
+        "rev": "a677e3b737fbc7013d191bb22987fed1c6bf40f8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "hathornetwork",
+        "repo": "tx-mining-service",
         "type": "github"
       }
     },

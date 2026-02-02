@@ -40,6 +40,10 @@ build-core:
 build-miner:
     nix build .#cpuminer
 
+# Build tx-mining-service
+build-tx-mining:
+    ./scripts/build-tx-mining-service.sh
+
 # Run tests
 test:
     cargo test --manifest-path src-tauri/Cargo.toml

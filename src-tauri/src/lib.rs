@@ -1,3 +1,4 @@
+use base64::Engine;
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, Request};
@@ -10,7 +11,7 @@ use std::fs;
 use std::net::SocketAddr;
 use std::process::Stdio;
 use std::sync::Arc;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 use tokio::sync::Mutex;
@@ -26,9 +27,11 @@ pub struct AppState {
     miner_running: bool,
     explorer_server_running: bool,
     headless_running: bool,
+    tx_mining_running: bool,
     node_child_id: Option<u32>,
     miner_child_id: Option<u32>,
     headless_child_id: Option<u32>,
+    tx_mining_child_id: Option<u32>,
     explorer_shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     data_dir: Option<String>,
 }
@@ -40,9 +43,11 @@ impl Default for AppState {
             miner_running: false,
             explorer_server_running: false,
             headless_running: false,
+            tx_mining_running: false,
             node_child_id: None,
             miner_child_id: None,
             headless_child_id: None,
+            tx_mining_child_id: None,
             explorer_shutdown: None,
             data_dir: None,
         }
@@ -83,7 +88,7 @@ pub struct MinerConfig {
 impl Default for MinerConfig {
     fn default() -> Self {
         Self {
-            stratum_port: 8000,
+            stratum_port: 8003, // tx-mining-service stratum (handles both blocks and txs)
             address: "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string(), // Default localnet address (from HD wallet)
             threads: 1,
         }
@@ -103,6 +108,31 @@ impl Default for HeadlessConfig {
             fullnode_url: "http://localhost:8080/v1a/".to_string(),
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TxMiningConfig {
+    pub api_port: u16,
+    pub stratum_port: u16,
+    pub fullnode_url: String,
+    pub address: String,
+}
+
+impl Default for TxMiningConfig {
+    fn default() -> Self {
+        Self {
+            api_port: 8002,
+            stratum_port: 8003,
+            fullnode_url: "http://localhost:8080".to_string(),
+            address: "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TxMiningStatus {
+    pub running: bool,
+    pub port: Option<u16>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -200,8 +230,8 @@ fn get_binary_path(name: &str) -> std::path::PathBuf {
 
     let binaries_dir = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
 
-    // hathor-core uses onedir mode (folder with binary inside)
-    if name == "hathor-core" {
+    // hathor-core and tx-mining-service use onedir mode (folder with binary inside)
+    if name == "hathor-core" || name == "tx-mining-service" {
         let binary_name = format!("{}{}", name, exe_suffix);
         let onedir_path = binaries_dir
             .join(format!("{}-{}", name, target))
@@ -263,7 +293,7 @@ fn generate_headless_config(
   http_port: {},
   network: 'privatenet',
   server: '{}',
-  txMiningUrl: 'http://localhost:8080/v1a/',
+  txMiningUrl: 'http://localhost:8002',
   seeds: {{}},
   allowPassphrase: false,
   confirmFirstAddress: false,
@@ -336,6 +366,8 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     kill_process_on_port(config.api_port);
     kill_process_on_port(config.stratum_port);
     kill_process_on_port(8001); // wallet-headless port
+    kill_process_on_port(8002); // tx-mining-service port
+    kill_process_on_port(8003); // tx-mining-service stratum port
 
     drop(state_guard);
 
@@ -445,6 +477,13 @@ pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
         state_guard.headless_child_id = None;
     }
 
+    // Stop tx-mining-service if running
+    if let Some(pid) = state_guard.tx_mining_child_id {
+        kill_process(pid);
+        state_guard.tx_mining_running = false;
+        state_guard.tx_mining_child_id = None;
+    }
+
     // Stop node
     if !state_guard.node_running {
         return Ok("Node is not running".to_string());
@@ -469,15 +508,24 @@ pub async fn start_miner_internal(
         address: address.unwrap_or_else(|| "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string()),
         ..MinerConfig::default()
     };
+
+    {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node must be running before starting miner".to_string());
+        }
+        if state_guard.miner_running {
+            return Ok("Miner is already running".to_string());
+        }
+        // Auto-start tx-mining-service if not running (miner connects to its stratum)
+        if !state_guard.tx_mining_running {
+            drop(state_guard);
+            start_tx_mining_internal(state).await?;
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+    }
+
     let mut state_guard = state.lock().await;
-
-    if !state_guard.node_running {
-        return Err("Node must be running before starting miner".to_string());
-    }
-
-    if state_guard.miner_running {
-        return Ok("Miner is already running".to_string());
-    }
 
     let binary_path = get_binary_path("cpuminer");
 
@@ -647,6 +695,116 @@ pub async fn stop_headless_internal(state: &SharedState) -> Result<String, Strin
     Ok("Wallet-headless stopped".to_string())
 }
 
+/// Start the tx-mining-service (internal version)
+pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, String> {
+    let config = TxMiningConfig::default();
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node must be running before starting tx-mining-service".to_string());
+    }
+
+    if state_guard.tx_mining_running {
+        return Ok("tx-mining-service is already running".to_string());
+    }
+
+    drop(state_guard);
+
+    // Kill any zombie process on the tx-mining ports
+    kill_process_on_port(config.api_port);
+    kill_process_on_port(config.stratum_port);
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    let mut state_guard = state.lock().await;
+
+    let binary_path = get_binary_path("tx-mining-service");
+
+    // Set platform-specific library path for bundled libraries
+    let internal_dir = binary_path.parent().unwrap().join("_internal");
+
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_library_path_env(&mut cmd, &internal_dir);
+    let mut child = cmd
+        .args([
+            "--api-port",
+            &config.api_port.to_string(),
+            "--stratum-port",
+            &config.stratum_port.to_string(),
+            "--address",
+            &config.address,
+            "--allow-non-standard-script",
+            "--tx-timeout",
+            "120",
+            &config.fullnode_url,
+        ])
+        .current_dir(binary_path.parent().unwrap())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            format!(
+                "Failed to spawn tx-mining-service at {:?}: {}",
+                binary_path, e
+            )
+        })?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.tx_mining_running = true;
+    state_guard.tx_mining_child_id = Some(pid);
+
+    // Consume stdout/stderr
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+    let state_clone = state.clone();
+
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {}
+        });
+    }
+
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while lines.next_line().await.is_ok() {}
+        });
+    }
+
+    tokio::spawn(async move {
+        let _ = child.wait().await;
+        let mut state_guard = state_clone.lock().await;
+        state_guard.tx_mining_running = false;
+        state_guard.tx_mining_child_id = None;
+    });
+
+    Ok(format!(
+        "tx-mining-service started on port {}",
+        config.api_port
+    ))
+}
+
+/// Stop the tx-mining-service (internal version)
+pub async fn stop_tx_mining_internal(state: &SharedState) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.tx_mining_running {
+        return Ok("tx-mining-service is not running".to_string());
+    }
+
+    if let Some(pid) = state_guard.tx_mining_child_id {
+        kill_process(pid);
+    }
+
+    state_guard.tx_mining_running = false;
+    state_guard.tx_mining_child_id = None;
+
+    Ok("tx-mining-service stopped".to_string())
+}
+
 /// Generate a new BIP39 seed phrase (internal version)
 pub fn generate_seed_internal() -> Result<String, String> {
     use bip39::{Language, Mnemonic};
@@ -683,6 +841,8 @@ async fn start_node(
     kill_process_on_port(config.api_port);
     kill_process_on_port(config.stratum_port);
     kill_process_on_port(8001); // wallet-headless port
+    kill_process_on_port(8002); // tx-mining-service port
+    kill_process_on_port(8003); // tx-mining-service stratum port
                                 // Give the OS a moment to release the ports
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
@@ -828,16 +988,24 @@ async fn start_miner(
     config: Option<MinerConfig>,
 ) -> Result<String, String> {
     let config = config.unwrap_or_default();
+
+    {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node must be running before starting miner".to_string());
+        }
+        if state_guard.miner_running {
+            return Err("Miner is already running".to_string());
+        }
+        // Auto-start tx-mining-service if not running (miner connects to its stratum)
+        if !state_guard.tx_mining_running {
+            drop(state_guard);
+            start_tx_mining_internal(&state).await?;
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+    }
+
     let mut state_guard = state.lock().await;
-
-    if !state_guard.node_running {
-        return Err("Node must be running before starting miner".to_string());
-    }
-
-    if state_guard.miner_running {
-        return Err("Miner is already running".to_string());
-    }
-
     let binary_path = get_binary_path("cpuminer");
 
     // Spawn the process using tokio
@@ -1015,6 +1183,7 @@ async fn get_state(state: tauri::State<'_, SharedState>) -> Result<serde_json::V
         "miner_running": state_guard.miner_running,
         "explorer_server_running": state_guard.explorer_server_running,
         "headless_running": state_guard.headless_running,
+        "tx_mining_running": state_guard.tx_mining_running,
         "data_dir": state_guard.data_dir,
     }))
 }
@@ -1351,6 +1520,160 @@ async fn get_headless_status(
         running: state_guard.headless_running,
         port: if state_guard.headless_running {
             Some(8001)
+        } else {
+            None
+        },
+    })
+}
+
+// Start the tx-mining-service
+#[tauri::command]
+async fn start_tx_mining(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+) -> Result<String, String> {
+    let config = TxMiningConfig::default();
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node must be running before starting tx-mining-service".to_string());
+    }
+
+    if state_guard.tx_mining_running {
+        return Err("tx-mining-service is already running".to_string());
+    }
+
+    // Kill any zombie process on the tx-mining ports
+    kill_process_on_port(config.api_port);
+    kill_process_on_port(config.stratum_port);
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    let binary_path = get_binary_path("tx-mining-service");
+
+    let internal_dir = binary_path.parent().unwrap().join("_internal");
+
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_library_path_env(&mut cmd, &internal_dir);
+    let mut child = cmd
+        .args([
+            "--api-port",
+            &config.api_port.to_string(),
+            "--stratum-port",
+            &config.stratum_port.to_string(),
+            "--address",
+            &config.address,
+            "--allow-non-standard-script",
+            "--tx-timeout",
+            "120",
+            &config.fullnode_url,
+        ])
+        .current_dir(binary_path.parent().unwrap())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            format!(
+                "Failed to spawn tx-mining-service at {:?}: {}",
+                binary_path, e
+            )
+        })?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.tx_mining_running = true;
+    state_guard.tx_mining_child_id = Some(pid);
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let app_handle = app.clone();
+    let app_handle2 = app.clone();
+
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle.emit("tx-mining-log", &line);
+            }
+        });
+    }
+
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle2.emit("tx-mining-log", &line);
+            }
+        });
+    }
+
+    let app_handle3 = app.clone();
+    let state_clone = state.inner().clone();
+    tokio::spawn(async move {
+        let status = child.wait().await;
+        let code = status.map(|s| s.code()).ok().flatten();
+
+        {
+            let mut state_guard = state_clone.lock().await;
+            state_guard.tx_mining_running = false;
+            state_guard.tx_mining_child_id = None;
+        }
+
+        let _ = app_handle3.emit("tx-mining-terminated", code);
+    });
+
+    Ok(format!(
+        "tx-mining-service started on port {}",
+        config.api_port
+    ))
+}
+
+// Stop the tx-mining-service
+#[tauri::command]
+async fn stop_tx_mining(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.tx_mining_running {
+        return Err("tx-mining-service is not running".to_string());
+    }
+
+    if let Some(pid) = state_guard.tx_mining_child_id {
+        #[cfg(unix)]
+        {
+            use std::process::Command;
+            let _ = Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .output();
+        }
+
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .output();
+        }
+    }
+
+    state_guard.tx_mining_running = false;
+    state_guard.tx_mining_child_id = None;
+
+    Ok("tx-mining-service stopped".to_string())
+}
+
+// Get tx-mining-service status
+#[tauri::command]
+async fn get_tx_mining_status(
+    state: tauri::State<'_, SharedState>,
+) -> Result<TxMiningStatus, String> {
+    let state_guard = state.lock().await;
+
+    Ok(TxMiningStatus {
+        running: state_guard.tx_mining_running,
+        port: if state_guard.tx_mining_running {
+            Some(8002)
         } else {
             None
         },
@@ -1933,8 +2256,23 @@ fn kill_process(pid: u32) {
         let _ = Command::new("kill")
             .args(["-TERM", &pid.to_string()])
             .output();
-        // Give it a moment, then force kill if needed
-        std::thread::sleep(std::time::Duration::from_millis(500));
+        // Poll for up to 5 seconds before force-killing
+        for _ in 0..50 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            // Check if process is still alive (kill -0 returns error if dead)
+            if let Ok(output) = Command::new("kill")
+                .args(["-0", &pid.to_string()])
+                .output()
+            {
+                if !output.status.success() {
+                    return; // Process already exited
+                }
+            } else {
+                return; // Process already exited
+            }
+        }
+        // Force kill if still running after 5 seconds
+        eprintln!("Process {} did not exit after SIGTERM, sending SIGKILL", pid);
         let _ = Command::new("kill")
             .args(["-KILL", &pid.to_string()])
             .output();
@@ -1947,6 +2285,17 @@ fn kill_process(pid: u32) {
             .args(["/PID", &pid.to_string(), "/F"])
             .output();
     }
+}
+
+// Graceful shutdown: stop all services in order, then allow exit
+#[tauri::command]
+async fn graceful_shutdown(
+    state: tauri::State<'_, SharedState>,
+    exit_flag: tauri::State<'_, Arc<std::sync::atomic::AtomicBool>>,
+) -> Result<String, String> {
+    let result = stop_node_internal(&state).await;
+    exit_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+    result
 }
 
 // Get nano contract state
@@ -1963,7 +2312,10 @@ async fn get_nano_contract_state(
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("http://127.0.0.1:8080/v1a/nano_contract/state?id={}", id))
+        .get(&format!(
+            "http://127.0.0.1:8080/v1a/nano_contract/state?id={}",
+            id
+        ))
         .send()
         .await
         .map_err(|e| format!("Failed to get contract state: {}", e))?;
@@ -1990,7 +2342,10 @@ async fn get_nano_contract_history(
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("http://127.0.0.1:8080/v1a/nano_contract/history?id={}", id))
+        .get(&format!(
+            "http://127.0.0.1:8080/v1a/nano_contract/history?id={}",
+            id
+        ))
         .send()
         .await
         .map_err(|e| format!("Failed to get contract history: {}", e))?;
@@ -2003,7 +2358,7 @@ async fn get_nano_contract_history(
     Ok(json)
 }
 
-// List available blueprints
+// List available blueprints by scanning transactions for version 6 (blueprint) txs
 #[tauri::command]
 async fn list_blueprints(
     state: tauri::State<'_, SharedState>,
@@ -2015,21 +2370,81 @@ async fn list_blueprints(
     drop(state_guard);
 
     let client = reqwest::Client::new();
+
+    // Fetch recent transactions from dashboard (version 6 = blueprint)
     let response = client
-        .get("http://127.0.0.1:8080/v1a/nano_contract/blueprints")
+        .get("http://127.0.0.1:8080/v1a/dashboard_tx?tx=200&block=0")
         .send()
         .await
-        .map_err(|e| format!("Failed to list blueprints: {}", e))?;
+        .map_err(|e| format!("Failed to fetch transactions: {}", e))?;
 
-    let json: serde_json::Value = response
+    let dashboard: serde_json::Value = response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse response: {}", e))?;
+        .map_err(|e| format!("Failed to parse dashboard response: {}", e))?;
 
-    Ok(json)
+    let mut blueprints = Vec::new();
+
+    if let Some(transactions) = dashboard.get("transactions").and_then(|t| t.as_array()) {
+        for tx in transactions {
+            if tx.get("version").and_then(|v| v.as_u64()) == Some(6) {
+                let tx_id = tx.get("tx_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let timestamp = tx.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+
+                // Fetch full transaction to get blueprint source code and extract class name
+                let mut name = "Unknown".to_string();
+                if let Ok(tx_response) = client
+                    .get(&format!("http://127.0.0.1:8080/v1a/transaction?id={}", tx_id))
+                    .send()
+                    .await
+                {
+                    if let Ok(tx_json) = tx_response.json::<serde_json::Value>().await {
+                        if let Some(code_content) = tx_json
+                            .get("tx")
+                            .and_then(|t| t.get("on_chain_blueprint_code"))
+                            .and_then(|c| c.get("content"))
+                            .and_then(|c| c.as_str())
+                        {
+                            // Decode base64 + zlib to extract class name
+                            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(code_content) {
+                                if let Ok(decompressed) = miniz_oxide::inflate::decompress_to_vec_zlib(&decoded) {
+                                    if let Ok(source) = String::from_utf8(decompressed) {
+                                        // Extract class name from "class XYZ(Blueprint):"
+                                        for line in source.lines() {
+                                            let trimmed = line.trim();
+                                            if trimmed.starts_with("class ") && trimmed.contains("Blueprint") {
+                                                if let Some(class_name) = trimmed
+                                                    .strip_prefix("class ")
+                                                    .and_then(|s| s.split('(').next())
+                                                {
+                                                    name = class_name.trim().to_string();
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                blueprints.push(serde_json::json!({
+                    "id": tx_id,
+                    "name": name,
+                    "timestamp": timestamp,
+                }));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "success": true,
+        "blueprints": blueprints,
+    }))
 }
 
-// Get blueprint information
+// Get blueprint information by fetching the transaction and parsing the source code
 #[tauri::command]
 async fn get_blueprint_information(
     state: tauri::State<'_, SharedState>,
@@ -2043,17 +2458,95 @@ async fn get_blueprint_information(
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("http://127.0.0.1:8080/v1a/nano_contract/blueprint?id={}", id))
+        .get(&format!("http://127.0.0.1:8080/v1a/transaction?id={}", id))
         .send()
         .await
-        .map_err(|e| format!("Failed to get blueprint information: {}", e))?;
+        .map_err(|e| format!("Failed to fetch blueprint transaction: {}", e))?;
 
-    let json: serde_json::Value = response
+    let tx_json: serde_json::Value = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
 
-    Ok(json)
+    let code_content = tx_json
+        .get("tx")
+        .and_then(|t| t.get("on_chain_blueprint_code"))
+        .and_then(|c| c.get("content"))
+        .and_then(|c| c.as_str())
+        .ok_or("Blueprint source code not found in transaction")?;
+
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(code_content)
+        .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+    let decompressed = miniz_oxide::inflate::decompress_to_vec_zlib(&decoded)
+        .map_err(|e| format!("Failed to decompress: {:?}", e))?;
+
+    let source = String::from_utf8(decompressed)
+        .map_err(|e| format!("Invalid UTF-8 in blueprint source: {}", e))?;
+
+    // Parse class name and methods from source
+    let mut class_name = "Unknown".to_string();
+    let mut methods = Vec::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        // Extract class name
+        if trimmed.starts_with("class ") && trimmed.contains("Blueprint") {
+            if let Some(name) = trimmed.strip_prefix("class ").and_then(|s| s.split('(').next()) {
+                class_name = name.trim().to_string();
+            }
+        }
+        // Extract method signatures: "def method_name(self, ctx: Context, arg1: Type1, ...)"
+        if trimmed.starts_with("def ") && trimmed.contains("(self") {
+            if let Some(sig) = trimmed.strip_prefix("def ") {
+                let method_name = sig.split('(').next().unwrap_or("").trim().to_string();
+                // Skip private methods
+                if method_name.starts_with('_') {
+                    continue;
+                }
+                let mut args = Vec::new();
+                // Extract args between parens
+                if let Some(params_str) = sig.split('(').nth(1).and_then(|s| s.split(')').next()) {
+                    for param in params_str.split(',') {
+                        let param = param.trim();
+                        // Skip self and ctx parameters
+                        if param == "self" || param.starts_with("ctx") {
+                            continue;
+                        }
+                        if param.is_empty() {
+                            continue;
+                        }
+                        let parts: Vec<&str> = param.splitn(2, ':').collect();
+                        let arg_name = parts[0].trim().to_string();
+                        let arg_type = if parts.len() > 1 {
+                            parts[1].trim().to_string()
+                        } else {
+                            "str".to_string()
+                        };
+                        args.push(serde_json::json!({
+                            "name": arg_name,
+                            "type": arg_type,
+                        }));
+                    }
+                }
+                methods.push(serde_json::json!({
+                    "name": method_name,
+                    "args": args,
+                }));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "success": true,
+        "id": id,
+        "source": source,
+        "plan": {
+            "name": class_name,
+            "methods": methods,
+        }
+    }))
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -2150,10 +2643,14 @@ pub fn run() {
     let state = Arc::new(Mutex::new(AppState::default())) as SharedState;
     let cleanup_state = state.clone();
     let mcp_state = state.clone();
+    let exit_allowed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let exit_allowed_run = exit_allowed.clone();
+    let exit_allowed_cmd = exit_allowed.clone();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(state)
+        .manage(exit_allowed_cmd)
         .invoke_handler(tauri::generate_handler![
             start_node,
             stop_node,
@@ -2171,6 +2668,9 @@ pub fn run() {
             start_headless,
             stop_headless,
             get_headless_status,
+            start_tx_mining,
+            stop_tx_mining,
+            get_tx_mining_status,
             generate_seed,
             create_headless_wallet,
             get_headless_wallet_status,
@@ -2184,8 +2684,51 @@ pub fn run() {
             get_blueprint_information,
             headless_wallet_create_nano_contract,
             headless_wallet_call_nano_contract_method,
+            graceful_shutdown,
         ])
-        .setup(move |_app| {
+        .setup(move |app| {
+            // Build a custom macOS app menu that replaces the default Quit with
+            // a custom item we can intercept (Cmd+Q bypasses CloseRequested).
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, AboutMetadata};
+                let quit_item = MenuItemBuilder::new("Quit Hathor Forge")
+                    .id("custom-quit")
+                    .accelerator("CmdOrCtrl+Q")
+                    .build(app)?;
+                let app_submenu = SubmenuBuilder::new(app, "Hathor Forge")
+                    .about(Some(AboutMetadata::default()))
+                    .separator()
+                    .services()
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .item(&quit_item)
+                    .build()?;
+                let edit_submenu = SubmenuBuilder::new(app, "Edit")
+                    .undo()
+                    .redo()
+                    .separator()
+                    .cut()
+                    .copy()
+                    .paste()
+                    .select_all()
+                    .build()?;
+                let window_submenu = SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .separator()
+                    .close_window()
+                    .build()?;
+                let menu = MenuBuilder::new(app)
+                    .item(&app_submenu)
+                    .item(&edit_submenu)
+                    .item(&window_submenu)
+                    .build()?;
+                app.set_menu(menu)?;
+            }
+
             // Start the MCP server in the background using Tauri's async runtime
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT).await {
@@ -2194,9 +2737,25 @@ pub fn run() {
             });
             Ok(())
         })
+        .on_menu_event(|app, event| {
+            if event.id().as_ref() == "custom-quit" {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.close();
+                }
+            }
+        })
+        // TODO: graceful shutdown dialog - commented out until Tauri 2 event
+        // delivery from on_window_event to JS is resolved
+        // .on_window_event(|window, event| {
+        //     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        //         api.prevent_close();
+        //         let _ = window.emit("show-exit-dialog", ());
+        //     }
+        // })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(move |_app, event| {
+            // TODO: re-enable ExitRequested prevention once graceful shutdown dialog works
             if let tauri::RunEvent::Exit = event {
                 // Cleanup: kill any running processes
                 let state = cleanup_state.blocking_lock();
@@ -2208,6 +2767,11 @@ pub fn run() {
 
                 if let Some(pid) = state.headless_child_id {
                     eprintln!("Cleaning up wallet-headless process (PID: {})", pid);
+                    kill_process(pid);
+                }
+
+                if let Some(pid) = state.tx_mining_child_id {
+                    eprintln!("Cleaning up tx-mining-service process (PID: {})", pid);
                     kill_process(pid);
                 }
 

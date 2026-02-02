@@ -1531,10 +1531,12 @@ name = "hathor-forge"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "bip39",
  "dirs 5.0.1",
  "futures-util",
  "getrandom 0.2.16",
+ "miniz_oxide",
  "reqwest",
  "serde",
  "serde_json",
