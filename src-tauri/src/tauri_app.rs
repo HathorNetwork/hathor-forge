@@ -1,0 +1,1936 @@
+use super::*;
+use axum::body::Body;
+use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
+use axum::extract::{Path, Request};
+use axum::response::{IntoResponse, Response};
+use axum::routing::{any, get};
+use axum::Router;
+use base64::Engine;
+use futures_util::{SinkExt, StreamExt};
+use std::net::SocketAddr;
+use tauri::{Emitter, Manager};
+use tokio_tungstenite::tungstenite;
+use tower_http::cors::{Any, CorsLayer};
+use tower_http::services::ServeDir;
+
+// Start the Hathor fullnode
+#[tauri::command]
+async fn start_node(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+    config: Option<NodeConfig>,
+) -> Result<String, String> {
+    let config = config.unwrap_or_default();
+    let mut state_guard = state.lock().await;
+
+    if state_guard.node_running {
+        return Err("Node is already running".to_string());
+    }
+
+    // Kill any zombie processes from previous runs
+    kill_process_on_port(config.api_port);
+    kill_process_on_port(config.stratum_port);
+    kill_process_on_port(8001); // wallet-headless port
+    kill_process_on_port(8002); // tx-mining-service port
+    kill_process_on_port(8003); // tx-mining-service stratum port
+                                // Give the OS a moment to release the ports
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let binary_path = get_binary_path("hathor-core");
+
+    // Ensure data directory exists
+    fs::create_dir_all(&config.data_dir)
+        .map_err(|e| format!("Failed to create data directory: {}", e))?;
+
+    // Development HD wallet seed (DO NOT use in production!)
+    // This is a fixed seed for local development only
+    let dev_wallet_words = "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level";
+
+    // Set platform-specific library path for bundled libraries
+    let internal_dir = binary_path.parent().unwrap().join("_internal");
+
+    // Spawn the process using tokio
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_library_path_env(&mut cmd, &internal_dir);
+    let mut child = cmd
+        .args([
+            "run_node",
+            "--localnet",
+            "--status",
+            &config.api_port.to_string(),
+            "--stratum",
+            &config.stratum_port.to_string(),
+            "--data",
+            &config.data_dir,
+            "--wallet",
+            "hd",
+            "--words",
+            dev_wallet_words,
+            "--wallet-enable-api",
+            "--wallet-index",
+            "--allow-mining-without-peers",
+            "--test-mode-tx-weight",
+            "--nc-exec-logs",
+            "all",
+            "--unsafe-mode",
+            "privatenet",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn hathor-core at {:?}: {}", binary_path, e))?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.node_running = true;
+    state_guard.node_child_id = Some(pid);
+    state_guard.data_dir = Some(config.data_dir.clone());
+
+    // Handle stdout
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let app_handle = app.clone();
+    let app_handle2 = app.clone();
+
+    // Spawn task for stdout
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle.emit("node-log", &line);
+            }
+        });
+    }
+
+    // Spawn task for stderr (hathor-core sends all logs here)
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                // hathor-core sends info/warning/error logs to stderr
+                // Route them appropriately based on content
+                let _ = app_handle2.emit("node-log", &line);
+            }
+        });
+    }
+
+    // Spawn task to wait for process termination and reset state
+    let app_handle3 = app.clone();
+    let state_clone = state.inner().clone();
+    tokio::spawn(async move {
+        let status = child.wait().await;
+        let code = status.map(|s| s.code()).ok().flatten();
+
+        // Reset state when process terminates
+        {
+            let mut state_guard = state_clone.lock().await;
+            state_guard.node_running = false;
+            state_guard.node_child_id = None;
+        }
+
+        let _ = app_handle3.emit("node-terminated", code);
+    });
+
+    Ok(format!("Node started on port {}", config.api_port))
+}
+
+// Stop the Hathor fullnode
+#[tauri::command]
+async fn stop_node(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    // Kill the process
+    if let Some(pid) = state_guard.node_child_id {
+        #[cfg(unix)]
+        {
+            use std::process::Command;
+            // Send SIGTERM for graceful shutdown
+            let _ = Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .output();
+        }
+
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .output();
+        }
+    }
+
+    state_guard.node_running = false;
+    state_guard.node_child_id = None;
+
+    Ok("Node stopped".to_string())
+}
+
+// Start the CPU miner
+#[tauri::command]
+async fn start_miner(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+    config: Option<MinerConfig>,
+) -> Result<String, String> {
+    let config = config.unwrap_or_default();
+
+    {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node must be running before starting miner".to_string());
+        }
+        if state_guard.miner_running {
+            return Err("Miner is already running".to_string());
+        }
+        // Auto-start tx-mining-service if not running (miner connects to its stratum)
+        if !state_guard.tx_mining_running {
+            drop(state_guard);
+            start_tx_mining_internal(&state).await?;
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+    }
+
+    let mut state_guard = state.lock().await;
+    let binary_path = get_binary_path("cpuminer");
+
+    // Spawn the process using tokio
+    let mut child = TokioCommand::new(&binary_path)
+        .args([
+            "--algo",
+            "sha256d",
+            "--url",
+            &format!("stratum+tcp://127.0.0.1:{}", config.stratum_port),
+            "--coinbase-addr",
+            &config.address,
+            "--threads",
+            &config.threads.to_string(),
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn cpuminer at {:?}: {}", binary_path, e))?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.miner_running = true;
+    state_guard.miner_child_id = Some(pid);
+
+    // Handle stdout
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let app_handle = app.clone();
+    let app_handle2 = app.clone();
+
+    // Spawn task for stdout
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle.emit("miner-log", &line);
+            }
+        });
+    }
+
+    // Spawn task for stderr (cpuminer outputs stats here)
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle2.emit("miner-stats", &line);
+            }
+        });
+    }
+
+    // Spawn task to wait for process termination and reset state
+    let app_handle3 = app.clone();
+    let state_clone = state.inner().clone();
+    tokio::spawn(async move {
+        let status = child.wait().await;
+        let code = status.map(|s| s.code()).ok().flatten();
+
+        // Reset state when process terminates
+        {
+            let mut state_guard = state_clone.lock().await;
+            state_guard.miner_running = false;
+            state_guard.miner_child_id = None;
+        }
+
+        let _ = app_handle3.emit("miner-terminated", code);
+    });
+
+    Ok(format!("Miner started with {} threads", config.threads))
+}
+
+// Stop the CPU miner
+#[tauri::command]
+async fn stop_miner(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.miner_running {
+        return Err("Miner is not running".to_string());
+    }
+
+    // Kill the process
+    if let Some(pid) = state_guard.miner_child_id {
+        #[cfg(unix)]
+        {
+            use std::process::Command;
+            let _ = Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .output();
+        }
+
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .output();
+        }
+    }
+
+    state_guard.miner_running = false;
+    state_guard.miner_child_id = None;
+
+    Ok("Miner stopped".to_string())
+}
+
+// Get node status from the API
+#[tauri::command]
+async fn get_node_status(state: tauri::State<'_, SharedState>) -> Result<NodeStatus, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Ok(NodeStatus {
+            running: false,
+            block_height: None,
+            hash_rate: None,
+            peer_count: None,
+        });
+    }
+
+    // Try to fetch status from the node API
+    let client = reqwest::Client::new();
+    match client.get("http://127.0.0.1:8080/v1a/status").send().await {
+        Ok(response) => {
+            if let Ok(json) = response.json::<serde_json::Value>().await {
+                let block_height = json
+                    .get("dag")
+                    .and_then(|d| d.get("best_block"))
+                    .and_then(|b| b.get("height"))
+                    .and_then(|h| h.as_u64());
+
+                Ok(NodeStatus {
+                    running: true,
+                    block_height,
+                    hash_rate: None,
+                    peer_count: Some(0), // Localnet has no peers
+                })
+            } else {
+                Ok(NodeStatus {
+                    running: true,
+                    block_height: None,
+                    hash_rate: None,
+                    peer_count: None,
+                })
+            }
+        }
+        Err(_) => Ok(NodeStatus {
+            running: true, // Process is running but API might not be ready
+            block_height: None,
+            hash_rate: None,
+            peer_count: None,
+        }),
+    }
+}
+
+// Get miner status
+#[tauri::command]
+async fn get_miner_status(state: tauri::State<'_, SharedState>) -> Result<MinerStatus, String> {
+    let state_guard = state.lock().await;
+
+    Ok(MinerStatus {
+        running: state_guard.miner_running,
+        hash_rate: None, // TODO: Parse from miner output
+    })
+}
+
+// Get current state
+#[tauri::command]
+async fn get_state(state: tauri::State<'_, SharedState>) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+
+    Ok(serde_json::json!({
+        "node_running": state_guard.node_running,
+        "miner_running": state_guard.miner_running,
+        "explorer_server_running": state_guard.explorer_server_running,
+        "headless_running": state_guard.headless_running,
+        "tx_mining_running": state_guard.tx_mining_running,
+        "data_dir": state_guard.data_dir,
+    }))
+}
+
+// Get the default data directory path
+fn get_default_data_dir() -> std::path::PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("hathor-forge")
+        .join("data")
+}
+
+// Reset blockchain data (removes the data directory)
+#[tauri::command]
+async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let state_guard = state.lock().await;
+
+    // Don't allow reset while node is running
+    if state_guard.node_running {
+        return Err("Cannot reset data while node is running. Stop the node first.".to_string());
+    }
+
+    // Use the stored data dir or default
+    let data_dir = state_guard
+        .data_dir
+        .as_ref()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(get_default_data_dir);
+
+    drop(state_guard); // Release lock before file operations
+
+    if data_dir.exists() {
+        fs::remove_dir_all(&data_dir)
+            .map_err(|e| format!("Failed to remove data directory: {}", e))?;
+    }
+
+    Ok(format!("Data directory removed: {:?}", data_dir))
+}
+
+// Get wallet addresses with balances
+#[tauri::command]
+async fn get_wallet_addresses(
+    state: tauri::State<'_, SharedState>,
+) -> Result<Vec<WalletAddress>, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Get current address from the wallet
+    let address_response = client
+        .get("http://127.0.0.1:8080/v1a/wallet/address")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch address: {}", e))?;
+
+    let address_json: serde_json::Value = address_response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse address response: {}", e))?;
+
+    let current_address = address_json["address"]
+        .as_str()
+        .ok_or("Invalid address format")?
+        .to_string();
+
+    // Get wallet balance
+    let balance_response = client
+        .get("http://127.0.0.1:8080/v1a/wallet/balance")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch balance: {}", e))?;
+
+    let balance_json: serde_json::Value = balance_response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse balance response: {}", e))?;
+
+    let balance = balance_json["balance"]["available"].as_u64();
+
+    // Return the current address with its balance
+    let wallet_addresses = vec![WalletAddress {
+        address: current_address,
+        index: 0,
+        balance,
+    }];
+
+    Ok(wallet_addresses)
+}
+
+// Get fullnode wallet balance
+#[tauri::command]
+async fn get_fullnode_balance(
+    state: tauri::State<'_, SharedState>,
+) -> Result<FullnodeBalance, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get("http://127.0.0.1:8080/v1a/wallet/balance/")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get balance: {}", e))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        let balance = &result["balance"];
+        Ok(FullnodeBalance {
+            available: balance["available"].as_i64().unwrap_or(0),
+            locked: balance["locked"].as_i64().unwrap_or(0),
+        })
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Failed to get balance: {}", message))
+    }
+}
+
+// Send HTR to an address (faucet)
+#[tauri::command]
+async fn send_tx(
+    state: tauri::State<'_, SharedState>,
+    request: SendTxRequest,
+) -> Result<String, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Use the fullnode's wallet send_tokens endpoint
+    let response = client
+        .post("http://127.0.0.1:8080/v1a/wallet/send_tokens/")
+        .json(&serde_json::json!({
+            "data": {
+                "inputs": [],
+                "outputs": [{
+                    "address": request.address,
+                    "value": request.amount,
+                }]
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send transaction: {}", e))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        let tx_hash = result["hash"].as_str().unwrap_or("unknown").to_string();
+        Ok(format!("Transaction sent! Hash: {}", tx_hash))
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Transaction failed: {}", message))
+    }
+}
+
+// Start the wallet-headless service
+#[tauri::command]
+async fn start_headless(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+    config: Option<HeadlessConfig>,
+) -> Result<String, String> {
+    let config = config.unwrap_or_default();
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node must be running before starting wallet-headless".to_string());
+    }
+
+    if state_guard.headless_running {
+        return Err("Wallet-headless is already running".to_string());
+    }
+
+    let headless_path = get_headless_dist_path();
+    if !headless_path.exists() {
+        return Err(format!(
+            "Wallet-headless dist not found at {:?}. Run 'build-wallet-headless' first.",
+            headless_path
+        ));
+    }
+
+    // Kill any zombie process on the headless port
+    kill_process_on_port(config.port);
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    // Generate config file in the dist directory
+    generate_headless_config(&config, &headless_path)?;
+
+    // Find node binary to run with
+    let entry_point = headless_path.join("dist").join("index.js");
+    let working_dir = headless_path.join("dist");
+
+    // Spawn the process using node (working dir must be dist/ where config.js is)
+    let mut child = TokioCommand::new("node")
+        .args([entry_point.to_string_lossy().as_ref()])
+        .current_dir(&working_dir)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn wallet-headless: {}", e))?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.headless_running = true;
+    state_guard.headless_child_id = Some(pid);
+
+    // Handle stdout
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let app_handle = app.clone();
+    let app_handle2 = app.clone();
+
+    // Spawn task for stdout
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle.emit("headless-log", &line);
+            }
+        });
+    }
+
+    // Spawn task for stderr
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle2.emit("headless-log", &line);
+            }
+        });
+    }
+
+    // Spawn task to wait for process termination and reset state
+    let app_handle3 = app.clone();
+    let state_clone = state.inner().clone();
+    tokio::spawn(async move {
+        let status = child.wait().await;
+        let code = status.map(|s| s.code()).ok().flatten();
+
+        // Reset state when process terminates
+        {
+            let mut state_guard = state_clone.lock().await;
+            state_guard.headless_running = false;
+            state_guard.headless_child_id = None;
+        }
+
+        let _ = app_handle3.emit("headless-terminated", code);
+    });
+
+    Ok(format!("Wallet-headless started on port {}", config.port))
+}
+
+// Stop the wallet-headless service
+#[tauri::command]
+async fn stop_headless(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    // Kill the process
+    if let Some(pid) = state_guard.headless_child_id {
+        #[cfg(unix)]
+        {
+            use std::process::Command;
+            let _ = Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .output();
+        }
+
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .output();
+        }
+    }
+
+    state_guard.headless_running = false;
+    state_guard.headless_child_id = None;
+
+    Ok("Wallet-headless stopped".to_string())
+}
+
+// Get headless status
+#[tauri::command]
+async fn get_headless_status(
+    state: tauri::State<'_, SharedState>,
+) -> Result<HeadlessStatus, String> {
+    let state_guard = state.lock().await;
+
+    Ok(HeadlessStatus {
+        running: state_guard.headless_running,
+        port: if state_guard.headless_running {
+            Some(8001)
+        } else {
+            None
+        },
+    })
+}
+
+// Start the tx-mining-service
+#[tauri::command]
+async fn start_tx_mining(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+) -> Result<String, String> {
+    let config = TxMiningConfig::default();
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node must be running before starting tx-mining-service".to_string());
+    }
+
+    if state_guard.tx_mining_running {
+        return Err("tx-mining-service is already running".to_string());
+    }
+
+    // Kill any zombie process on the tx-mining ports
+    kill_process_on_port(config.api_port);
+    kill_process_on_port(config.stratum_port);
+    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    let binary_path = get_binary_path("tx-mining-service");
+
+    let internal_dir = binary_path.parent().unwrap().join("_internal");
+
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_library_path_env(&mut cmd, &internal_dir);
+    let mut child = cmd
+        .args([
+            "--api-port",
+            &config.api_port.to_string(),
+            "--stratum-port",
+            &config.stratum_port.to_string(),
+            "--address",
+            &config.address,
+            "--allow-non-standard-script",
+            "--tx-timeout",
+            "120",
+            &config.fullnode_url,
+        ])
+        .current_dir(binary_path.parent().unwrap())
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            format!(
+                "Failed to spawn tx-mining-service at {:?}: {}",
+                binary_path, e
+            )
+        })?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.tx_mining_running = true;
+    state_guard.tx_mining_child_id = Some(pid);
+
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let app_handle = app.clone();
+    let app_handle2 = app.clone();
+
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle.emit("tx-mining-log", &line);
+            }
+        });
+    }
+
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle2.emit("tx-mining-log", &line);
+            }
+        });
+    }
+
+    let app_handle3 = app.clone();
+    let state_clone = state.inner().clone();
+    tokio::spawn(async move {
+        let status = child.wait().await;
+        let code = status.map(|s| s.code()).ok().flatten();
+
+        {
+            let mut state_guard = state_clone.lock().await;
+            state_guard.tx_mining_running = false;
+            state_guard.tx_mining_child_id = None;
+        }
+
+        let _ = app_handle3.emit("tx-mining-terminated", code);
+    });
+
+    Ok(format!(
+        "tx-mining-service started on port {}",
+        config.api_port
+    ))
+}
+
+// Stop the tx-mining-service
+#[tauri::command]
+async fn stop_tx_mining(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.tx_mining_running {
+        return Err("tx-mining-service is not running".to_string());
+    }
+
+    if let Some(pid) = state_guard.tx_mining_child_id {
+        #[cfg(unix)]
+        {
+            use std::process::Command;
+            let _ = Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .output();
+        }
+
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .output();
+        }
+    }
+
+    state_guard.tx_mining_running = false;
+    state_guard.tx_mining_child_id = None;
+
+    Ok("tx-mining-service stopped".to_string())
+}
+
+// Get tx-mining-service status
+#[tauri::command]
+async fn get_tx_mining_status(
+    state: tauri::State<'_, SharedState>,
+) -> Result<TxMiningStatus, String> {
+    let state_guard = state.lock().await;
+
+    Ok(TxMiningStatus {
+        running: state_guard.tx_mining_running,
+        port: if state_guard.tx_mining_running {
+            Some(8002)
+        } else {
+            None
+        },
+    })
+}
+
+// Generate a new BIP39 seed phrase (24 words)
+#[tauri::command]
+async fn generate_seed() -> Result<String, String> {
+    use bip39::{Language, Mnemonic};
+
+    // Generate 32 bytes of entropy for 24 words
+    let mut entropy = [0u8; 32];
+    getrandom::getrandom(&mut entropy)
+        .map_err(|e| format!("Failed to generate random bytes: {}", e))?;
+
+    let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)
+        .map_err(|e| format!("Failed to generate mnemonic: {}", e))?;
+
+    Ok(mnemonic.to_string())
+}
+
+// Create a new wallet via wallet-headless
+#[tauri::command]
+async fn create_headless_wallet(
+    state: tauri::State<'_, SharedState>,
+    request: CreateHeadlessWalletRequest,
+) -> Result<HeadlessWallet, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Start a wallet with the provided seed
+    let response = client
+        .post("http://localhost:8001/start")
+        .json(&serde_json::json!({
+            "wallet-id": request.wallet_id,
+            "seed": request.seed,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to create wallet: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        Ok(HeadlessWallet {
+            wallet_id: request.wallet_id,
+            status: "starting".to_string(),
+            status_code: None,
+        })
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Failed to create wallet: {}", message))
+    }
+}
+
+// Get wallet status from headless
+#[tauri::command]
+async fn get_headless_wallet_status(
+    state: tauri::State<'_, SharedState>,
+    wallet_id: String,
+) -> Result<HeadlessWallet, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get("http://localhost:8001/wallet/status")
+        .header("X-Wallet-Id", &wallet_id)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get wallet status: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let status_code = result["statusCode"].as_i64().map(|c| c as i32);
+    let status_message = result["statusMessage"]
+        .as_str()
+        .unwrap_or("Unknown")
+        .to_string();
+
+    Ok(HeadlessWallet {
+        wallet_id,
+        status: status_message,
+        status_code,
+    })
+}
+
+// Get wallet balance from headless
+#[tauri::command]
+async fn get_headless_wallet_balance(
+    state: tauri::State<'_, SharedState>,
+    wallet_id: String,
+) -> Result<HeadlessWalletBalance, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get("http://localhost:8001/wallet/balance")
+        .header("X-Wallet-Id", &wallet_id)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get wallet balance: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let available = result["available"].as_u64().unwrap_or(0);
+    let locked = result["locked"].as_u64().unwrap_or(0);
+
+    Ok(HeadlessWalletBalance { available, locked })
+}
+
+// Get wallet addresses from headless
+#[tauri::command]
+async fn get_headless_wallet_addresses(
+    state: tauri::State<'_, SharedState>,
+    wallet_id: String,
+) -> Result<Vec<String>, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get("http://localhost:8001/wallet/addresses")
+        .header("X-Wallet-Id", &wallet_id)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get wallet addresses: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let addresses = result["addresses"]
+        .as_array()
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Ok(addresses)
+}
+
+// Send transaction from headless wallet
+#[tauri::command]
+async fn headless_wallet_send_tx(
+    state: tauri::State<'_, SharedState>,
+    request: HeadlessWalletSendTxRequest,
+) -> Result<String, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://localhost:8001/wallet/simple-send-tx")
+        .header("X-Wallet-Id", &request.wallet_id)
+        .json(&serde_json::json!({
+            "address": request.address,
+            "value": request.amount,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send transaction: {}", e))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        let tx_hash = result["hash"].as_str().unwrap_or("unknown").to_string();
+        Ok(format!("Transaction sent! Hash: {}", tx_hash))
+    } else {
+        // Try multiple error message locations
+        let message = result["message"]
+            .as_str()
+            .or_else(|| result["error"].as_str())
+            .unwrap_or(&response_text)
+            .to_string();
+        Err(format!("Transaction failed: {}", message))
+    }
+}
+
+// Close a headless wallet
+#[tauri::command]
+async fn close_headless_wallet(
+    state: tauri::State<'_, SharedState>,
+    wallet_id: String,
+) -> Result<String, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://localhost:8001/wallet/stop")
+        .header("X-Wallet-Id", &wallet_id)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to close wallet: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        Ok(format!("Wallet '{}' closed", wallet_id))
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Failed to close wallet: {}", message))
+    }
+}
+
+// Proxy HTTP requests to the fullnode
+async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
+    // Include query string if present
+    let query = req
+        .uri()
+        .query()
+        .map(|q| format!("?{}", q))
+        .unwrap_or_default();
+    let fullnode_url = format!("http://127.0.0.1:8080/v1a/{}{}", path, query);
+
+    let client = reqwest::Client::new();
+    let method = req.method().clone();
+    let headers = req.headers().clone();
+
+    // Build the request to the fullnode
+    let mut builder = match method.as_str() {
+        "GET" => client.get(&fullnode_url),
+        "POST" => client.post(&fullnode_url),
+        "PUT" => client.put(&fullnode_url),
+        "DELETE" => client.delete(&fullnode_url),
+        "PATCH" => client.patch(&fullnode_url),
+        _ => client.get(&fullnode_url),
+    };
+
+    // Forward headers (except host)
+    for (name, value) in headers.iter() {
+        if name != "host" {
+            if let Ok(header_name) = reqwest::header::HeaderName::try_from(name.as_str()) {
+                if let Ok(header_value) = reqwest::header::HeaderValue::from_bytes(value.as_bytes())
+                {
+                    builder = builder.header(header_name, header_value);
+                }
+            }
+        }
+    }
+
+    // Forward body for POST/PUT/PATCH
+    if method == "POST" || method == "PUT" || method == "PATCH" {
+        let body_bytes = match axum::body::to_bytes(req.into_body(), 10 * 1024 * 1024).await {
+            Ok(bytes) => bytes,
+            Err(_) => {
+                return Response::builder()
+                    .status(500)
+                    .body(Body::from("Failed to read request body"))
+                    .unwrap();
+            }
+        };
+        builder = builder.body(body_bytes.to_vec());
+    }
+
+    // Make the request
+    match builder.send().await {
+        Ok(response) => {
+            let status = response.status();
+            let headers = response.headers().clone();
+
+            match response.bytes().await {
+                Ok(body) => {
+                    let mut builder = Response::builder().status(status.as_u16());
+
+                    // Forward response headers
+                    for (name, value) in headers.iter() {
+                        if let Ok(header_name) = axum::http::HeaderName::try_from(name.as_str()) {
+                            if let Ok(header_value) =
+                                axum::http::HeaderValue::from_bytes(value.as_bytes())
+                            {
+                                builder = builder.header(header_name, header_value);
+                            }
+                        }
+                    }
+
+                    builder.body(Body::from(body.to_vec())).unwrap()
+                }
+                Err(_) => Response::builder()
+                    .status(502)
+                    .body(Body::from("Failed to read response from fullnode"))
+                    .unwrap(),
+            }
+        }
+        Err(e) => Response::builder()
+            .status(502)
+            .body(Body::from(format!("Failed to connect to fullnode: {}", e)))
+            .unwrap(),
+    }
+}
+
+// Proxy WebSocket connections to the fullnode
+async fn proxy_ws(ws: WebSocketUpgrade) -> impl IntoResponse {
+    ws.on_upgrade(handle_ws_proxy)
+}
+
+async fn handle_ws_proxy(mut client_ws: WebSocket) {
+    // Connect to fullnode WebSocket
+    let fullnode_url = "ws://127.0.0.1:8080/v1a/ws/";
+
+    let ws_stream = match tokio_tungstenite::connect_async(fullnode_url).await {
+        Ok((stream, _)) => stream,
+        Err(e) => {
+            let _ = client_ws
+                .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+                    code: 1011,
+                    reason: format!("Failed to connect to fullnode: {}", e).into(),
+                })))
+                .await;
+            return;
+        }
+    };
+
+    let (mut fullnode_sink, mut fullnode_stream) = ws_stream.split();
+    let (mut client_sink, mut client_stream) = client_ws.split();
+
+    // Forward messages from client to fullnode
+    let client_to_fullnode = async {
+        while let Some(msg) = client_stream.next().await {
+            match msg {
+                Ok(Message::Text(text)) => {
+                    if fullnode_sink
+                        .send(tungstenite::Message::Text(text.to_string()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Ok(Message::Binary(data)) => {
+                    if fullnode_sink
+                        .send(tungstenite::Message::Binary(data.to_vec()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Ok(Message::Ping(data)) => {
+                    if fullnode_sink
+                        .send(tungstenite::Message::Ping(data.to_vec()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Ok(Message::Pong(data)) => {
+                    if fullnode_sink
+                        .send(tungstenite::Message::Pong(data.to_vec()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Ok(Message::Close(_)) | Err(_) => break,
+            }
+        }
+    };
+
+    // Forward messages from fullnode to client
+    let fullnode_to_client = async {
+        while let Some(msg) = fullnode_stream.next().await {
+            match msg {
+                Ok(tungstenite::Message::Text(text)) => {
+                    if client_sink.send(Message::Text(text.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Ok(tungstenite::Message::Binary(data)) => {
+                    if client_sink
+                        .send(Message::Binary(data.into()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Ok(tungstenite::Message::Ping(data)) => {
+                    if client_sink.send(Message::Ping(data.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Ok(tungstenite::Message::Pong(data)) => {
+                    if client_sink.send(Message::Pong(data.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Ok(tungstenite::Message::Close(_)) | Err(_) => break,
+                _ => {}
+            }
+        }
+    };
+
+    // Run both directions concurrently
+    tokio::select! {
+        _ = client_to_fullnode => {},
+        _ = fullnode_to_client => {},
+    }
+}
+
+// Get the path to the explorer-dist directory
+fn get_explorer_dist_path() -> std::path::PathBuf {
+    // In dev mode, explorer-dist is in src-tauri/explorer-dist/
+    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("explorer-dist");
+    if dev_path.exists() {
+        return dev_path;
+    }
+
+    // Fallback to current dir
+    std::path::PathBuf::from("explorer-dist")
+}
+
+// Start the explorer HTTP server
+#[tauri::command]
+async fn start_explorer_server(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if state_guard.explorer_server_running {
+        return Err("Explorer server is already running".to_string());
+    }
+
+    let explorer_path = get_explorer_dist_path();
+    if !explorer_path.exists() {
+        return Err(format!(
+            "Explorer dist not found at {:?}. Run 'build-explorer' first.",
+            explorer_path
+        ));
+    }
+
+    // Create shutdown channel
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+    // Build the router with CORS support and API proxy
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let app_router = Router::new()
+        // API proxy routes
+        .route("/v1a/ws/", get(proxy_ws))
+        .route("/v1a/*path", any(proxy_api))
+        // Static files for explorer
+        .fallback_service(ServeDir::new(&explorer_path).append_index_html_on_directories(true))
+        .layer(cors);
+
+    let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
+
+    // Create the server
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| format!("Failed to bind to port 3001: {}", e))?;
+
+    state_guard.explorer_server_running = true;
+    state_guard.explorer_shutdown = Some(shutdown_tx);
+
+    let app_handle = app.clone();
+    let state_clone = state.inner().clone();
+
+    // Spawn the server
+    tokio::spawn(async move {
+        let server = axum::serve(listener, app_router).with_graceful_shutdown(async {
+            let _ = shutdown_rx.await;
+        });
+
+        if let Err(e) = server.await {
+            let _ = app_handle.emit("explorer-error", format!("Explorer server error: {}", e));
+        }
+
+        // Reset state when server stops
+        {
+            let mut state_guard = state_clone.lock().await;
+            state_guard.explorer_server_running = false;
+            state_guard.explorer_shutdown = None;
+        }
+
+        let _ = app_handle.emit("explorer-terminated", ());
+    });
+
+    Ok("Explorer server started on http://localhost:3001".to_string())
+}
+
+// Stop the explorer HTTP server
+#[tauri::command]
+async fn stop_explorer_server(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.explorer_server_running {
+        return Err("Explorer server is not running".to_string());
+    }
+
+    // Send shutdown signal
+    if let Some(shutdown_tx) = state_guard.explorer_shutdown.take() {
+        let _ = shutdown_tx.send(());
+    }
+
+    state_guard.explorer_server_running = false;
+
+    Ok("Explorer server stopped".to_string())
+}
+
+// Graceful shutdown: stop all services in order, then allow exit
+#[tauri::command]
+async fn graceful_shutdown(
+    state: tauri::State<'_, SharedState>,
+    exit_flag: tauri::State<'_, Arc<std::sync::atomic::AtomicBool>>,
+) -> Result<String, String> {
+    let result = stop_node_internal(&state).await;
+    exit_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+    result
+}
+
+// Get nano contract state
+#[tauri::command]
+async fn get_nano_contract_state(
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&format!(
+            "http://127.0.0.1:8080/v1a/nano_contract/state?id={}",
+            id
+        ))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get contract state: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(json)
+}
+
+// Get nano contract history
+#[tauri::command]
+async fn get_nano_contract_history(
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&format!(
+            "http://127.0.0.1:8080/v1a/nano_contract/history?id={}",
+            id
+        ))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get contract history: {}", e))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(json)
+}
+
+// List available blueprints by scanning transactions for version 6 (blueprint) txs
+#[tauri::command]
+async fn list_blueprints(
+    state: tauri::State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Fetch recent transactions from dashboard (version 6 = blueprint)
+    let response = client
+        .get("http://127.0.0.1:8080/v1a/dashboard_tx?tx=200&block=0")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch transactions: {}", e))?;
+
+    let dashboard: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse dashboard response: {}", e))?;
+
+    let mut blueprints = Vec::new();
+
+    if let Some(transactions) = dashboard.get("transactions").and_then(|t| t.as_array()) {
+        for tx in transactions {
+            if tx.get("version").and_then(|v| v.as_u64()) == Some(6) {
+                let tx_id = tx.get("tx_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let timestamp = tx.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
+
+                // Fetch full transaction to get blueprint source code and extract class name
+                let mut name = "Unknown".to_string();
+                if let Ok(tx_response) = client
+                    .get(&format!("http://127.0.0.1:8080/v1a/transaction?id={}", tx_id))
+                    .send()
+                    .await
+                {
+                    if let Ok(tx_json) = tx_response.json::<serde_json::Value>().await {
+                        if let Some(code_content) = tx_json
+                            .get("tx")
+                            .and_then(|t| t.get("on_chain_blueprint_code"))
+                            .and_then(|c| c.get("content"))
+                            .and_then(|c| c.as_str())
+                        {
+                            // Decode base64 + zlib to extract class name
+                            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(code_content) {
+                                if let Ok(decompressed) = miniz_oxide::inflate::decompress_to_vec_zlib(&decoded) {
+                                    if let Ok(source) = String::from_utf8(decompressed) {
+                                        // Extract class name from "class XYZ(Blueprint):"
+                                        for line in source.lines() {
+                                            let trimmed = line.trim();
+                                            if trimmed.starts_with("class ") && trimmed.contains("Blueprint") {
+                                                if let Some(class_name) = trimmed
+                                                    .strip_prefix("class ")
+                                                    .and_then(|s| s.split('(').next())
+                                                {
+                                                    name = class_name.trim().to_string();
+                                                }
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                blueprints.push(serde_json::json!({
+                    "id": tx_id,
+                    "name": name,
+                    "timestamp": timestamp,
+                }));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "success": true,
+        "blueprints": blueprints,
+    }))
+}
+
+// Get blueprint information by fetching the transaction and parsing the source code
+#[tauri::command]
+async fn get_blueprint_information(
+    state: tauri::State<'_, SharedState>,
+    id: String,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(&format!("http://127.0.0.1:8080/v1a/transaction?id={}", id))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch blueprint transaction: {}", e))?;
+
+    let tx_json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    let code_content = tx_json
+        .get("tx")
+        .and_then(|t| t.get("on_chain_blueprint_code"))
+        .and_then(|c| c.get("content"))
+        .and_then(|c| c.as_str())
+        .ok_or("Blueprint source code not found in transaction")?;
+
+    let decoded = base64::engine::general_purpose::STANDARD
+        .decode(code_content)
+        .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+    let decompressed = miniz_oxide::inflate::decompress_to_vec_zlib(&decoded)
+        .map_err(|e| format!("Failed to decompress: {:?}", e))?;
+
+    let source = String::from_utf8(decompressed)
+        .map_err(|e| format!("Invalid UTF-8 in blueprint source: {}", e))?;
+
+    // Parse class name and methods from source
+    let mut class_name = "Unknown".to_string();
+    let mut methods = Vec::new();
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        // Extract class name
+        if trimmed.starts_with("class ") && trimmed.contains("Blueprint") {
+            if let Some(name) = trimmed.strip_prefix("class ").and_then(|s| s.split('(').next()) {
+                class_name = name.trim().to_string();
+            }
+        }
+        // Extract method signatures: "def method_name(self, ctx: Context, arg1: Type1, ...)"
+        if trimmed.starts_with("def ") && trimmed.contains("(self") {
+            if let Some(sig) = trimmed.strip_prefix("def ") {
+                let method_name = sig.split('(').next().unwrap_or("").trim().to_string();
+                // Skip private methods
+                if method_name.starts_with('_') {
+                    continue;
+                }
+                let mut args = Vec::new();
+                // Extract args between parens
+                if let Some(params_str) = sig.split('(').nth(1).and_then(|s| s.split(')').next()) {
+                    for param in params_str.split(',') {
+                        let param = param.trim();
+                        // Skip self and ctx parameters
+                        if param == "self" || param.starts_with("ctx") {
+                            continue;
+                        }
+                        if param.is_empty() {
+                            continue;
+                        }
+                        let parts: Vec<&str> = param.splitn(2, ':').collect();
+                        let arg_name = parts[0].trim().to_string();
+                        let arg_type = if parts.len() > 1 {
+                            parts[1].trim().to_string()
+                        } else {
+                            "str".to_string()
+                        };
+                        args.push(serde_json::json!({
+                            "name": arg_name,
+                            "type": arg_type,
+                        }));
+                    }
+                }
+                methods.push(serde_json::json!({
+                    "name": method_name,
+                    "args": args,
+                }));
+            }
+        }
+    }
+
+    Ok(serde_json::json!({
+        "success": true,
+        "id": id,
+        "source": source,
+        "plan": {
+            "name": class_name,
+            "methods": methods,
+        }
+    }))
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateNanoContractRequest {
+    pub wallet_id: String,
+    pub blueprint_id: String,
+    pub args: Vec<serde_json::Value>,
+}
+
+// Create a new nano contract via wallet-headless (OCB)
+#[tauri::command]
+async fn headless_wallet_create_nano_contract(
+    state: tauri::State<'_, SharedState>,
+    request: CreateNanoContractRequest,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://localhost:8001/wallet/nano-contract/create")
+        .header("X-Wallet-Id", &request.wallet_id)
+        .json(&serde_json::json!({
+            "blueprint_id": request.blueprint_id,
+            "args": request.args,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to create nano contract: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(result)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CallNanoContractMethodRequest {
+    pub wallet_id: String,
+    pub nc_id: String,
+    pub method: String,
+    pub args: Vec<serde_json::Value>,
+}
+
+// Call a nano contract method via wallet-headless
+#[tauri::command]
+async fn headless_wallet_call_nano_contract_method(
+    state: tauri::State<'_, SharedState>,
+    request: CallNanoContractMethodRequest,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.headless_running {
+        return Err("Wallet-headless is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post("http://localhost:8001/wallet/nano-contract/execute")
+        .header("X-Wallet-Id", &request.wallet_id)
+        .json(&serde_json::json!({
+            "nc_id": request.nc_id,
+            "method": request.method,
+            "args": request.args,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to call nano contract method: {}", e))?;
+
+    let result: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    Ok(result)
+}
+
+// MCP Server port
+// MCP_SERVER_PORT comes from super::*
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    let state = Arc::new(Mutex::new(AppState::default())) as SharedState;
+    let cleanup_state = state.clone();
+    let mcp_state = state.clone();
+    let exit_allowed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let exit_allowed_run = exit_allowed.clone();
+    let exit_allowed_cmd = exit_allowed.clone();
+
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .manage(state)
+        .manage(exit_allowed_cmd)
+        .invoke_handler(tauri::generate_handler![
+            start_node,
+            stop_node,
+            start_miner,
+            stop_miner,
+            get_node_status,
+            get_miner_status,
+            get_state,
+            reset_data,
+            get_wallet_addresses,
+            get_fullnode_balance,
+            send_tx,
+            start_explorer_server,
+            stop_explorer_server,
+            start_headless,
+            stop_headless,
+            get_headless_status,
+            start_tx_mining,
+            stop_tx_mining,
+            get_tx_mining_status,
+            generate_seed,
+            create_headless_wallet,
+            get_headless_wallet_status,
+            get_headless_wallet_balance,
+            get_headless_wallet_addresses,
+            headless_wallet_send_tx,
+            close_headless_wallet,
+            get_nano_contract_state,
+            get_nano_contract_history,
+            list_blueprints,
+            get_blueprint_information,
+            headless_wallet_create_nano_contract,
+            headless_wallet_call_nano_contract_method,
+            graceful_shutdown,
+        ])
+        .setup(move |app| {
+            // Build a custom macOS app menu that replaces the default Quit with
+            // a custom item we can intercept (Cmd+Q bypasses CloseRequested).
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, AboutMetadata};
+                let quit_item = MenuItemBuilder::new("Quit Hathor Forge")
+                    .id("custom-quit")
+                    .accelerator("CmdOrCtrl+Q")
+                    .build(app)?;
+                let app_submenu = SubmenuBuilder::new(app, "Hathor Forge")
+                    .about(Some(AboutMetadata::default()))
+                    .separator()
+                    .services()
+                    .separator()
+                    .hide()
+                    .hide_others()
+                    .show_all()
+                    .separator()
+                    .item(&quit_item)
+                    .build()?;
+                let edit_submenu = SubmenuBuilder::new(app, "Edit")
+                    .undo()
+                    .redo()
+                    .separator()
+                    .cut()
+                    .copy()
+                    .paste()
+                    .select_all()
+                    .build()?;
+                let window_submenu = SubmenuBuilder::new(app, "Window")
+                    .minimize()
+                    .separator()
+                    .close_window()
+                    .build()?;
+                let menu = MenuBuilder::new(app)
+                    .item(&app_submenu)
+                    .item(&edit_submenu)
+                    .item(&window_submenu)
+                    .build()?;
+                app.set_menu(menu)?;
+            }
+
+            // Start the MCP server in the background using Tauri's async runtime
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT).await {
+                    eprintln!("Failed to start MCP server: {}", e);
+                }
+            });
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            if event.id().as_ref() == "custom-quit" {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.close();
+                }
+            }
+        })
+        // TODO: graceful shutdown dialog - commented out until Tauri 2 event
+        // delivery from on_window_event to JS is resolved
+        // .on_window_event(|window, event| {
+        //     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+        //         api.prevent_close();
+        //         let _ = window.emit("show-exit-dialog", ());
+        //     }
+        // })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(move |_app, event| {
+            // TODO: re-enable ExitRequested prevention once graceful shutdown dialog works
+            if let tauri::RunEvent::Exit = event {
+                // Cleanup: kill any running processes
+                let state = cleanup_state.blocking_lock();
+
+                if let Some(pid) = state.miner_child_id {
+                    eprintln!("Cleaning up miner process (PID: {})", pid);
+                    kill_process(pid);
+                }
+
+                if let Some(pid) = state.headless_child_id {
+                    eprintln!("Cleaning up wallet-headless process (PID: {})", pid);
+                    kill_process(pid);
+                }
+
+                if let Some(pid) = state.tx_mining_child_id {
+                    eprintln!("Cleaning up tx-mining-service process (PID: {})", pid);
+                    kill_process(pid);
+                }
+
+                if let Some(pid) = state.node_child_id {
+                    eprintln!("Cleaning up node process (PID: {})", pid);
+                    kill_process(pid);
+                }
+            }
+        });
+}

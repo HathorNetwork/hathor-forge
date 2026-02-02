@@ -61,9 +61,15 @@ nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
           src = hathor-core-src;
         };
 
+        # CLI binary (no Tauri, no GUI dependencies)
+        hathorForgeCli = import ./nix/cli.nix {
+          inherit pkgs rustToolchain;
+        };
+
       in {
         packages = {
-          default = self.packages.${system}.hathor-forge;
+          default = self.packages.${system}.hathor-forge-cli;
+          hathor-forge-cli = hathorForgeCli;
           hathor-core = hathorCore;
           cpuminer = cpuminer;
 
