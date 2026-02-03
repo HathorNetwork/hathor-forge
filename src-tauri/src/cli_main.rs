@@ -252,7 +252,11 @@ async fn main() {
         // Start wallet-headless (unless disabled)
         if !no_wallet {
             eprint!("  Wallet-Headless . ");
-            match start_headless_internal(&state).await {
+            match start_headless_internal(
+                &state,
+                Some(fullnode_url_resolved.as_str()),
+                Some(tx_mining_url_resolved.as_str()),
+            ).await {
                 Ok(msg) => eprintln!("{}", msg),
                 Err(e) => eprintln!("ERROR: {}", e),
             }

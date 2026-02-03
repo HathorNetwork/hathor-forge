@@ -335,19 +335,19 @@ fn get_headless_dist_path() -> std::path::PathBuf {
 fn generate_headless_config(
     config: &HeadlessConfig,
     headless_dist_path: &std::path::Path,
+    tx_mining_url: &str,
 ) -> Result<(), String> {
     // wallet-headless expects config.js in the dist directory (hardcoded as ./config.js)
     let config_path = headless_dist_path.join("dist").join("config.js");
 
     // Generate config.js for wallet-headless
-    // txMiningUrl is required for privatenet - point to local fullnode's mining endpoint
     let config_content = format!(
         r#"module.exports = {{
   http_bind_address: 'localhost',
   http_port: {},
   network: 'privatenet',
   server: '{}',
-  txMiningUrl: 'http://localhost:8002',
+  txMiningUrl: '{}',
   seeds: {{}},
   allowPassphrase: false,
   confirmFirstAddress: false,
@@ -356,7 +356,7 @@ fn generate_headless_config(
   connectionTimeout: 5000,
 }}
 "#,
-        config.port, config.fullnode_url
+        config.port, config.fullnode_url, tx_mining_url
     );
 
     fs::write(&config_path, config_content)
@@ -634,9 +634,29 @@ pub async fn stop_miner_internal(state: &SharedState) -> Result<String, String> 
     Ok("Miner stopped".to_string())
 }
 
-/// Start the wallet-headless service (internal version)
-pub async fn start_headless_internal(state: &SharedState) -> Result<String, String> {
-    let config = HeadlessConfig::default();
+/// Start the wallet-headless service (internal version).
+///
+/// `fullnode_url` — fullnode server URL (e.g. `http://127.0.0.1:8080/v1a/`).
+/// `tx_mining_url` — tx-mining-service URL (e.g. `http://localhost:8002`).
+/// Both fall back to HeadlessConfig / localhost defaults when `None`.
+pub async fn start_headless_internal(
+    state: &SharedState,
+    fullnode_url: Option<&str>,
+    tx_mining_url: Option<&str>,
+) -> Result<String, String> {
+    let mut config = HeadlessConfig::default();
+    if let Some(url) = fullnode_url {
+        // Ensure it ends with /v1a/ as wallet-headless expects
+        config.fullnode_url = if url.ends_with("/v1a/") {
+            url.to_string()
+        } else if url.ends_with('/') {
+            format!("{}v1a/", url)
+        } else {
+            format!("{}/v1a/", url)
+        };
+    }
+    let txm_url = tx_mining_url.unwrap_or("http://localhost:8002");
+
     let state_guard = state.lock().await;
 
     if !state_guard.node_running {
@@ -663,7 +683,7 @@ pub async fn start_headless_internal(state: &SharedState) -> Result<String, Stri
     let mut state_guard = state.lock().await;
 
     // Generate config file
-    generate_headless_config(&config, &headless_path)?;
+    generate_headless_config(&config, &headless_path, txm_url)?;
 
     let entry_point = headless_path.join("dist").join("index.js");
     let working_dir = headless_path.join("dist");

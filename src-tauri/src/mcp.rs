@@ -722,7 +722,11 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
         }
 
         // Wallet Service
-        "start_wallet_service" => crate::start_headless_internal(&state.app_state).await,
+        "start_wallet_service" => {
+            let fn_url = state.fullnode_url.read().await;
+            let txm_url = state.tx_mining_url.read().await;
+            crate::start_headless_internal(&state.app_state, Some(&fn_url), Some(&txm_url)).await
+        }
 
         "stop_wallet_service" => crate::stop_headless_internal(&state.app_state).await,
 
@@ -1105,7 +1109,9 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
             }
 
             // Start headless
-            match crate::start_headless_internal(&state.app_state).await {
+            let fn_url = state.fullnode_url.read().await;
+            let txm_url = state.tx_mining_url.read().await;
+            match crate::start_headless_internal(&state.app_state, Some(&fn_url), Some(&txm_url)).await {
                 Ok(msg) => results.push(msg),
                 Err(e) => results.push(format!("Headless: {}", e)),
             }

@@ -598,7 +598,7 @@ async fn start_headless(
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
 
     // Generate config file in the dist directory
-    generate_headless_config(&config, &headless_path)?;
+    generate_headless_config(&config, &headless_path, "http://localhost:8002")?;
 
     // Find node binary to run with
     let entry_point = headless_path.join("dist").join("index.js");

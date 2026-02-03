@@ -141,13 +141,15 @@ pub async fn run_tui(
                     KeyCode::Char('s') => {
                         status_msg = Some(("Starting all services...".into(), Instant::now()));
                         let st = state.clone();
+                        let fn_u = fullnode_url.clone();
+                        let txm_u = tx_mining_url.clone();
                         tokio::spawn(async move {
                             let _ = start_node_internal(&st).await;
                             tokio::time::sleep(Duration::from_secs(2)).await;
                             let _ = start_tx_mining_internal(&st).await;
                             tokio::time::sleep(Duration::from_secs(1)).await;
                             let _ = start_miner_internal(&st, None).await;
-                            let _ = start_headless_internal(&st).await;
+                            let _ = start_headless_internal(&st, Some(&fn_u), Some(&txm_u)).await;
                         });
                     }
                     KeyCode::Char('x') => {
@@ -188,7 +190,9 @@ pub async fn run_tui(
                             tokio::spawn(async move { let _ = stop_headless_internal(&st).await; });
                         } else {
                             status_msg = Some(("Starting Wallet-Headless...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = start_headless_internal(&st).await; });
+                            let fn_u = fullnode_url.clone();
+                            let txm_u = tx_mining_url.clone();
+                            tokio::spawn(async move { let _ = start_headless_internal(&st, Some(&fn_u), Some(&txm_u)).await; });
                         }
                     }
                     KeyCode::Char('4') => {
