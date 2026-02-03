@@ -138,6 +138,7 @@ impl Default for MinerConfig {
 pub struct HeadlessConfig {
     pub port: u16,
     pub fullnode_url: String,
+    pub network: String,
 }
 
 impl Default for HeadlessConfig {
@@ -145,7 +146,23 @@ impl Default for HeadlessConfig {
         Self {
             port: 8001,
             fullnode_url: "http://localhost:8080/v1a/".to_string(),
+            network: "privatenet".to_string(),
         }
+    }
+}
+
+/// Detect network type from fullnode URL
+fn detect_network_from_url(url: &str) -> &'static str {
+    let url_lower = url.to_lowercase();
+    if url_lower.contains("mainnet") {
+        "mainnet"
+    } else if url_lower.contains("testnet") || url_lower.contains("playground") {
+        "testnet"
+    } else if url_lower.contains("localhost") || url_lower.contains("127.0.0.1") {
+        "privatenet"
+    } else {
+        // Default to privatenet for local development
+        "privatenet"
     }
 }
 
@@ -345,7 +362,7 @@ fn generate_headless_config(
         r#"module.exports = {{
   http_bind_address: 'localhost',
   http_port: {},
-  network: 'privatenet',
+  network: '{}',
   server: '{}',
   txMiningUrl: '{}',
   seeds: {{}},
@@ -356,7 +373,7 @@ fn generate_headless_config(
   connectionTimeout: 5000,
 }}
 "#,
-        config.port, config.fullnode_url, tx_mining_url
+        config.port, config.network, config.fullnode_url, tx_mining_url
     );
 
     fs::write(&config_path, config_content)
@@ -654,6 +671,8 @@ pub async fn start_headless_internal(
         } else {
             format!("{}/v1a/", url)
         };
+        // Detect network from URL
+        config.network = detect_network_from_url(url).to_string();
     }
     let txm_url = tx_mining_url.unwrap_or("http://localhost:8002");
 

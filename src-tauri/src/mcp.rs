@@ -776,11 +776,26 @@ async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<St
                 .json()
                 .await
                 .unwrap_or(json!({"error": "Failed to parse response"}));
+            let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+            let message = if success {
+                if seed.is_some() {
+                    "Wallet created with provided seed".to_string()
+                } else {
+                    "Wallet created with generated seed (use get_wallet_seed to retrieve)".to_string()
+                }
+            } else {
+                // Propagate error message from wallet-headless
+                result.get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Failed to create wallet in wallet-headless")
+                    .to_string()
+            };
             Ok(json!({
-                "success": result.get("success").and_then(|v| v.as_bool()).unwrap_or(false),
+                "success": success,
                 "wallet_id": wallet_id,
                 "seed_stored": true,
-                "message": if seed.is_some() { "Wallet created with provided seed" } else { "Wallet created with generated seed (use get_wallet_seed to retrieve)" }
+                "message": message,
+                "details": if !success { Some(&result) } else { None }
             }).to_string())
         }
 
