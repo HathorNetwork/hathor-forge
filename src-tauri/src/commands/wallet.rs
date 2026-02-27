@@ -1,0 +1,169 @@
+use crate::*;
+
+// Get wallet addresses with balances
+#[tauri::command]
+pub(crate) async fn get_wallet_addresses(
+    state: tauri::State<'_, SharedState>,
+) -> Result<Vec<WalletAddress>, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Get current address from the wallet
+    let address_response = client
+        .get("http://127.0.0.1:8080/v1a/wallet/address")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch address: {}", e))?;
+
+    let address_json: serde_json::Value = address_response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse address response: {}", e))?;
+
+    let current_address = address_json["address"]
+        .as_str()
+        .ok_or("Invalid address format")?
+        .to_string();
+
+    // Get wallet balance
+    let balance_response = client
+        .get("http://127.0.0.1:8080/v1a/wallet/balance")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch balance: {}", e))?;
+
+    let balance_json: serde_json::Value = balance_response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse balance response: {}", e))?;
+
+    let balance = balance_json["balance"]["available"].as_u64();
+
+    // Return the current address with its balance
+    let wallet_addresses = vec![WalletAddress {
+        address: current_address,
+        index: 0,
+        balance,
+    }];
+
+    Ok(wallet_addresses)
+}
+
+// Get fullnode wallet balance
+#[tauri::command]
+pub(crate) async fn get_fullnode_balance(
+    state: tauri::State<'_, SharedState>,
+) -> Result<FullnodeBalance, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    let response = client
+        .get("http://127.0.0.1:8080/v1a/wallet/balance/")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to get balance: {}", e))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        let balance = &result["balance"];
+        Ok(FullnodeBalance {
+            available: balance["available"].as_i64().unwrap_or(0),
+            locked: balance["locked"].as_i64().unwrap_or(0),
+        })
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Failed to get balance: {}", message))
+    }
+}
+
+// Send HTR to an address (faucet)
+#[tauri::command]
+pub(crate) async fn send_tx(
+    state: tauri::State<'_, SharedState>,
+    request: SendTxRequest,
+) -> Result<String, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    drop(state_guard);
+
+    let client = reqwest::Client::new();
+
+    // Use the fullnode's wallet send_tokens endpoint
+    let response = client
+        .post("http://127.0.0.1:8080/v1a/wallet/send_tokens/")
+        .json(&serde_json::json!({
+            "data": {
+                "inputs": [],
+                "outputs": [{
+                    "address": request.address,
+                    "value": request.amount,
+                }]
+            }
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send transaction: {}", e))?;
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    let result: serde_json::Value = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
+
+    if result["success"].as_bool().unwrap_or(false) {
+        let tx_hash = result["hash"].as_str().unwrap_or("unknown").to_string();
+        Ok(format!("Transaction sent! Hash: {}", tx_hash))
+    } else {
+        let message = result["message"]
+            .as_str()
+            .unwrap_or("Unknown error")
+            .to_string();
+        Err(format!("Transaction failed: {}", message))
+    }
+}
+
+// Generate a new BIP39 seed phrase (24 words)
+#[tauri::command]
+pub(crate) async fn generate_seed() -> Result<String, String> {
+    use bip39::{Language, Mnemonic};
+
+    // Generate 32 bytes of entropy for 24 words
+    let mut entropy = [0u8; 32];
+    getrandom::getrandom(&mut entropy)
+        .map_err(|e| format!("Failed to generate random bytes: {}", e))?;
+
+    let mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)
+        .map_err(|e| format!("Failed to generate mnemonic: {}", e))?;
+
+    Ok(mnemonic.to_string())
+}

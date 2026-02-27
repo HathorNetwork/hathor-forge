@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import type { LogLevel } from "@/types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -42,4 +43,16 @@ export function formatTimeAgo(timestamp: number): string {
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+export function parseLogLevel(line: string): LogLevel {
+  const lower = line.toLowerCase();
+  if (lower.includes("[error]") || lower.includes("error:")) return "error";
+  if (lower.includes("[warn") || lower.includes("warning")) return "warning";
+  if (lower.includes("[debug]")) return "debug";
+  return "info";
+}
+
+export function stripAnsi(str: string): string {
+  return str.replace(/\x1B\[[0-9;]*[mK]/g, "");
 }

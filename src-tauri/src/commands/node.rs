@@ -1,0 +1,281 @@
+use crate::*;
+use std::fs;
+use std::process::Stdio;
+use tauri::Emitter;
+use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command as TokioCommand;
+
+// Start the Hathor fullnode
+#[tauri::command]
+pub(crate) async fn start_node(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SharedState>,
+    config: Option<NodeConfig>,
+) -> Result<String, String> {
+    let config = config.unwrap_or_default();
+    let mut state_guard = state.lock().await;
+
+    if state_guard.node_running {
+        return Err("Node is already running".to_string());
+    }
+
+    // Kill any zombie processes from previous runs
+    kill_process_on_port(config.api_port);
+    kill_process_on_port(config.stratum_port);
+    kill_process_on_port(8001); // wallet-headless port
+    kill_process_on_port(8002); // tx-mining-service port
+    kill_process_on_port(8003); // tx-mining-service stratum port
+                                // Give the OS a moment to release the ports
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    let binary_path = get_binary_path("hathor-core");
+
+    // Ensure data directory exists
+    fs::create_dir_all(&config.data_dir)
+        .map_err(|e| format!("Failed to create data directory: {}", e))?;
+
+    // Development HD wallet seed (DO NOT use in production!)
+    // This is a fixed seed for local development only
+    let dev_wallet_words = "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level";
+
+    // Set platform-specific library path for bundled libraries
+    let internal_dir = binary_path.parent().unwrap().join("_internal");
+
+    // Spawn the process using tokio
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_library_path_env(&mut cmd, &internal_dir);
+    let mut child = cmd
+        .args([
+            "run_node",
+            "--localnet",
+            "--status",
+            &config.api_port.to_string(),
+            "--stratum",
+            &config.stratum_port.to_string(),
+            "--data",
+            &config.data_dir,
+            "--wallet",
+            "hd",
+            "--words",
+            dev_wallet_words,
+            "--wallet-enable-api",
+            "--wallet-index",
+            "--allow-mining-without-peers",
+            "--test-mode-tx-weight",
+            "--nc-exec-logs",
+            "all",
+            "--unsafe-mode",
+            "privatenet",
+        ])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn hathor-core at {:?}: {}", binary_path, e))?;
+
+    let pid = child.id().unwrap_or(0);
+    state_guard.node_running = true;
+    state_guard.node_child_id = Some(pid);
+    state_guard.data_dir = Some(config.data_dir.clone());
+
+    // Handle stdout
+    let stdout = child.stdout.take();
+    let stderr = child.stderr.take();
+
+    let app_handle = app.clone();
+    let app_handle2 = app.clone();
+
+    // Spawn task for stdout
+    if let Some(stdout) = stdout {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stdout);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                let _ = app_handle.emit("node-log", &line);
+            }
+        });
+    }
+
+    // Spawn task for stderr (hathor-core sends all logs here)
+    if let Some(stderr) = stderr {
+        tokio::spawn(async move {
+            let reader = BufReader::new(stderr);
+            let mut lines = reader.lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                // hathor-core sends info/warning/error logs to stderr
+                // Route them appropriately based on content
+                let _ = app_handle2.emit("node-log", &line);
+            }
+        });
+    }
+
+    // Spawn task to wait for process termination and reset state
+    let app_handle3 = app.clone();
+    let state_clone = state.inner().clone();
+    tokio::spawn(async move {
+        let status = child.wait().await;
+        let code = status.map(|s| s.code()).ok().flatten();
+
+        // Reset state when process terminates
+        {
+            let mut state_guard = state_clone.lock().await;
+            state_guard.node_running = false;
+            state_guard.node_child_id = None;
+        }
+
+        let _ = app_handle3.emit("node-terminated", code);
+    });
+
+    Ok(format!("Node started on port {}", config.api_port))
+}
+
+// Stop the Hathor fullnode
+#[tauri::command]
+pub(crate) async fn stop_node(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let mut state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Err("Node is not running".to_string());
+    }
+
+    // Kill the process
+    if let Some(pid) = state_guard.node_child_id {
+        #[cfg(unix)]
+        {
+            use std::process::Command;
+            // Send SIGTERM for graceful shutdown
+            let _ = Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .output();
+        }
+
+        #[cfg(windows)]
+        {
+            use std::process::Command;
+            let _ = Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/F"])
+                .output();
+        }
+    }
+
+    state_guard.node_running = false;
+    state_guard.node_child_id = None;
+
+    Ok("Node stopped".to_string())
+}
+
+// Get node status from the API
+#[tauri::command]
+pub(crate) async fn get_node_status(
+    state: tauri::State<'_, SharedState>,
+) -> Result<NodeStatus, String> {
+    let state_guard = state.lock().await;
+
+    if !state_guard.node_running {
+        return Ok(NodeStatus {
+            running: false,
+            block_height: None,
+            hash_rate: None,
+            peer_count: None,
+        });
+    }
+
+    // Try to fetch status from the node API
+    let client = reqwest::Client::new();
+    match client.get("http://127.0.0.1:8080/v1a/status").send().await {
+        Ok(response) => {
+            if let Ok(json) = response.json::<serde_json::Value>().await {
+                let block_height = json
+                    .get("dag")
+                    .and_then(|d| d.get("best_block"))
+                    .and_then(|b| b.get("height"))
+                    .and_then(|h| h.as_u64());
+
+                Ok(NodeStatus {
+                    running: true,
+                    block_height,
+                    hash_rate: None,
+                    peer_count: Some(0), // Localnet has no peers
+                })
+            } else {
+                Ok(NodeStatus {
+                    running: true,
+                    block_height: None,
+                    hash_rate: None,
+                    peer_count: None,
+                })
+            }
+        }
+        Err(_) => Ok(NodeStatus {
+            running: true, // Process is running but API might not be ready
+            block_height: None,
+            hash_rate: None,
+            peer_count: None,
+        }),
+    }
+}
+
+// Get miner status
+#[tauri::command]
+pub(crate) async fn get_miner_status(
+    state: tauri::State<'_, SharedState>,
+) -> Result<MinerStatus, String> {
+    let state_guard = state.lock().await;
+
+    Ok(MinerStatus {
+        running: state_guard.miner_running,
+        hash_rate: None, // TODO: Parse from miner output
+    })
+}
+
+// Get current state
+#[tauri::command]
+pub(crate) async fn get_state(
+    state: tauri::State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let state_guard = state.lock().await;
+
+    Ok(serde_json::json!({
+        "node_running": state_guard.node_running,
+        "miner_running": state_guard.miner_running,
+        "explorer_server_running": state_guard.explorer_server_running,
+        "headless_running": state_guard.headless_running,
+        "tx_mining_running": state_guard.tx_mining_running,
+        "data_dir": state_guard.data_dir,
+    }))
+}
+
+// Get the default data directory path
+fn get_default_data_dir() -> std::path::PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("hathor-forge")
+        .join("data")
+}
+
+// Reset blockchain data (removes the data directory)
+#[tauri::command]
+pub(crate) async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    let state_guard = state.lock().await;
+
+    // Don't allow reset while node is running
+    if state_guard.node_running {
+        return Err("Cannot reset data while node is running. Stop the node first.".to_string());
+    }
+
+    // Use the stored data dir or default
+    let data_dir = state_guard
+        .data_dir
+        .as_ref()
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(get_default_data_dir);
+
+    drop(state_guard); // Release lock before file operations
+
+    if data_dir.exists() {
+        fs::remove_dir_all(&data_dir)
+            .map_err(|e| format!("Failed to remove data directory: {}", e))?;
+    }
+
+    Ok(format!("Data directory removed: {:?}", data_dir))
+}
