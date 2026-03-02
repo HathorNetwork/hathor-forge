@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "A Ganache-like local blockchain for Hathor Network developers"
 authors = ["Hathor Labs"]
 edition = "2021"
+default-run = "hathor-forge-cli"
 
 [lib]
 name = "hathor_forge_lib"

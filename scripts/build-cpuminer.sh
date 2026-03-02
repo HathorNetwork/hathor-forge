@@ -47,8 +47,14 @@ cd "$BUILD_DIR"
 echo "Running autogen..."
 ./autogen.sh
 
+# Disable x86 assembly on non-x86 architectures (e.g. ARM)
+CONFIGURE_FLAGS=""
+if [[ "$(uname -m)" != "x86_64" && "$(uname -m)" != "amd64" ]]; then
+    CONFIGURE_FLAGS="--disable-assembly"
+fi
+
 echo "Running configure..."
-./configure CFLAGS="-O3"
+./configure CFLAGS="-O3" $CONFIGURE_FLAGS
 
 echo "Building..."
 make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)
