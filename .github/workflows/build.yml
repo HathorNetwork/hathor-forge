@@ -19,6 +19,8 @@ jobs:
         uses: cachix/install-nix-action@v31
         with:
           nix_path: nixpkgs=channel:nixos-24.11
+          extra_nix_config: |
+            experimental-features = nix-command flakes
 
       - name: Cache Nix store
         uses: actions/cache@v4
@@ -29,37 +31,35 @@ jobs:
             nix-${{ runner.os }}-
 
       - name: Build hathor-core
-        run: nix develop --command ./scripts/build-hathor-core.sh
-        continue-on-error: true  # May fail if hathor-core source not available
+        run: nix develop --command bash ./scripts/build-hathor-core.sh
 
       - name: Build cpuminer
-        run: nix develop --command ./scripts/build-cpuminer.sh
-        continue-on-error: true  # May fail if cpuminer source not available
+        run: nix develop --command bash ./scripts/build-cpuminer.sh
 
       - name: Build wallet-headless
-        run: nix develop --command ./scripts/build-wallet-headless.sh
-        continue-on-error: true
+        run: nix develop --command bash ./scripts/build-wallet-headless.sh
+
+      - name: Build tx-mining-service
+        run: nix develop --command bash ./scripts/build-tx-mining-service.sh
 
       - name: Build explorer
-        run: nix develop --command ./scripts/build-explorer.sh
-        continue-on-error: true
+        run: nix develop --command bash ./scripts/build-explorer.sh
 
       - name: Install npm dependencies
         run: nix develop --command npm ci
 
       - name: Build Tauri app
         run: nix develop --command npm run tauri build
-        continue-on-error: true  # May fail if binaries not built
 
       - name: Upload Linux bundle
         uses: actions/upload-artifact@v4
-        if: success()
+        if: always()
         with:
           name: linux-bundle
           path: |
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/appimage/*.AppImage
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   build-macos:
     runs-on: macos-latest
@@ -70,6 +70,8 @@ jobs:
         uses: cachix/install-nix-action@v31
         with:
           nix_path: nixpkgs=channel:nixos-24.11
+          extra_nix_config: |
+            experimental-features = nix-command flakes
 
       - name: Cache Nix store
         uses: actions/cache@v4
@@ -80,39 +82,39 @@ jobs:
             nix-${{ runner.os }}-
 
       - name: Build hathor-core
-        run: nix develop --command ./scripts/build-hathor-core.sh
-        continue-on-error: true
+        run: nix develop --command bash ./scripts/build-hathor-core.sh
 
       - name: Build cpuminer
-        run: nix develop --command ./scripts/build-cpuminer.sh
-        continue-on-error: true
+        run: nix develop --command bash ./scripts/build-cpuminer.sh
 
       - name: Build wallet-headless
-        run: nix develop --command ./scripts/build-wallet-headless.sh
-        continue-on-error: true
+        run: nix develop --command bash ./scripts/build-wallet-headless.sh
+
+      - name: Build tx-mining-service
+        run: nix develop --command bash ./scripts/build-tx-mining-service.sh
 
       - name: Build explorer
-        run: nix develop --command ./scripts/build-explorer.sh
-        continue-on-error: true
+        run: nix develop --command bash ./scripts/build-explorer.sh
 
       - name: Install npm dependencies
         run: nix develop --command npm ci
 
       - name: Build Tauri app
         run: nix develop --command npm run tauri build
-        continue-on-error: true
 
       - name: Upload macOS bundle
         uses: actions/upload-artifact@v4
-        if: success()
+        if: always()
         with:
           name: macos-bundle
           path: |
             src-tauri/target/release/bundle/dmg/*.dmg
             src-tauri/target/release/bundle/macos/*.app
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   build-windows:
+    # Placeholder: Windows builds are not yet implemented.
+    # All build steps use continue-on-error until real build scripts are added.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -146,6 +148,7 @@ jobs:
             libtool
             make
 
+      # Placeholder: hathor-core Windows build not yet implemented
       - name: Build hathor-core (Windows)
         shell: pwsh
         run: |
@@ -153,6 +156,7 @@ jobs:
           Write-Host "Install hathor-core via pip and build with PyInstaller"
         continue-on-error: true
 
+      # Placeholder: cpuminer Windows build not yet implemented
       - name: Build cpuminer (Windows/MSYS2)
         shell: msys2 {0}
         run: |
@@ -162,6 +166,7 @@ jobs:
 
       - name: Install npm dependencies
         run: npm ci
+        continue-on-error: true
 
       - name: Build Tauri app
         run: npm run tauri build
@@ -169,13 +174,13 @@ jobs:
 
       - name: Upload Windows bundle
         uses: actions/upload-artifact@v4
-        if: success()
+        if: always()
         with:
           name: windows-bundle
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: ignore
+          if-no-files-found: warn
 
   # Rust checks (runs quickly without needing binaries)
   check:
