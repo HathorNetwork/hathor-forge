@@ -40,6 +40,7 @@ mkdir -p "$BUILD_DIR"
 
 # Copy source to build dir (needed because autotools modifies source dir)
 cp -r "$CPUMINER_DIR"/* "$BUILD_DIR/"
+chmod -R u+w "$BUILD_DIR"
 cd "$BUILD_DIR"
 
 # Build
