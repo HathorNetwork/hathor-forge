@@ -107,13 +107,20 @@ pub(crate) async fn list_blueprints(
     if let Some(transactions) = dashboard.get("transactions").and_then(|t| t.as_array()) {
         for tx in transactions {
             if tx.get("version").and_then(|v| v.as_u64()) == Some(6) {
-                let tx_id = tx.get("tx_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let tx_id = tx
+                    .get("tx_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let timestamp = tx.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
 
                 // Fetch full transaction to get blueprint source code and extract class name
                 let mut name = "Unknown".to_string();
                 if let Ok(tx_response) = client
-                    .get(&format!("http://127.0.0.1:8080/v1a/transaction?id={}", tx_id))
+                    .get(&format!(
+                        "http://127.0.0.1:8080/v1a/transaction?id={}",
+                        tx_id
+                    ))
                     .send()
                     .await
                 {
@@ -125,13 +132,19 @@ pub(crate) async fn list_blueprints(
                             .and_then(|c| c.as_str())
                         {
                             // Decode base64 + zlib to extract class name
-                            if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(code_content) {
-                                if let Ok(decompressed) = miniz_oxide::inflate::decompress_to_vec_zlib(&decoded) {
+                            if let Ok(decoded) =
+                                base64::engine::general_purpose::STANDARD.decode(code_content)
+                            {
+                                if let Ok(decompressed) =
+                                    miniz_oxide::inflate::decompress_to_vec_zlib(&decoded)
+                                {
                                     if let Ok(source) = String::from_utf8(decompressed) {
                                         // Extract class name from "class XYZ(Blueprint):"
                                         for line in source.lines() {
                                             let trimmed = line.trim();
-                                            if trimmed.starts_with("class ") && trimmed.contains("Blueprint") {
+                                            if trimmed.starts_with("class ")
+                                                && trimmed.contains("Blueprint")
+                                            {
                                                 if let Some(class_name) = trimmed
                                                     .strip_prefix("class ")
                                                     .and_then(|s| s.split('(').next())
@@ -212,7 +225,10 @@ pub(crate) async fn get_blueprint_information(
         let trimmed = line.trim();
         // Extract class name
         if trimmed.starts_with("class ") && trimmed.contains("Blueprint") {
-            if let Some(name) = trimmed.strip_prefix("class ").and_then(|s| s.split('(').next()) {
+            if let Some(name) = trimmed
+                .strip_prefix("class ")
+                .and_then(|s| s.split('(').next())
+            {
                 class_name = name.trim().to_string();
             }
         }

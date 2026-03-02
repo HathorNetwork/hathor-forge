@@ -22,7 +22,11 @@ pub fn get_binary_path(name: &str) -> PathBuf {
         "x86_64-pc-windows-msvc"
     };
 
-    let exe_suffix = if cfg!(target_os = "windows") { ".exe" } else { "" };
+    let exe_suffix = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
 
     let binaries_dir = match std::env::var("HATHOR_FORGE_BINARIES_DIR") {
         Ok(dir) => PathBuf::from(dir),
@@ -174,10 +178,7 @@ pub fn kill_process(pid: u32) {
             .output();
         for _ in 0..50 {
             std::thread::sleep(std::time::Duration::from_millis(100));
-            if let Ok(output) = Command::new("kill")
-                .args(["-0", &pid.to_string()])
-                .output()
-            {
+            if let Ok(output) = Command::new("kill").args(["-0", &pid.to_string()]).output() {
                 if !output.status.success() {
                     return;
                 }
@@ -185,7 +186,10 @@ pub fn kill_process(pid: u32) {
                 return;
             }
         }
-        eprintln!("Process {} did not exit after SIGTERM, sending SIGKILL", pid);
+        eprintln!(
+            "Process {} did not exit after SIGTERM, sending SIGKILL",
+            pid
+        );
         let _ = Command::new("kill")
             .args(["-KILL", &pid.to_string()])
             .output();

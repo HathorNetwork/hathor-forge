@@ -2,7 +2,10 @@ use std::process::Stdio;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::HeadlessConfig;
-use crate::platform::{detect_network_from_url, generate_headless_config, get_headless_dist_path, kill_process, kill_process_on_port};
+use crate::platform::{
+    detect_network_from_url, generate_headless_config, get_headless_dist_path, kill_process,
+    kill_process_on_port,
+};
 use crate::state::{spawn_log_reader, SharedState};
 
 /// Start the wallet-headless service (internal version).

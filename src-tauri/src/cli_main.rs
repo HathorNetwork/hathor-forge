@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use hathor_forge_lib::{
-    start_headless_internal, start_miner_internal, start_node_internal,
-    start_tx_mining_internal, stop_node_internal, AppState, MCP_SERVER_PORT,
+    start_headless_internal, start_miner_internal, start_node_internal, start_tx_mining_internal,
+    stop_node_internal, AppState, MCP_SERVER_PORT,
 };
 use serde::{Deserialize, Serialize};
 use std::io::IsTerminal;
@@ -201,7 +201,10 @@ async fn main() {
 
     // Print banner
     eprintln!("╔══════════════════════════════════════════╗");
-    eprintln!("║         Hathor Forge CLI v{}          ║", env!("CARGO_PKG_VERSION"));
+    eprintln!(
+        "║         Hathor Forge CLI v{}          ║",
+        env!("CARGO_PKG_VERSION")
+    );
     eprintln!("╚══════════════════════════════════════════╝");
     eprintln!();
 
@@ -256,7 +259,9 @@ async fn main() {
                 &state,
                 Some(fullnode_url_resolved.as_str()),
                 Some(tx_mining_url_resolved.as_str()),
-            ).await {
+            )
+            .await
+            {
                 Ok(msg) => eprintln!("{}", msg),
                 Err(e) => eprintln!("ERROR: {}", e),
             }
@@ -305,14 +310,8 @@ async fn main() {
         let fn_url = fullnode_url_resolved.clone();
         let wh_url = "http://localhost:8001".to_string();
         let tm_url = tx_mining_url_resolved.clone();
-        if let Err(e) = hathor_forge_lib::tui::run_tui(
-            tui_state,
-            mcp_port,
-            fn_url,
-            wh_url,
-            tm_url,
-        )
-        .await
+        if let Err(e) =
+            hathor_forge_lib::tui::run_tui(tui_state, mcp_port, fn_url, wh_url, tm_url).await
         {
             eprintln!("TUI error: {}", e);
         }

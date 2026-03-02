@@ -25,7 +25,11 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             }
             drop(app_state);
 
-            match client.get(format!("{}/v1a/status/", fullnode_url)).send().await {
+            match client
+                .get(format!("{}/v1a/status/", fullnode_url))
+                .send()
+                .await
+            {
                 Ok(resp) => {
                     let text = resp.text().await.unwrap_or_default();
                     Ok(format!(r#"{{"running": true, "status": {}}}"#, text))
@@ -119,15 +123,20 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .json()
                 .await
                 .unwrap_or(json!({"error": "Failed to parse response"}));
-            let success = result.get("success").and_then(|v| v.as_bool()).unwrap_or(false);
+            let success = result
+                .get("success")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
             let message = if success {
                 if seed.is_some() {
                     "Wallet created with provided seed".to_string()
                 } else {
-                    "Wallet created with generated seed (use get_wallet_seed to retrieve)".to_string()
+                    "Wallet created with generated seed (use get_wallet_seed to retrieve)"
+                        .to_string()
                 }
             } else {
-                result.get("message")
+                result
+                    .get("message")
                     .and_then(|v| v.as_str())
                     .unwrap_or("Failed to create wallet in wallet-headless")
                     .to_string()
@@ -138,7 +147,8 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 "seed_stored": true,
                 "message": message,
                 "details": if !success { Some(&result) } else { None }
-            }).to_string())
+            })
+            .to_string())
         }
 
         "get_wallet_seed" => {
@@ -402,10 +412,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             let mut blocks = Vec::new();
             for i in (height.saturating_sub(count)..=height).rev() {
                 if let Ok(resp) = client
-                    .get(format!(
-                        "{}/v1a/block_at_height?height={}",
-                        fullnode_url, i
-                    ))
+                    .get(format!("{}/v1a/block_at_height?height={}", fullnode_url, i))
                     .send()
                     .await
                 {
@@ -425,10 +432,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .ok_or("tx_id is required")?;
 
             let resp = client
-                .get(format!(
-                    "{}/v1a/transaction?id={}",
-                    fullnode_url, tx_id
-                ))
+                .get(format!("{}/v1a/transaction?id={}", fullnode_url, tx_id))
                 .send()
                 .await
                 .map_err(|e| format!("Failed to get transaction: {}", e))?;
@@ -468,7 +472,9 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             // Start headless
             let fn_url = state.fullnode_url.read().await;
             let txm_url = state.tx_mining_url.read().await;
-            match crate::start_headless_internal(&state.app_state, Some(&fn_url), Some(&txm_url)).await {
+            match crate::start_headless_internal(&state.app_state, Some(&fn_url), Some(&txm_url))
+                .await
+            {
                 Ok(msg) => results.push(msg),
                 Err(e) => results.push(format!("Headless: {}", e)),
             }
@@ -583,7 +589,10 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .ok_or("address is required")?;
 
             let resp = client
-                .post(format!("{}/wallet/nano-contracts/create-on-chain-blueprint", wallet_headless_url))
+                .post(format!(
+                    "{}/wallet/nano-contracts/create-on-chain-blueprint",
+                    wallet_headless_url
+                ))
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "code": code,
@@ -614,7 +623,10 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             let actions = params.get("actions").cloned().unwrap_or(json!([]));
 
             let resp = client
-                .post(format!("{}/wallet/nano-contracts/create", wallet_headless_url))
+                .post(format!(
+                    "{}/wallet/nano-contracts/create",
+                    wallet_headless_url
+                ))
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "blueprint_id": blueprint_id,
@@ -653,7 +665,10 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             let actions = params.get("actions").cloned().unwrap_or(json!([]));
 
             let resp = client
-                .post(format!("{}/wallet/nano-contracts/execute", wallet_headless_url))
+                .post(format!(
+                    "{}/wallet/nano-contracts/execute",
+                    wallet_headless_url
+                ))
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "nc_id": nc_id,

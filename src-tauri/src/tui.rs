@@ -2,6 +2,11 @@ use std::io::{self, stdout};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use crate::{
+    start_headless_internal, start_miner_internal, start_node_internal, start_tx_mining_internal,
+    stop_headless_internal, stop_miner_internal, stop_node_internal, stop_tx_mining_internal,
+    LogBuffer, SharedState,
+};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
@@ -10,11 +15,6 @@ use crossterm::{
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, Wrap},
-};
-use crate::{
-    start_headless_internal, start_miner_internal, start_node_internal,
-    start_tx_mining_internal, stop_headless_internal, stop_miner_internal,
-    stop_node_internal, stop_tx_mining_internal, LogBuffer, SharedState,
 };
 
 /// Snapshot of dashboard state for rendering.
@@ -58,8 +58,7 @@ pub async fn run_tui(
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
 
     // Block height poller
-    let block_height: Arc<std::sync::Mutex<Option<u64>>> =
-        Arc::new(std::sync::Mutex::new(None));
+    let block_height: Arc<std::sync::Mutex<Option<u64>>> = Arc::new(std::sync::Mutex::new(None));
     let bh = block_height.clone();
     let poll_url = fullnode_url.clone();
     let _poller = tokio::spawn(async move {
@@ -72,7 +71,11 @@ pub async fn run_tui(
                 .await
             {
                 if let Ok(json) = resp.json::<serde_json::Value>().await {
-                    if let Some(h) = json.get("dag").and_then(|d| d.get("best_block_height")).and_then(|v| v.as_u64()) {
+                    if let Some(h) = json
+                        .get("dag")
+                        .and_then(|d| d.get("best_block_height"))
+                        .and_then(|v| v.as_u64())
+                    {
                         *bh.lock().unwrap() = Some(h);
                     }
                 }
@@ -115,7 +118,11 @@ pub async fn run_tui(
                 mcp_port,
                 status_msg: status_msg.as_ref().map(|(m, _)| m.clone()),
                 show_logs,
-                log_lines: if show_logs { log_buffer.lines() } else { vec![] },
+                log_lines: if show_logs {
+                    log_buffer.lines()
+                } else {
+                    vec![]
+                },
             }
         };
 
@@ -130,7 +137,12 @@ pub async fn run_tui(
                 // Snapshot running states for toggle logic
                 let (node_up, miner_up, wallet_up, txm_up) = {
                     let s = state.lock().await;
-                    (s.node_running, s.miner_running, s.headless_running, s.tx_mining_running)
+                    (
+                        s.node_running,
+                        s.miner_running,
+                        s.headless_running,
+                        s.tx_mining_running,
+                    )
                 };
 
                 match key.code {
@@ -167,42 +179,61 @@ pub async fn run_tui(
                         let st = state.clone();
                         if node_up {
                             status_msg = Some(("Stopping Fullnode...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = stop_node_internal(&st).await; });
+                            tokio::spawn(async move {
+                                let _ = stop_node_internal(&st).await;
+                            });
                         } else {
                             status_msg = Some(("Starting Fullnode...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = start_node_internal(&st).await; });
+                            tokio::spawn(async move {
+                                let _ = start_node_internal(&st).await;
+                            });
                         }
                     }
                     KeyCode::Char('2') => {
                         let st = state.clone();
                         if miner_up {
                             status_msg = Some(("Stopping Miner...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = stop_miner_internal(&st).await; });
+                            tokio::spawn(async move {
+                                let _ = stop_miner_internal(&st).await;
+                            });
                         } else {
                             status_msg = Some(("Starting Miner...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = start_miner_internal(&st, None).await; });
+                            tokio::spawn(async move {
+                                let _ = start_miner_internal(&st, None).await;
+                            });
                         }
                     }
                     KeyCode::Char('3') => {
                         let st = state.clone();
                         if wallet_up {
-                            status_msg = Some(("Stopping Wallet-Headless...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = stop_headless_internal(&st).await; });
+                            status_msg =
+                                Some(("Stopping Wallet-Headless...".into(), Instant::now()));
+                            tokio::spawn(async move {
+                                let _ = stop_headless_internal(&st).await;
+                            });
                         } else {
-                            status_msg = Some(("Starting Wallet-Headless...".into(), Instant::now()));
+                            status_msg =
+                                Some(("Starting Wallet-Headless...".into(), Instant::now()));
                             let fn_u = fullnode_url.clone();
                             let txm_u = tx_mining_url.clone();
-                            tokio::spawn(async move { let _ = start_headless_internal(&st, Some(&fn_u), Some(&txm_u)).await; });
+                            tokio::spawn(async move {
+                                let _ =
+                                    start_headless_internal(&st, Some(&fn_u), Some(&txm_u)).await;
+                            });
                         }
                     }
                     KeyCode::Char('4') => {
                         let st = state.clone();
                         if txm_up {
                             status_msg = Some(("Stopping Tx-Mining...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = stop_tx_mining_internal(&st).await; });
+                            tokio::spawn(async move {
+                                let _ = stop_tx_mining_internal(&st).await;
+                            });
                         } else {
                             status_msg = Some(("Starting Tx-Mining...".into(), Instant::now()));
-                            tokio::spawn(async move { let _ = start_tx_mining_internal(&st).await; });
+                            tokio::spawn(async move {
+                                let _ = start_tx_mining_internal(&st).await;
+                            });
                         }
                     }
                     _ => {}
@@ -247,7 +278,7 @@ fn draw(f: &mut Frame, dash: &DashboardState) {
         .margin(1)
         .constraints([
             Constraint::Length(3), // header
-            Constraint::Min(8),   // table
+            Constraint::Min(8),    // table
             Constraint::Length(1), // block height
             Constraint::Length(1), // status message
             Constraint::Length(1), // footer
@@ -255,14 +286,16 @@ fn draw(f: &mut Frame, dash: &DashboardState) {
         .split(dash_area);
 
     // Header
-    let header = Paragraph::new(Line::from(vec![
-        Span::styled(
-            format!("Hathor Forge CLI v{}", env!("CARGO_PKG_VERSION")),
-            Style::default().fg(Color::Cyan).bold(),
-        ),
-    ]))
+    let header = Paragraph::new(Line::from(vec![Span::styled(
+        format!("Hathor Forge CLI v{}", env!("CARGO_PKG_VERSION")),
+        Style::default().fg(Color::Cyan).bold(),
+    )]))
     .alignment(Alignment::Center)
-    .block(Block::default().borders(Borders::ALL).border_style(Style::default().fg(Color::Cyan)));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Cyan)),
+    );
     f.render_widget(header, chunks[0]);
 
     // Service table
@@ -332,13 +365,17 @@ fn draw(f: &mut Frame, dash: &DashboardState) {
 
     // Status message
     if let Some(msg) = &dash.status_msg {
-        let status = Paragraph::new(format!("  {}", msg))
-            .style(Style::default().fg(Color::Yellow).bold());
+        let status =
+            Paragraph::new(format!("  {}", msg)).style(Style::default().fg(Color::Yellow).bold());
         f.render_widget(status, chunks[3]);
     }
 
     // Footer keybindings
-    let log_hint = if dash.show_logs { "hide logs" } else { "show logs" };
+    let log_hint = if dash.show_logs {
+        "hide logs"
+    } else {
+        "show logs"
+    };
     let footer = Paragraph::new(Line::from(vec![
         Span::raw("  "),
         Span::styled("q", Style::default().fg(Color::Cyan).bold()),
