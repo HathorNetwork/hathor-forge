@@ -4,11 +4,15 @@ version = "0.1.0"
 description = "A Ganache-like local blockchain for Hathor Network developers"
 authors = ["Hathor Labs"]
 edition = "2021"
-default-run = "hathor-forge-cli"
+default-run = "hathor-forge"
 
 [lib]
 name = "hathor_forge_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "hathor-forge"
+path = "src/main.rs"
 
 [[bin]]
 name = "hathor-forge-cli"
