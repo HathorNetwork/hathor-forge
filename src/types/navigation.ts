@@ -3,10 +3,6 @@ export type PageType =
   | "explorer"
   | "wallet"
   | "nano-contracts"
-  | "blocks"
-  | "transactions"
-  | "tokens"
-  | "mining"
   | "logs"
   | "settings"
   | "api-explorer";

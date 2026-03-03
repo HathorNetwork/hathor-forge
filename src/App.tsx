@@ -14,7 +14,7 @@ import { NanoContractsPage } from "@/pages/NanoContractsPage";
 import { LogsPage } from "@/pages/LogsPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { ApiExplorerPage } from "@/pages/ApiExplorerPage";
-import { PlaceholderPage } from "@/pages/PlaceholderPage";
+
 
 function App() {
   const currentPage = useAppStore((s) => s.currentPage);
@@ -33,10 +33,6 @@ function App() {
       case "logs": return <LogsPage />;
       case "api-explorer": return <ApiExplorerPage />;
       case "settings": return <SettingsPage />;
-      case "blocks": return <PlaceholderPage title="Blocks" />;
-      case "transactions": return <PlaceholderPage title="Transactions" />;
-      case "tokens": return <PlaceholderPage title="Tokens" />;
-      case "mining": return <PlaceholderPage title="Mining" />;
       default: return <DashboardPage />;
     }
   };

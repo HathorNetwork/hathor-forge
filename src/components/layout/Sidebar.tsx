@@ -1,5 +1,5 @@
 import {
-  Cpu, Activity, Layers, Coins, FileText, Settings, Terminal, Zap, Compass, Wallet, BookOpen,
+  Activity, Settings, Terminal, Zap, Compass, Wallet, BookOpen,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import type { PageType } from "@/types";
@@ -9,10 +9,6 @@ const navItems: { icon: typeof Activity; label: string; page: PageType }[] = [
   { icon: Compass, label: "Explorer", page: "explorer" },
   { icon: Wallet, label: "Wallet", page: "wallet" },
   { icon: Zap, label: "Nano Contracts", page: "nano-contracts" },
-  { icon: Layers, label: "Blocks", page: "blocks" },
-  { icon: FileText, label: "Transactions", page: "transactions" },
-  { icon: Coins, label: "Tokens", page: "tokens" },
-  { icon: Cpu, label: "Mining", page: "mining" },
   { icon: BookOpen, label: "API Explorer", page: "api-explorer" },
   { icon: Terminal, label: "Logs", page: "logs" },
   { icon: Settings, label: "Settings", page: "settings" },
