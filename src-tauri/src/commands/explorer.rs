@@ -190,11 +190,7 @@ async fn handle_ws_proxy(mut client_ws: WebSocket) {
                     }
                 }
                 Ok(tungstenite::Message::Binary(data)) => {
-                    if client_sink
-                        .send(Message::Binary(data))
-                        .await
-                        .is_err()
-                    {
+                    if client_sink.send(Message::Binary(data)).await.is_err() {
                         break;
                     }
                 }
