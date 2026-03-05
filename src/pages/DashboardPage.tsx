@@ -3,6 +3,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useWalletStore } from "@/store/useWalletStore";
+import { useStartNetwork } from "@/hooks/useStartNetwork";
 import * as api from "@/services/tauri";
 
 export function DashboardPage() {
@@ -14,31 +15,11 @@ export function DashboardPage() {
     setError,
   } = useAppStore();
   const { setHeadlessStatus } = useWalletStore();
+  const { startNetwork, isLoading: isNetworkStarting } = useStartNetwork();
 
-  const isLoading = nodeStatus === "starting" || minerStatus === "starting";
+  const isLoading = isNetworkStarting || minerStatus === "starting";
 
-  const handleStartNode = async () => {
-    setError(null);
-    setNodeStatus("starting");
-    try {
-      await api.startNode();
-      setNodeStatus("running");
-      try {
-        await api.startExplorerServer();
-      } catch (e) {
-        console.warn("Explorer server failed to start:", e);
-      }
-      try {
-        await api.startHeadless();
-        setHeadlessStatus({ running: true, port: 8001 });
-      } catch (e) {
-        console.warn("Wallet-headless failed to start:", e);
-      }
-    } catch (e) {
-      setError(String(e));
-      setNodeStatus("error");
-    }
-  };
+  const handleStartNode = startNetwork;
 
   const handleStopNode = async () => {
     try {

@@ -1,30 +1,13 @@
 import { Play, Compass, Loader2 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
-import { useWalletStore } from "@/store/useWalletStore";
-import * as api from "@/services/tauri";
+import { useStartNetwork } from "@/hooks/useStartNetwork";
 import { PORTS } from "@/lib/constants";
 
 export function ExplorerPage() {
-  const { nodeStatus, setNodeStatus, setError } = useAppStore();
-  const { setHeadlessStatus } = useWalletStore();
-  const isLoading = nodeStatus === "starting";
+  const { nodeStatus } = useAppStore();
+  const { startNetwork, isLoading } = useStartNetwork();
 
-  const handleStartNode = async () => {
-    setError(null);
-    setNodeStatus("starting");
-    try {
-      await api.startNode();
-      setNodeStatus("running");
-      try { await api.startExplorerServer(); } catch {}
-      try {
-        await api.startHeadless();
-        setHeadlessStatus({ running: true, port: PORTS.WALLET_HEADLESS });
-      } catch {}
-    } catch (e) {
-      setError(String(e));
-      setNodeStatus("error");
-    }
-  };
+  const handleStartNode = startNetwork;
 
   if (nodeStatus !== "running") {
     return (
