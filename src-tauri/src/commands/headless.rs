@@ -38,11 +38,12 @@ pub(crate) async fn start_headless(
     generate_headless_config(&config, &headless_path, "http://localhost:8002")?;
 
     // Find node binary to run with
+    let node_bin = get_node_binary_path()?;
     let entry_point = headless_path.join("dist").join("index.js");
     let working_dir = headless_path.join("dist");
 
-    // Spawn the process using node (working dir must be dist/ where config.js is)
-    let mut child = TokioCommand::new("node")
+    // Spawn the process using bundled node (working dir must be dist/ where config.js is)
+    let mut child = TokioCommand::new(&node_bin)
         .args([entry_point.to_string_lossy().as_ref()])
         .current_dir(&working_dir)
         .stdin(Stdio::null())

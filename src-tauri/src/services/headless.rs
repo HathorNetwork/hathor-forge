@@ -3,8 +3,8 @@ use tokio::process::Command as TokioCommand;
 
 use crate::config::HeadlessConfig;
 use crate::platform::{
-    detect_network_from_url, generate_headless_config, get_headless_dist_path, kill_process,
-    kill_process_on_port,
+    detect_network_from_url, generate_headless_config, get_headless_dist_path,
+    get_node_binary_path, kill_process, kill_process_on_port,
 };
 use crate::state::{spawn_log_reader, SharedState};
 
@@ -63,10 +63,11 @@ pub async fn start_headless_internal(
 
     generate_headless_config(&config, &headless_path, txm_url)?;
 
+    let node_bin = get_node_binary_path()?;
     let entry_point = headless_path.join("dist").join("index.js");
     let working_dir = headless_path.join("dist");
 
-    let mut child = TokioCommand::new("node")
+    let mut child = TokioCommand::new(&node_bin)
         .args([entry_point.to_string_lossy().as_ref()])
         .current_dir(&working_dir)
         .stdin(Stdio::null())

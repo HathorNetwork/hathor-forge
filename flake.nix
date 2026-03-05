@@ -204,6 +204,13 @@
               ./scripts/build-tx-mining-service.sh
             '');
           };
+          build-node = {
+            type = "app";
+            program = toString (pkgs.writeShellScript "build-node" ''
+              cd ${toString ./.}
+              ./scripts/build-node.sh
+            '');
+          };
         };
 
         devShells.default = pkgs.mkShell {
@@ -280,6 +287,7 @@
             echo "  build-explorer        - Build hathor-explorer for embedding"
             echo "  build-wallet-headless - Build wallet-headless for multi-wallet support"
             echo "  build-tx-mining-service - Build tx-mining-service for transaction mining"
+            echo "  build-node            - Download Node.js binary for bundling"
             echo "  build-linux           - Build Linux binaries using Docker (cross-platform)"
             echo ""
 
