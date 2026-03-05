@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import {
   Wallet, Play, Square, Send, Copy, Check, Loader2,
 } from "lucide-react";
@@ -24,6 +25,15 @@ export function WalletPage() {
     expandedWallet, setExpandedWallet,
     copiedAddress, setCopiedAddress,
   } = useWalletStore();
+
+  // Abort controller for cancelling pollWalletStatus on unmount
+  const pollAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      pollAbortRef.current?.abort();
+    };
+  }, []);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -74,11 +84,19 @@ export function WalletPage() {
   };
 
   const pollWalletStatus = async (walletId: string) => {
+    // Cancel any previous polling loop
+    pollAbortRef.current?.abort();
+    const controller = new AbortController();
+    pollAbortRef.current = controller;
+
     const maxAttempts = 30;
     for (let i = 0; i < maxAttempts; i++) {
+      if (controller.signal.aborted) return;
       await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (controller.signal.aborted) return;
       try {
         const status = await api.getHeadlessWalletStatus(walletId);
+        if (controller.signal.aborted) return;
 
         setHeadlessWallets((prev) =>
           prev.map((w) =>

@@ -13,6 +13,7 @@ interface NanoContractState {
   addContract: (contract: NanoContract) => void;
   removeContract: (id: string) => void;
   updateContract: (id: string, updates: Partial<NanoContract>) => void;
+  clearContracts: () => void;
 }
 
 export const useNanoContractStore = create<NanoContractState>()(
@@ -35,6 +36,7 @@ export const useNanoContractStore = create<NanoContractState>()(
             c.id === id ? { ...c, ...updates } : c
           ),
         })),
+      clearContracts: () => set({ contracts: [] }),
     }),
     {
       name: 'hathor-forge-nano-contracts',
