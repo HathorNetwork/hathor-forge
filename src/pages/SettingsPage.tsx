@@ -31,7 +31,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
         <p className="text-slate-500">Configure your local development environment</p>

@@ -8,6 +8,7 @@ import { useWalletStore } from "@/store/useWalletStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { useBlueprints } from "@/hooks/useBlueprints";
 import * as api from "@/services/tauri";
+import type { BlueprintInfo, BlueprintMethod, BlueprintArg, NanoContract } from "@/types/nano-contracts";
 
 export function NanoContractsPage() {
   const { setError } = useAppStore();
@@ -23,12 +24,12 @@ export function NanoContractsPage() {
   const [registerContractId, setRegisterContractId] = useState("");
   const [nanoSearch, setNanoSearch] = useState("");
   const [showInitWizard, setShowInitWizard] = useState(false);
-  const [selectedBlueprint, setSelectedBlueprint] = useState<any | null>(null);
-  const [initArgs, setInitArgs] = useState<Record<string, any>>({});
+  const [selectedBlueprint, setSelectedBlueprint] = useState<BlueprintInfo | null>(null);
+  const [initArgs, setInitArgs] = useState<Record<string, string>>({});
   const [selectedWalletForInit, setSelectedWalletForInit] = useState("");
-  const [selectedContractForInteract, setSelectedContractForInteract] = useState<any | null>(null);
-  const [selectedMethod, setSelectedMethod] = useState<any | null>(null);
-  const [methodArgs, setMethodArgs] = useState<Record<string, any>>({});
+  const [selectedContractForInteract, setSelectedContractForInteract] = useState<(NanoContract & { blueprint: BlueprintInfo; state: Record<string, unknown> }) | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<BlueprintMethod | null>(null);
+  const [methodArgs, setMethodArgs] = useState<Record<string, string>>({});
   const [selectedWalletForInteract, setSelectedWalletForInteract] = useState("");
   const [isInitializing, setIsInitializing] = useState(false);
   const [isSubmittingMethod, setIsSubmittingMethod] = useState(false);
@@ -40,10 +41,10 @@ export function NanoContractsPage() {
       const info = await api.getBlueprintInformation(id);
       if (info.success) {
         setSelectedBlueprint(info);
-        const initialArgs: Record<string, any> = {};
-        const constructor = info.plan.methods.find((m: any) => m.name === "initialize");
+        const initialArgs: Record<string, string> = {};
+        const constructor = info.plan.methods.find((m: BlueprintMethod) => m.name === "initialize");
         if (constructor) {
-          constructor.args.forEach((arg: any) => {
+          constructor.args.forEach((arg: BlueprintArg) => {
             initialArgs[arg.name] = "";
           });
         }
@@ -59,8 +60,8 @@ export function NanoContractsPage() {
 
     setIsInitializing(true);
     try {
-      const constructor = selectedBlueprint.plan.methods.find((m: any) => m.name === "initialize");
-      const args = constructor.args.map((arg: any) => {
+      const constructor = selectedBlueprint.plan.methods.find((m: BlueprintMethod) => m.name === "initialize");
+      const args = constructor!.args.map((arg: BlueprintArg) => {
         const val = initArgs[arg.name];
         if (arg.type === "int" || arg.type === "float") {
           return Number(val);
@@ -94,13 +95,13 @@ export function NanoContractsPage() {
     }
   };
 
-  const handleOpenInteract = async (contract: any) => {
+  const handleOpenInteract = async (contract: NanoContract) => {
     try {
       const state = await api.getNanoContractState(contract.id);
       if (state.success) {
         const info = await api.getBlueprintInformation(state.blueprint_id!);
         if (info.success) {
-          setSelectedContractForInteract({ ...contract, blueprint: info, state: state.state });
+          setSelectedContractForInteract({ ...contract, blueprint: info, state: state.state ?? {} });
           setSelectedMethod(null);
           setMethodArgs({});
         }
@@ -115,7 +116,7 @@ export function NanoContractsPage() {
 
     setIsSubmittingMethod(true);
     try {
-      const args = selectedMethod.args.map((arg: any) => {
+      const args = selectedMethod.args.map((arg: BlueprintArg) => {
         const val = methodArgs[arg.name];
         if (arg.type === "int" || arg.type === "float") {
           return Number(val);
@@ -152,7 +153,7 @@ export function NanoContractsPage() {
   );
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white mb-2">Nano Contracts</h2>
@@ -211,7 +212,7 @@ export function NanoContractsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {blueprints.map((bp: any) => (
+            {blueprints.map((bp) => (
               <div key={bp.id} className="border border-slate-800 rounded-lg bg-slate-900/30 p-4 hover:border-amber-500/30 transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
@@ -435,7 +436,7 @@ export function NanoContractsPage() {
                 {/* Initialization Arguments */}
                 <div className="space-y-4 border-t border-slate-800 pt-4">
                   <h5 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Initialization Arguments</h5>
-                  {selectedBlueprint.plan.methods.find((m: any) => m.name === "initialize")?.args.map((arg: any) => (
+                  {selectedBlueprint.plan.methods.find((m: BlueprintMethod) => m.name === "initialize")?.args.map((arg: BlueprintArg) => (
                     <div key={arg.name}>
                       <label className="block text-sm font-medium text-slate-400 mb-1">
                         {arg.name} <span className="text-[10px] text-slate-600 uppercase">({arg.type})</span>
@@ -534,8 +535,8 @@ export function NanoContractsPage() {
                   <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Methods</h4>
                   <div className="space-y-2">
                     {selectedContractForInteract.blueprint.plan.methods
-                      .filter((m: any) => m.name !== "initialize")
-                      .map((method: any) => (
+                      .filter((m: BlueprintMethod) => m.name !== "initialize")
+                      .map((method: BlueprintMethod) => (
                         <button
                           key={method.name}
                           onClick={() => {
@@ -572,7 +573,7 @@ export function NanoContractsPage() {
                     </div>
 
                     <div className="space-y-4">
-                      {selectedMethod.args.map((arg: any) => (
+                      {selectedMethod.args.map((arg: BlueprintArg) => (
                         <div key={arg.name}>
                           <label className="block text-sm font-medium text-slate-400 mb-1">
                             {arg.name} <span className="text-[10px] text-slate-600 uppercase">({arg.type})</span>

@@ -1,12 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
-export interface NanoContract {
-  id: string;
-  blueprintId: string;
-  balance: number;
-  status: string;
-}
+import type { NanoContract } from '@/types/nano-contracts';
 
 interface NanoContractState {
   contracts: NanoContract[];
