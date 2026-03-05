@@ -100,19 +100,19 @@ pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
     let mut state_guard = state.lock().await;
 
     if let Some(pid) = state_guard.miner_child_id {
-        kill_process(pid);
+        kill_process(pid).await;
         state_guard.miner_running = false;
         state_guard.miner_child_id = None;
     }
 
     if let Some(pid) = state_guard.headless_child_id {
-        kill_process(pid);
+        kill_process(pid).await;
         state_guard.headless_running = false;
         state_guard.headless_child_id = None;
     }
 
     if let Some(pid) = state_guard.tx_mining_child_id {
-        kill_process(pid);
+        kill_process(pid).await;
         state_guard.tx_mining_running = false;
         state_guard.tx_mining_child_id = None;
     }
@@ -122,7 +122,7 @@ pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
     }
 
     if let Some(pid) = state_guard.node_child_id {
-        kill_process(pid);
+        kill_process(pid).await;
     }
 
     state_guard.node_running = false;

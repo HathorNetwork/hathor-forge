@@ -104,7 +104,7 @@ pub async fn stop_headless_internal(state: &SharedState) -> Result<String, Strin
     }
 
     if let Some(pid) = state_guard.headless_child_id {
-        kill_process(pid);
+        kill_process(pid).await;
     }
 
     state_guard.headless_running = false;

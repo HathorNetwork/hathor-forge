@@ -168,8 +168,48 @@ pub fn kill_process_on_port(port: u16) {
     }
 }
 
-/// Kill a process by PID (graceful then force)
-pub fn kill_process(pid: u32) {
+/// Kill a process by PID (graceful then force) — async version.
+///
+/// Uses `tokio::time::sleep` instead of `std::thread::sleep` so it does not
+/// block the async runtime while waiting for the process to exit.
+pub async fn kill_process(pid: u32) {
+    #[cfg(unix)]
+    {
+        use std::process::Command;
+        let _ = Command::new("kill")
+            .args(["-TERM", &pid.to_string()])
+            .output();
+        for _ in 0..50 {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            if let Ok(output) = Command::new("kill").args(["-0", &pid.to_string()]).output() {
+                if !output.status.success() {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+        eprintln!(
+            "Process {} did not exit after SIGTERM, sending SIGKILL",
+            pid
+        );
+        let _ = Command::new("kill")
+            .args(["-KILL", &pid.to_string()])
+            .output();
+    }
+
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/F"])
+            .output();
+    }
+}
+
+/// Kill a process by PID — synchronous version for non-async contexts
+/// (e.g. the Tauri `RunEvent::Exit` handler).
+pub fn kill_process_sync(pid: u32) {
     #[cfg(unix)]
     {
         use std::process::Command;

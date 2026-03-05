@@ -117,22 +117,22 @@ pub fn run() {
 
                 if let Some(pid) = state.miner_child_id {
                     eprintln!("Cleaning up miner process (PID: {})", pid);
-                    kill_process(pid);
+                    kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.headless_child_id {
                     eprintln!("Cleaning up wallet-headless process (PID: {})", pid);
-                    kill_process(pid);
+                    kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.tx_mining_child_id {
                     eprintln!("Cleaning up tx-mining-service process (PID: {})", pid);
-                    kill_process(pid);
+                    kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.node_child_id {
                     eprintln!("Cleaning up node process (PID: {})", pid);
-                    kill_process(pid);
+                    kill_process_sync(pid);
                 }
             }
         });
