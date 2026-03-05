@@ -52,12 +52,12 @@ test:
 # Format code
 fmt:
     cargo fmt --manifest-path src-tauri/Cargo.toml
-    npm run lint:fix 2>/dev/null || true
+    npm run lint:fix
 
 # Check code
 check:
     cargo check --manifest-path src-tauri/Cargo.toml
-    npm run lint 2>/dev/null || true
+    npm run lint
 
 # Clean build artifacts
 clean:
