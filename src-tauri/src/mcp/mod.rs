@@ -13,6 +13,7 @@ use axum::{
     Router,
 };
 use std::sync::Arc;
+use tracing::info;
 
 pub use types::{McpSharedState, McpState};
 
@@ -50,7 +51,7 @@ pub async fn start_mcp_server(
     let app = create_mcp_router(app_state, fullnode_url, wallet_headless_url, tx_mining_url);
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
-    eprintln!("MCP Server listening on http://127.0.0.1:{}", port);
+    info!(service = "mcp", port = port, "MCP server listening on http://127.0.0.1:{}", port);
 
     axum::serve(listener, app).await?;
 
