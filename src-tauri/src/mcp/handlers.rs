@@ -358,7 +358,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 Some(a) => (a * 100.0) as i64,
                 None => {
                     let ten_percent = available / 10;
-                    ten_percent.max(100).min(10000)
+                    ten_percent.clamp(100, 10000)
                 }
             };
 

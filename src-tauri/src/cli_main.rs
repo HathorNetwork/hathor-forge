@@ -214,10 +214,10 @@ async fn main() {
     let state = Arc::new(Mutex::new(AppState::default()));
 
     // If using an external fullnode, mark node as "running" so internal checks pass
-    if fullnode_url.is_some() {
+    if let Some(ref url) = fullnode_url {
         let mut s = state.lock().await;
         s.node_running = true;
-        info!(service = "node", url = %fullnode_url.as_ref().unwrap(), "Using external fullnode");
+        info!(service = "node", url = %url, "Using external fullnode");
     }
 
     // Start services based on flags

@@ -51,6 +51,7 @@ pub fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
+#[derive(Default)]
 pub struct AppState {
     pub node_running: bool,
     pub miner_running: bool,
@@ -66,23 +67,43 @@ pub struct AppState {
     pub log_buffer: LogBuffer,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self {
-            node_running: false,
-            miner_running: false,
-            explorer_server_running: false,
-            headless_running: false,
-            tx_mining_running: false,
-            node_child_id: None,
-            miner_child_id: None,
-            headless_child_id: None,
-            tx_mining_child_id: None,
-            explorer_shutdown: None,
-            data_dir: None,
-            log_buffer: LogBuffer::new(),
+pub type SharedState = Arc<Mutex<AppState>>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn log_buffer_push_and_read() {
+        let buf = LogBuffer::new();
+        buf.push("line 1".to_string());
+        buf.push("line 2".to_string());
+        let lines = buf.lines();
+        assert_eq!(lines, vec!["line 1", "line 2"]);
+    }
+
+    #[test]
+    fn log_buffer_respects_capacity() {
+        let buf = LogBuffer::new();
+        for i in 0..1100 {
+            buf.push(format!("line {}", i));
         }
+        let lines = buf.lines();
+        assert_eq!(lines.len(), LOG_BUFFER_CAPACITY);
+        // Oldest lines should have been evicted
+        assert_eq!(lines[0], "line 100");
+        assert_eq!(lines[lines.len() - 1], "line 1099");
+    }
+
+    #[test]
+    fn app_state_defaults() {
+        let state = AppState::default();
+        assert!(!state.node_running);
+        assert!(!state.miner_running);
+        assert!(!state.headless_running);
+        assert!(!state.tx_mining_running);
+        assert!(!state.explorer_server_running);
+        assert!(state.node_child_id.is_none());
+        assert!(state.data_dir.is_none());
     }
 }
-
-pub type SharedState = Arc<Mutex<AppState>>;

@@ -15,11 +15,11 @@ export function ExplorerPage() {
     try {
       await api.startNode();
       setNodeStatus("running");
-      try { await api.startExplorerServer(); } catch {}
+      try { await api.startExplorerServer(); } catch { /* best-effort */ }
       try {
         await api.startHeadless();
         setHeadlessStatus({ running: true, port: PORTS.WALLET_HEADLESS });
-      } catch {}
+      } catch { /* best-effort */ }
     } catch (e) {
       setError(String(e));
       setNodeStatus("error");
