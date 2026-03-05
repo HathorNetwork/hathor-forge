@@ -1,26 +1,15 @@
-import { useState, useRef } from "react";
-import { AlertTriangle, Trash2, Loader2, Power } from "lucide-react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useState } from "react";
+import { AlertTriangle, Trash2, Loader2 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { useNanoContractStore } from "@/store/useNanoContractStore";
 import * as api from "@/services/tauri";
 
 export function SettingsPage() {
   const { nodeStatus } = useAppStore();
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const [showExitConfirm, setShowExitConfirm] = useState(false);
-  const [isShuttingDown, setIsShuttingDown] = useState(false);
-  const isShuttingDownRef = useRef(false);
   const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
   const [resetMessage, setResetMessage] = useState("");
-
-  const handleConfirmExit = async () => {
-    setIsShuttingDown(true);
-    isShuttingDownRef.current = true;
-    try {
-      await api.gracefulShutdown();
-    } catch (_) {}
-    await getCurrentWindow().destroy();
-  };
+  const clearContracts = useNanoContractStore((s) => s.clearContracts);
 
   const handleResetData = async () => {
     if (nodeStatus === "running") {
@@ -31,6 +20,7 @@ export function SettingsPage() {
     setResetStatus("resetting");
     try {
       const result = await api.resetData();
+      clearContracts();
       setResetMessage(result);
       setResetStatus("success");
       setShowResetConfirm(false);
@@ -121,42 +111,6 @@ export function SettingsPage() {
         </div>
       )}
 
-      {/* Exit Confirmation Modal */}
-      {showExitConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <Power className="w-5 h-5 text-amber-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">Exit Hathor Forge?</h3>
-            </div>
-            <p className="text-slate-400 mb-6">
-              Are you sure you want to exit? Running services will be stopped gracefully.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowExitConfirm(false)}
-                disabled={isShuttingDown}
-                className="px-4 py-2 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmExit}
-                disabled={isShuttingDown}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                {isShuttingDown ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" />Shutting down...</>
-                ) : (
-                  <><Power className="w-4 h-4" />Yes, Exit</>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
