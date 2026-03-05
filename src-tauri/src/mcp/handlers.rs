@@ -7,7 +7,7 @@ use super::types::McpState;
 
 /// Execute an MCP tool by name with the given parameters.
 pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    let client = state.http_client.clone();
     let fullnode_url = state.fullnode_url.read().await.clone();
     let wallet_headless_url = state.wallet_headless_url.read().await.clone();
     let _tx_mining_url = state.tx_mining_url.read().await.clone();
@@ -512,7 +512,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             drop(seeds);
 
             // Try to get faucet balance
-            if let Ok(resp) = reqwest::Client::new()
+            if let Ok(resp) = client
                 .get(format!("{}/v1a/wallet/balance/", fullnode_url))
                 .send()
                 .await
