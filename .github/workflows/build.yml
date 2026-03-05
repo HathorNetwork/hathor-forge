@@ -50,8 +50,8 @@ jobs:
       - name: Build explorer
         run: nix develop --command bash ./scripts/build-explorer.sh
 
-      - name: Download Node.js binary
-        run: bash ./scripts/build-node.sh
+      - name: Bundle Node.js binary
+        run: nix develop --command bash ./scripts/build-node.sh
 
       - name: Install npm dependencies
         run: nix develop --command npm ci
@@ -102,8 +102,8 @@ jobs:
       - name: Build explorer
         run: nix develop --command bash ./scripts/build-explorer.sh
 
-      - name: Download Node.js binary
-        run: bash ./scripts/build-node.sh
+      - name: Bundle Node.js binary
+        run: nix develop --command bash ./scripts/build-node.sh
 
       - name: Install npm dependencies
         run: nix develop --command npm ci
