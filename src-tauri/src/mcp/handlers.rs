@@ -532,12 +532,21 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             // Clear wallet seeds
             state.wallet_seeds.lock().await.clear();
 
-            // Remove data directory
-            if let Some(data_dir) = dirs::home_dir() {
-                let hathor_dir = data_dir.join(".hathor-forge");
-                if hathor_dir.exists() {
-                    let _ = std::fs::remove_dir_all(&hathor_dir);
-                }
+            // Remove data directory (use stored path or default from NodeConfig)
+            let data_dir = {
+                let app_state = state.app_state.lock().await;
+                app_state
+                    .data_dir
+                    .as_ref()
+                    .map(std::path::PathBuf::from)
+                    .unwrap_or_else(|| {
+                        let config = crate::config::NodeConfig::default();
+                        std::path::PathBuf::from(config.data_dir)
+                    })
+            };
+            if data_dir.exists() {
+                std::fs::remove_dir_all(&data_dir)
+                    .map_err(|e| format!("Failed to remove data directory: {}", e))?;
             }
 
             Ok("All data cleared. Start the node again to begin fresh.".to_string())
