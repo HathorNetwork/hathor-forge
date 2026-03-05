@@ -8,6 +8,7 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tracing::{error, info, warn};
 
 /// Hathor Forge CLI — headless blockchain development environment
 ///
@@ -126,6 +127,14 @@ fn save_settings(path: &PathBuf, settings: &Settings) -> Result<(), String> {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .with_writer(std::io::stderr)
+        .init();
+
     let cli = Cli::parse();
     let sp = settings_path(cli.settings_file.as_ref());
     let saved = load_settings(&sp);
@@ -194,19 +203,13 @@ async fn main() {
             wallet_only: Some(wallet_only),
         };
         match save_settings(&sp, &settings) {
-            Ok(()) => eprintln!("Settings saved to {}", sp.display()),
-            Err(e) => eprintln!("Warning: {}", e),
+            Ok(()) => info!(path = %sp.display(), "Settings saved"),
+            Err(e) => warn!("Failed to save settings: {}", e),
         }
     }
 
     // Print banner
-    eprintln!("╔══════════════════════════════════════════╗");
-    eprintln!(
-        "║         Hathor Forge CLI v{}          ║",
-        env!("CARGO_PKG_VERSION")
-    );
-    eprintln!("╚══════════════════════════════════════════╝");
-    eprintln!();
+    info!("Hathor Forge CLI v{} starting", env!("CARGO_PKG_VERSION"));
 
     let state = Arc::new(Mutex::new(AppState::default()));
 
@@ -214,20 +217,18 @@ async fn main() {
     if fullnode_url.is_some() {
         let mut s = state.lock().await;
         s.node_running = true;
-        eprintln!("  External fullnode: {}", fullnode_url.as_ref().unwrap());
+        info!(service = "node", url = %fullnode_url.as_ref().unwrap(), "Using external fullnode");
     }
 
     // Start services based on flags
     if auto_start || wallet_only {
-        eprintln!("Starting services...");
-        eprintln!();
+        info!("Starting services");
 
         // Start local node (unless external)
         if fullnode_url.is_none() && !wallet_only {
-            eprint!("  Node ............ ");
             match start_node_internal(&state).await {
-                Ok(msg) => eprintln!("{}", msg),
-                Err(e) => eprintln!("ERROR: {}", e),
+                Ok(msg) => info!(service = "node", "{}", msg),
+                Err(e) => error!(service = "node", "Failed to start: {}", e),
             }
             // Wait for node readiness
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -235,26 +236,23 @@ async fn main() {
 
         // Start tx-mining-service (unless external or disabled)
         if tx_mining_url.is_none() && !no_tx_mining && !wallet_only {
-            eprint!("  Tx-Mining ....... ");
             match start_tx_mining_internal(&state).await {
-                Ok(msg) => eprintln!("{}", msg),
-                Err(e) => eprintln!("ERROR: {}", e),
+                Ok(msg) => info!(service = "tx-mining", "{}", msg),
+                Err(e) => error!(service = "tx-mining", "Failed to start: {}", e),
             }
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
         // Start miner (unless disabled)
         if !no_miner && !wallet_only {
-            eprint!("  Miner ........... ");
             match start_miner_internal(&state, mining_address).await {
-                Ok(msg) => eprintln!("{}", msg),
-                Err(e) => eprintln!("ERROR: {}", e),
+                Ok(msg) => info!(service = "miner", "{}", msg),
+                Err(e) => error!(service = "miner", "Failed to start: {}", e),
             }
         }
 
         // Start wallet-headless (unless disabled)
         if !no_wallet {
-            eprint!("  Wallet-Headless . ");
             match start_headless_internal(
                 &state,
                 Some(fullnode_url_resolved.as_str()),
@@ -262,21 +260,18 @@ async fn main() {
             )
             .await
             {
-                Ok(msg) => eprintln!("{}", msg),
-                Err(e) => eprintln!("ERROR: {}", e),
+                Ok(msg) => info!(service = "wallet-headless", "{}", msg),
+                Err(e) => error!(service = "wallet-headless", "Failed to start: {}", e),
             }
         }
-
-        eprintln!();
     }
 
     let use_tui = !cli.no_tui && std::io::stdout().is_terminal();
 
     if !use_tui {
         // Headless mode: plain log output
-        eprintln!("  MCP Server ...... http://127.0.0.1:{}", mcp_port);
-        eprintln!();
-        eprintln!("Press Ctrl+C to stop all services and exit.");
+        info!(service = "mcp", port = mcp_port, "MCP server available at http://127.0.0.1:{}", mcp_port);
+        info!("Press Ctrl+C to stop all services and exit");
     }
 
     let shutdown_state = state.clone();
@@ -295,12 +290,9 @@ async fn main() {
         {
             let msg = e.to_string();
             if msg.contains("Address already in use") {
-                eprintln!();
-                eprintln!("ERROR: Port {} is already in use.", mcp_port);
-                eprintln!("  Another hathor-forge instance may be running.");
-                eprintln!("  Use --mcp-port <PORT> to pick a different port.");
+                error!(service = "mcp", port = mcp_port, "Port {} is already in use. Another hathor-forge instance may be running. Use --mcp-port <PORT> to pick a different port.", mcp_port);
             } else {
-                eprintln!("MCP server error: {}", e);
+                error!(service = "mcp", "MCP server error: {}", e);
             }
         }
     });
@@ -313,28 +305,27 @@ async fn main() {
         if let Err(e) =
             hathor_forge_lib::tui::run_tui(tui_state, mcp_port, fn_url, wh_url, tm_url).await
         {
-            eprintln!("TUI error: {}", e);
+            error!("TUI error: {}", e);
         }
-        eprintln!("Shutting down...");
+        info!("Shutting down");
     } else {
         // Headless mode: wait for Ctrl+C
         let ctrl_c = tokio::signal::ctrl_c();
         tokio::select! {
             _ = ctrl_c => {
-                eprintln!();
-                eprintln!("Shutting down...");
+                info!("Received Ctrl+C, shutting down");
             }
             _ = mcp_handle => {
-                eprintln!("MCP server stopped unexpectedly.");
+                warn!(service = "mcp", "MCP server stopped unexpectedly");
             }
         }
     }
 
     // Graceful shutdown
     match stop_node_internal(&shutdown_state).await {
-        Ok(msg) => eprintln!("  {}", msg),
-        Err(e) => eprintln!("  Shutdown error: {}", e),
+        Ok(msg) => info!(service = "node", "{}", msg),
+        Err(e) => error!("Shutdown error: {}", e),
     }
 
-    eprintln!("Done.");
+    info!("Shutdown complete");
 }

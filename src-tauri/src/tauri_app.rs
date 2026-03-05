@@ -3,9 +3,16 @@ use super::*;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
+use tracing::{error, info};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
+        )
+        .init();
     let state = Arc::new(Mutex::new(AppState::default())) as SharedState;
     let cleanup_state = state.clone();
     let mcp_state = state.clone();
@@ -97,7 +104,7 @@ pub fn run() {
                 if let Err(e) =
                     mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT, None, None, None).await
                 {
-                    eprintln!("Failed to start MCP server: {}", e);
+                    error!(service = "mcp", port = MCP_SERVER_PORT, "Failed to start MCP server: {}", e);
                 }
             });
             Ok(())
@@ -116,22 +123,22 @@ pub fn run() {
                 let state = cleanup_state.blocking_lock();
 
                 if let Some(pid) = state.miner_child_id {
-                    eprintln!("Cleaning up miner process (PID: {})", pid);
+                    info!(service = "miner", pid = pid, "Cleaning up miner process");
                     kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.headless_child_id {
-                    eprintln!("Cleaning up wallet-headless process (PID: {})", pid);
+                    info!(service = "wallet-headless", pid = pid, "Cleaning up wallet-headless process");
                     kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.tx_mining_child_id {
-                    eprintln!("Cleaning up tx-mining-service process (PID: {})", pid);
+                    info!(service = "tx-mining", pid = pid, "Cleaning up tx-mining-service process");
                     kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.node_child_id {
-                    eprintln!("Cleaning up node process (PID: {})", pid);
+                    info!(service = "node", pid = pid, "Cleaning up node process");
                     kill_process_sync(pid);
                 }
             }

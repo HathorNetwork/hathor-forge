@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use tokio::process::Command as TokioCommand;
+use tracing::warn;
 
 use crate::config::HeadlessConfig;
 
@@ -189,10 +190,7 @@ pub async fn kill_process(pid: u32) {
                 return;
             }
         }
-        eprintln!(
-            "Process {} did not exit after SIGTERM, sending SIGKILL",
-            pid
-        );
+        warn!(pid = pid, "Process did not exit after SIGTERM, sending SIGKILL");
         let _ = Command::new("kill")
             .args(["-KILL", &pid.to_string()])
             .output();
@@ -226,10 +224,7 @@ pub fn kill_process_sync(pid: u32) {
                 return;
             }
         }
-        eprintln!(
-            "Process {} did not exit after SIGTERM, sending SIGKILL",
-            pid
-        );
+        warn!(pid = pid, "Process did not exit after SIGTERM, sending SIGKILL");
         let _ = Command::new("kill")
             .args(["-KILL", &pid.to_string()])
             .output();
