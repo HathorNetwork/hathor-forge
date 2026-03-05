@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { AlertTriangle, Trash2, Loader2 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
 
 export function SettingsPage() {
@@ -10,6 +11,9 @@ export function SettingsPage() {
   const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
   const [resetMessage, setResetMessage] = useState("");
   const clearContracts = useNanoContractStore((s) => s.clearContracts);
+
+  const closeResetModal = useCallback(() => setShowResetConfirm(false), []);
+  useEscapeKey(closeResetModal, showResetConfirm);
 
   const handleResetData = async () => {
     if (nodeStatus === "running") {
@@ -31,7 +35,7 @@ export function SettingsPage() {
   };
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
         <p className="text-slate-500">Configure your local development environment</p>

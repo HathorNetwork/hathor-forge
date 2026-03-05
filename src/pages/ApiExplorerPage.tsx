@@ -6,7 +6,7 @@ export function ApiExplorerPage() {
   const [selectedApi, setSelectedApi] = useState<"fullnode" | "wallet">("fullnode");
 
   return (
-    <div className="p-8 space-y-6">
+    <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold text-white mb-2">API Explorer</h2>
         <p className="text-slate-500">Interactive API documentation powered by Swagger UI</p>

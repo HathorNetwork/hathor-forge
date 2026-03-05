@@ -32,8 +32,10 @@ interface AppState {
   logs: LogEntry[];
   logFilters: Set<LogSource>;
   _logIdCounter: number;
+  unreadLogCount: number;
   addLog: (source: LogSource, message: string) => void;
   clearLogs: () => void;
+  markLogsRead: () => void;
   toggleLogFilter: (source: LogSource) => void;
 }
 
@@ -60,6 +62,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   logs: [],
   logFilters: new Set<LogSource>(["node", "miner", "headless"]),
   _logIdCounter: 0,
+  unreadLogCount: 0,
   addLog: (source, message) => {
     const cleanMessage = stripAnsi(message);
     if (!cleanMessage.trim()) return;
@@ -75,9 +78,11 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set({
       logs: [...state.logs.slice(-MAX_LOG_ENTRIES), entry],
       _logIdCounter: state._logIdCounter + 1,
+      unreadLogCount: state.unreadLogCount + 1,
     });
   },
-  clearLogs: () => set({ logs: [] }),
+  clearLogs: () => set({ logs: [], unreadLogCount: 0 }),
+  markLogsRead: () => set({ unreadLogCount: 0 }),
   toggleLogFilter: (source) => {
     const filters = new Set(get().logFilters);
     if (filters.has(source)) {

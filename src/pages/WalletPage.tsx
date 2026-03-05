@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import {
   Wallet, Play, Square, Send, Copy, Check, Loader2,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useWalletStore } from "@/store/useWalletStore";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
 import type { HeadlessWallet } from "@/types";
 
@@ -25,6 +26,14 @@ export function WalletPage() {
     expandedWallet, setExpandedWallet,
     copiedAddress, setCopiedAddress,
   } = useWalletStore();
+
+  const closeCreateWalletModal = useCallback(() => {
+    setShowCreateWallet(false);
+    setNewSeed(null);
+    setNewWalletId("");
+    setImportSeed("");
+  }, [setShowCreateWallet, setNewSeed, setNewWalletId, setImportSeed]);
+  useEscapeKey(closeCreateWalletModal, showCreateWallet);
 
   // Abort controller for cancelling pollWalletStatus on unmount
   const pollAbortRef = useRef<AbortController | null>(null);
@@ -273,7 +282,7 @@ export function WalletPage() {
   }
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

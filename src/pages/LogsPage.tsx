@@ -21,10 +21,15 @@ function getSourceStyle(source: LogSource) {
 }
 
 export function LogsPage() {
-  const { logs, logFilters, clearLogs, toggleLogFilter } = useAppStore();
+  const { logs, logFilters, clearLogs, toggleLogFilter, markLogsRead } = useAppStore();
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const filteredLogs = logs.filter((log) => logFilters.has(log.source));
+
+  // Mark logs as read whenever this page is mounted or new logs arrive
+  useEffect(() => {
+    markLogsRead();
+  }, [logs, markLogsRead]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
