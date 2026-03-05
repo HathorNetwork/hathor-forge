@@ -28,7 +28,7 @@ The app provides a clean dashboard with:
 | Component | Technology |
 |-----------|------------|
 | Desktop App | Tauri 2.x (Rust backend, ~10MB) |
-| Frontend | React 18 + TypeScript + Tailwind CSS |
+| Frontend | React 19 + TypeScript + Tailwind CSS 4 |
 | Fullnode | hathor-core (Python, PyInstaller bundle) |
 | Miner | cpuminer (C, SHA256d) |
 | Wallet Service | wallet-headless (Node.js) |
@@ -89,7 +89,7 @@ nix build .#hathor-forge-cli
 
 #### Prerequisites
 
-- Node.js 18+
+- Node.js 22+
 - Rust 1.70+ (for Tauri)
 - Nix (recommended) or manual dependency management
 
