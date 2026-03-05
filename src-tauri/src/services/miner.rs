@@ -34,6 +34,12 @@ pub async fn start_miner_internal(
 
     let mut state_guard = state.lock().await;
 
+    // Re-check after re-acquiring the lock to prevent TOCTOU race condition:
+    // another caller may have started the miner while we released the lock.
+    if state_guard.miner_running {
+        return Ok("Miner is already running".to_string());
+    }
+
     let binary_path = get_binary_path("cpuminer");
 
     let mut child = TokioCommand::new(&binary_path)

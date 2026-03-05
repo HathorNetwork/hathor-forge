@@ -55,6 +55,12 @@ pub async fn start_headless_internal(
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
     let mut state_guard = state.lock().await;
 
+    // Re-check after re-acquiring the lock to prevent TOCTOU race condition:
+    // another caller may have started wallet-headless while we released the lock.
+    if state_guard.headless_running {
+        return Ok("Wallet-headless is already running".to_string());
+    }
+
     generate_headless_config(&config, &headless_path, txm_url)?;
 
     let entry_point = headless_path.join("dist").join("index.js");
