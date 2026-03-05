@@ -61,6 +61,8 @@ pub struct McpState {
     pub fullnode_url: RwLock<String>,
     pub wallet_headless_url: RwLock<String>,
     pub tx_mining_url: RwLock<String>,
+    /// Shared HTTP client with connection pooling and default timeout.
+    pub http_client: reqwest::Client,
 }
 
 impl McpState {
@@ -70,6 +72,12 @@ impl McpState {
         wallet_headless_url: Option<String>,
         tx_mining_url: Option<String>,
     ) -> Self {
+        let http_client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .pool_max_idle_per_host(5)
+            .build()
+            .expect("Failed to build HTTP client");
+
         Self {
             app_state,
             wallet_seeds: Mutex::new(HashMap::new()),
@@ -82,6 +90,7 @@ impl McpState {
             tx_mining_url: RwLock::new(
                 tx_mining_url.unwrap_or_else(|| "http://localhost:8002".to_string()),
             ),
+            http_client,
         }
     }
 }
