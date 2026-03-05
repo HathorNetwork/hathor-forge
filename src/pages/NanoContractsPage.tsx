@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Zap, Plus, Search, Copy, Clock, FileCode, RefreshCw,
   Trash2, Loader2, Play, Square,
@@ -7,6 +7,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { useBlueprints } from "@/hooks/useBlueprints";
+import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
 import type { BlueprintInfo, BlueprintMethod, BlueprintArg, NanoContract } from "@/types/nano-contracts";
 
@@ -33,6 +34,27 @@ export function NanoContractsPage() {
   const [selectedWalletForInteract, setSelectedWalletForInteract] = useState("");
   const [isInitializing, setIsInitializing] = useState(false);
   const [isSubmittingMethod, setIsSubmittingMethod] = useState(false);
+
+  // ── Escape-to-close modals ────────────────────────────────────────────────
+  const closeRegisterModal = useCallback(() => {
+    setShowRegisterContract(false);
+    setRegisterContractId("");
+  }, []);
+  const closeInitWizard = useCallback(() => {
+    setShowInitWizard(false);
+    setSelectedBlueprint(null);
+  }, []);
+  const closeInteractionModal = useCallback(() => {
+    setSelectedContractForInteract(null);
+  }, []);
+
+  const anyModalOpen = showRegisterContract || showInitWizard || !!selectedContractForInteract;
+  const escapeHandler = useCallback(() => {
+    if (selectedContractForInteract) closeInteractionModal();
+    else if (showInitWizard) closeInitWizard();
+    else if (showRegisterContract) closeRegisterModal();
+  }, [selectedContractForInteract, showInitWizard, showRegisterContract, closeInteractionModal, closeInitWizard, closeRegisterModal]);
+  useEscapeKey(escapeHandler, anyModalOpen);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 

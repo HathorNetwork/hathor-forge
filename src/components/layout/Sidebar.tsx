@@ -15,7 +15,7 @@ const navItems: { icon: typeof Activity; label: string; page: PageType }[] = [
 ];
 
 export function Sidebar() {
-  const { currentPage, setCurrentPage, logs } = useAppStore();
+  const { currentPage, setCurrentPage, unreadLogCount } = useAppStore();
 
   return (
     <aside className="w-72 border-r border-slate-800/50 bg-[#0d1117] flex flex-col">
@@ -44,9 +44,9 @@ export function Sidebar() {
           >
             <item.icon className="h-4 w-4" />
             {item.label}
-            {item.page === "logs" && logs.length > 0 && (
-              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-700 text-slate-300">
-                {logs.length}
+            {item.page === "logs" && unreadLogCount > 0 && (
+              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">
+                {unreadLogCount}
               </span>
             )}
           </button>
