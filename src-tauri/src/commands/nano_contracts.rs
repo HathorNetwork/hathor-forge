@@ -31,7 +31,7 @@ pub(crate) async fn get_nano_contract_state(
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!(
+        .get(format!(
             "http://127.0.0.1:8080/v1a/nano_contract/state?id={}",
             id
         ))
@@ -61,7 +61,7 @@ pub(crate) async fn get_nano_contract_history(
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!(
+        .get(format!(
             "http://127.0.0.1:8080/v1a/nano_contract/history?id={}",
             id
         ))
@@ -117,7 +117,7 @@ pub(crate) async fn list_blueprints(
                 // Fetch full transaction to get blueprint source code and extract class name
                 let mut name = "Unknown".to_string();
                 if let Ok(tx_response) = client
-                    .get(&format!(
+                    .get(format!(
                         "http://127.0.0.1:8080/v1a/transaction?id={}",
                         tx_id
                     ))
@@ -190,7 +190,7 @@ pub(crate) async fn get_blueprint_information(
 
     let client = reqwest::Client::new();
     let response = client
-        .get(&format!("http://127.0.0.1:8080/v1a/transaction?id={}", id))
+        .get(format!("http://127.0.0.1:8080/v1a/transaction?id={}", id))
         .send()
         .await
         .map_err(|e| format!("Failed to fetch blueprint transaction: {}", e))?;

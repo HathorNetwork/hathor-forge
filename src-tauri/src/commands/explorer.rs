@@ -185,13 +185,13 @@ async fn handle_ws_proxy(mut client_ws: WebSocket) {
         while let Some(msg) = fullnode_stream.next().await {
             match msg {
                 Ok(tungstenite::Message::Text(text)) => {
-                    if client_sink.send(Message::Text(text.into())).await.is_err() {
+                    if client_sink.send(Message::Text(text)).await.is_err() {
                         break;
                     }
                 }
                 Ok(tungstenite::Message::Binary(data)) => {
                     if client_sink
-                        .send(Message::Binary(data.into()))
+                        .send(Message::Binary(data))
                         .await
                         .is_err()
                     {
@@ -199,12 +199,12 @@ async fn handle_ws_proxy(mut client_ws: WebSocket) {
                     }
                 }
                 Ok(tungstenite::Message::Ping(data)) => {
-                    if client_sink.send(Message::Ping(data.into())).await.is_err() {
+                    if client_sink.send(Message::Ping(data)).await.is_err() {
                         break;
                     }
                 }
                 Ok(tungstenite::Message::Pong(data)) => {
-                    if client_sink.send(Message::Pong(data.into())).await.is_err() {
+                    if client_sink.send(Message::Pong(data)).await.is_err() {
                         break;
                     }
                 }
