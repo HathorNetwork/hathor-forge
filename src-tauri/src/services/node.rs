@@ -28,6 +28,12 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
 
     let mut state_guard = state.lock().await;
 
+    // Re-check after re-acquiring the lock to prevent TOCTOU race condition:
+    // another caller may have started the node while we released the lock.
+    if state_guard.node_running {
+        return Ok("Node is already running".to_string());
+    }
+
     let binary_path = get_binary_path("hathor-core");
 
     fs::create_dir_all(&config.data_dir)
