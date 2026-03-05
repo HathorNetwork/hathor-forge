@@ -58,6 +58,7 @@ fmt:
 check:
     cargo check --manifest-path src-tauri/Cargo.toml
     npm run lint
+    ./scripts/check-versions.sh
 
 # Clean build artifacts
 clean:
