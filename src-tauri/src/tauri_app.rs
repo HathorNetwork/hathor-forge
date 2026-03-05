@@ -104,7 +104,12 @@ pub fn run() {
                 if let Err(e) =
                     mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT, None, None, None).await
                 {
-                    error!(service = "mcp", port = MCP_SERVER_PORT, "Failed to start MCP server: {}", e);
+                    error!(
+                        service = "mcp",
+                        port = MCP_SERVER_PORT,
+                        "Failed to start MCP server: {}",
+                        e
+                    );
                 }
             });
             Ok(())
@@ -128,12 +133,20 @@ pub fn run() {
                 }
 
                 if let Some(pid) = state.headless_child_id {
-                    info!(service = "wallet-headless", pid = pid, "Cleaning up wallet-headless process");
+                    info!(
+                        service = "wallet-headless",
+                        pid = pid,
+                        "Cleaning up wallet-headless process"
+                    );
                     kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.tx_mining_child_id {
-                    info!(service = "tx-mining", pid = pid, "Cleaning up tx-mining-service process");
+                    info!(
+                        service = "tx-mining",
+                        pid = pid,
+                        "Cleaning up tx-mining-service process"
+                    );
                     kill_process_sync(pid);
                 }
 
