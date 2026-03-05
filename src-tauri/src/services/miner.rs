@@ -88,7 +88,7 @@ pub async fn stop_miner_internal(state: &SharedState) -> Result<String, String> 
     }
 
     if let Some(pid) = state_guard.miner_child_id {
-        kill_process(pid);
+        kill_process(pid).await;
     }
 
     state_guard.miner_running = false;

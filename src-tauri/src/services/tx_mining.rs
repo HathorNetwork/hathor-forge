@@ -95,7 +95,7 @@ pub async fn stop_tx_mining_internal(state: &SharedState) -> Result<String, Stri
     }
 
     if let Some(pid) = state_guard.tx_mining_child_id {
-        kill_process(pid);
+        kill_process(pid).await;
     }
 
     state_guard.tx_mining_running = false;
