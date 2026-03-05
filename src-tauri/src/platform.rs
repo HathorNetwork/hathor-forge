@@ -145,6 +145,7 @@ pub fn get_headless_dist_path() -> PathBuf {
 }
 
 /// Detect network type from fullnode URL
+#[allow(clippy::if_same_then_else)]
 pub fn detect_network_from_url(url: &str) -> &'static str {
     let url_lower = url.to_lowercase();
     if url_lower.contains("mainnet") {
@@ -293,5 +294,67 @@ pub fn kill_process_sync(pid: u32) {
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
             .output();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_binary_path_returns_path_with_name() {
+        let path = get_binary_path("cpuminer");
+        let path_str = path.to_string_lossy();
+        assert!(
+            path_str.contains("cpuminer"),
+            "Path should contain binary name: {}",
+            path_str
+        );
+    }
+
+    #[test]
+    fn get_binary_path_hathor_core_onedir() {
+        let path = get_binary_path("hathor-core");
+        let path_str = path.to_string_lossy();
+        assert!(
+            path_str.contains("hathor-core"),
+            "Path should contain hathor-core: {}",
+            path_str
+        );
+    }
+
+    #[test]
+    fn detect_network_from_url_mainnet() {
+        assert_eq!(detect_network_from_url("https://mainnet.hathor.network"), "mainnet");
+    }
+
+    #[test]
+    fn detect_network_from_url_testnet() {
+        assert_eq!(detect_network_from_url("https://testnet.hathor.network"), "testnet");
+    }
+
+    #[test]
+    fn detect_network_from_url_playground() {
+        assert_eq!(detect_network_from_url("https://playground.hathor.network"), "testnet");
+    }
+
+    #[test]
+    fn detect_network_from_url_localhost() {
+        assert_eq!(detect_network_from_url("http://localhost:8080"), "privatenet");
+        assert_eq!(detect_network_from_url("http://127.0.0.1:8080"), "privatenet");
+    }
+
+    #[test]
+    fn detect_network_from_url_unknown_defaults_privatenet() {
+        assert_eq!(detect_network_from_url("http://some-host:8080"), "privatenet");
+    }
+
+    #[test]
+    fn get_node_binary_path_dev_fallback() {
+        // In debug builds, should fall back to "node" when no binary is found
+        if cfg!(debug_assertions) {
+            let result = get_node_binary_path();
+            assert!(result.is_ok());
+        }
     }
 }

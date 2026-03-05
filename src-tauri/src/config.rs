@@ -73,3 +73,51 @@ impl Default for TxMiningConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn node_config_defaults() {
+        let config = NodeConfig::default();
+        assert_eq!(config.api_port, 8080);
+        assert_eq!(config.stratum_port, 8000);
+        assert!(config.data_dir.contains("hathor-forge"));
+    }
+
+    #[test]
+    fn miner_config_defaults() {
+        let config = MinerConfig::default();
+        assert_eq!(config.stratum_port, 8003);
+        assert_eq!(config.address, "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb");
+        assert_eq!(config.threads, 1);
+    }
+
+    #[test]
+    fn headless_config_defaults() {
+        let config = HeadlessConfig::default();
+        assert_eq!(config.port, 8001);
+        assert_eq!(config.fullnode_url, "http://localhost:8080/v1a/");
+        assert_eq!(config.network, "privatenet");
+    }
+
+    #[test]
+    fn tx_mining_config_defaults() {
+        let config = TxMiningConfig::default();
+        assert_eq!(config.api_port, 8002);
+        assert_eq!(config.stratum_port, 8003);
+        assert_eq!(config.fullnode_url, "http://localhost:8080");
+        assert_eq!(config.address, "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb");
+    }
+
+    #[test]
+    fn node_config_serialization_roundtrip() {
+        let config = NodeConfig::default();
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: NodeConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.api_port, config.api_port);
+        assert_eq!(deserialized.stratum_port, config.stratum_port);
+        assert_eq!(deserialized.data_dir, config.data_dir);
+    }
+}
