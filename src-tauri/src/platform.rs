@@ -73,6 +73,63 @@ pub fn set_library_path_env(cmd: &mut TokioCommand, internal_dir: &std::path::Pa
     let _ = (cmd, internal_dir);
 }
 
+/// Get the path to the bundled Node.js binary.
+///
+/// In production builds the binary is expected at
+/// `src-tauri/binaries/node-{target-triple}` (or `.exe` on Windows).
+/// During development, if no bundled binary is found we fall back to
+/// the bare `node` command so the system PATH is used instead.
+pub fn get_node_binary_path() -> Result<PathBuf, String> {
+    let target = if cfg!(target_os = "macos") {
+        if cfg!(target_arch = "aarch64") {
+            "aarch64-apple-darwin"
+        } else {
+            "x86_64-apple-darwin"
+        }
+    } else if cfg!(target_os = "linux") {
+        if cfg!(target_arch = "aarch64") {
+            "aarch64-unknown-linux-gnu"
+        } else {
+            "x86_64-unknown-linux-gnu"
+        }
+    } else {
+        "x86_64-pc-windows-msvc"
+    };
+
+    let exe_suffix = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
+
+    let binaries_dir = match std::env::var("HATHOR_FORGE_BINARIES_DIR") {
+        Ok(dir) => PathBuf::from(dir),
+        Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries"),
+    };
+
+    // Try target-triple suffixed binary first
+    let target_path = binaries_dir.join(format!("node-{}{}", target, exe_suffix));
+    if target_path.exists() {
+        return Ok(target_path);
+    }
+
+    // Try bare name
+    let bare_path = binaries_dir.join(format!("node{}", exe_suffix));
+    if bare_path.exists() {
+        return Ok(bare_path);
+    }
+
+    // Dev fallback: use node from PATH
+    if cfg!(debug_assertions) {
+        return Ok(PathBuf::from("node"));
+    }
+
+    Err(format!(
+        "Bundled Node.js binary not found. Looked for {:?} and {:?}",
+        target_path, bare_path
+    ))
+}
+
 /// Get the path to the wallet-headless-dist directory
 pub fn get_headless_dist_path() -> PathBuf {
     if let Ok(dir) = std::env::var("HATHOR_FORGE_HEADLESS_DIR") {
