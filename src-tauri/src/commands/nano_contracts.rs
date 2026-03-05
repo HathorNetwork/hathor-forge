@@ -301,7 +301,7 @@ pub(crate) async fn headless_wallet_create_nano_contract(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://localhost:8001/wallet/nano-contract/create")
+        .post("http://localhost:8001/wallet/nano-contracts/create")
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({
             "blueprint_id": request.blueprint_id,
@@ -336,7 +336,7 @@ pub(crate) async fn headless_wallet_call_nano_contract_method(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://localhost:8001/wallet/nano-contract/execute")
+        .post("http://localhost:8001/wallet/nano-contracts/execute")
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({
             "nc_id": request.nc_id,
