@@ -270,7 +270,12 @@ async fn main() {
 
     if !use_tui {
         // Headless mode: plain log output
-        info!(service = "mcp", port = mcp_port, "MCP server available at http://127.0.0.1:{}", mcp_port);
+        info!(
+            service = "mcp",
+            port = mcp_port,
+            "MCP server available at http://127.0.0.1:{}",
+            mcp_port
+        );
         info!("Press Ctrl+C to stop all services and exit");
     }
 

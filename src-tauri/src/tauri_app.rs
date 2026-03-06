@@ -59,9 +59,10 @@ pub fn run() {
             headless_wallet_call_nano_contract_method,
             graceful_shutdown,
         ])
-        .setup(move |app| {
+        .setup(move |_app| {
             #[cfg(target_os = "macos")]
             {
+                let app = _app;
                 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
                 let quit_item = MenuItemBuilder::new("Quit Hathor Forge")
                     .id("custom-quit")
@@ -104,7 +105,12 @@ pub fn run() {
                 if let Err(e) =
                     mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT, None, None, None).await
                 {
-                    error!(service = "mcp", port = MCP_SERVER_PORT, "Failed to start MCP server: {}", e);
+                    error!(
+                        service = "mcp",
+                        port = MCP_SERVER_PORT,
+                        "Failed to start MCP server: {}",
+                        e
+                    );
                 }
             });
             Ok(())
@@ -128,12 +134,20 @@ pub fn run() {
                 }
 
                 if let Some(pid) = state.headless_child_id {
-                    info!(service = "wallet-headless", pid = pid, "Cleaning up wallet-headless process");
+                    info!(
+                        service = "wallet-headless",
+                        pid = pid,
+                        "Cleaning up wallet-headless process"
+                    );
                     kill_process_sync(pid);
                 }
 
                 if let Some(pid) = state.tx_mining_child_id {
-                    info!(service = "tx-mining", pid = pid, "Cleaning up tx-mining-service process");
+                    info!(
+                        service = "tx-mining",
+                        pid = pid,
+                        "Cleaning up tx-mining-service process"
+                    );
                     kill_process_sync(pid);
                 }
 

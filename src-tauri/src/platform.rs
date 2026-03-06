@@ -248,7 +248,10 @@ pub async fn kill_process(pid: u32) {
                 return;
             }
         }
-        warn!(pid = pid, "Process did not exit after SIGTERM, sending SIGKILL");
+        warn!(
+            pid = pid,
+            "Process did not exit after SIGTERM, sending SIGKILL"
+        );
         let _ = Command::new("kill")
             .args(["-KILL", &pid.to_string()])
             .output();
@@ -282,7 +285,10 @@ pub fn kill_process_sync(pid: u32) {
                 return;
             }
         }
-        warn!(pid = pid, "Process did not exit after SIGTERM, sending SIGKILL");
+        warn!(
+            pid = pid,
+            "Process did not exit after SIGTERM, sending SIGKILL"
+        );
         let _ = Command::new("kill")
             .args(["-KILL", &pid.to_string()])
             .output();
@@ -325,28 +331,46 @@ mod tests {
 
     #[test]
     fn detect_network_from_url_mainnet() {
-        assert_eq!(detect_network_from_url("https://mainnet.hathor.network"), "mainnet");
+        assert_eq!(
+            detect_network_from_url("https://mainnet.hathor.network"),
+            "mainnet"
+        );
     }
 
     #[test]
     fn detect_network_from_url_testnet() {
-        assert_eq!(detect_network_from_url("https://testnet.hathor.network"), "testnet");
+        assert_eq!(
+            detect_network_from_url("https://testnet.hathor.network"),
+            "testnet"
+        );
     }
 
     #[test]
     fn detect_network_from_url_playground() {
-        assert_eq!(detect_network_from_url("https://playground.hathor.network"), "testnet");
+        assert_eq!(
+            detect_network_from_url("https://playground.hathor.network"),
+            "testnet"
+        );
     }
 
     #[test]
     fn detect_network_from_url_localhost() {
-        assert_eq!(detect_network_from_url("http://localhost:8080"), "privatenet");
-        assert_eq!(detect_network_from_url("http://127.0.0.1:8080"), "privatenet");
+        assert_eq!(
+            detect_network_from_url("http://localhost:8080"),
+            "privatenet"
+        );
+        assert_eq!(
+            detect_network_from_url("http://127.0.0.1:8080"),
+            "privatenet"
+        );
     }
 
     #[test]
     fn detect_network_from_url_unknown_defaults_privatenet() {
-        assert_eq!(detect_network_from_url("http://some-host:8080"), "privatenet");
+        assert_eq!(
+            detect_network_from_url("http://some-host:8080"),
+            "privatenet"
+        );
     }
 
     #[test]
