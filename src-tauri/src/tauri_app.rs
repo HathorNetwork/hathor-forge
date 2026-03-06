@@ -59,9 +59,10 @@ pub fn run() {
             headless_wallet_call_nano_contract_method,
             graceful_shutdown,
         ])
-        .setup(move |app| {
+        .setup(move |_app| {
             #[cfg(target_os = "macos")]
             {
+                let app = _app;
                 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
                 let quit_item = MenuItemBuilder::new("Quit Hathor Forge")
                     .id("custom-quit")
