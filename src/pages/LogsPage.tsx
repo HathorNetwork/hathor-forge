@@ -21,7 +21,11 @@ function getSourceStyle(source: LogSource) {
 }
 
 export function LogsPage() {
-  const { logs, logFilters, clearLogs, toggleLogFilter, markLogsRead } = useAppStore();
+  const logs = useAppStore((s) => s.logs);
+  const logFilters = useAppStore((s) => s.logFilters);
+  const clearLogs = useAppStore((s) => s.clearLogs);
+  const toggleLogFilter = useAppStore((s) => s.toggleLogFilter);
+  const markLogsRead = useAppStore((s) => s.markLogsRead);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const filteredLogs = logs.filter((log) => logFilters.has(log.source));

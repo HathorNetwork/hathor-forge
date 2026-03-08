@@ -6,7 +6,7 @@ import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
 
 export function SettingsPage() {
-  const { nodeStatus } = useAppStore();
+  const nodeStatus = useAppStore((s) => s.nodeStatus);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
   const [resetMessage, setResetMessage] = useState("");

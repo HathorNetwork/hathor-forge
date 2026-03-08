@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Wallet, Play, Square, Send, Copy, Check, Loader2,
 } from "lucide-react";
@@ -6,10 +6,13 @@ import { useAppStore } from "@/store/useAppStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
+import { formatHTR } from "@/lib/utils";
 import type { HeadlessWallet } from "@/types";
 
 export function WalletPage() {
-  const { nodeStatus, setError } = useAppStore();
+  const nodeStatus = useAppStore((s) => s.nodeStatus);
+  const setError = useAppStore((s) => s.setError);
+  const [walletSendForms, setWalletSendForms] = useState<Record<string, { address: string; amount: string }>>({});
   const {
     headlessStatus, setHeadlessStatus,
     headlessWallets, setHeadlessWallets,
@@ -220,7 +223,7 @@ export function WalletPage() {
     const firstAddress = wallet.addresses[0];
     try {
       await api.sendTx({ address: firstAddress, amount });
-      setTxResult({ type: "success", message: `Sent ${(amount / 100).toFixed(2)} HTR to ${walletId}` });
+      setTxResult({ type: "success", message: `Sent ${formatHTR(amount)} HTR to ${walletId}` });
       // Reload wallet details after a short delay
       setTimeout(() => loadWalletDetails(walletId), 1000);
     } catch (e) {
@@ -395,9 +398,9 @@ export function WalletPage() {
                   </div>
                   {wallet.balance && (
                     <div className="mt-2 text-sm text-slate-400">
-                      Balance: <span className="text-white font-semibold">{(wallet.balance.available / 100).toFixed(2)} HTR</span>
+                      Balance: <span className="text-white font-semibold">{formatHTR(wallet.balance.available)} HTR</span>
                       {wallet.balance.locked > 0 && (
-                        <span className="text-amber-400 ml-2">({(wallet.balance.locked / 100).toFixed(2)} locked)</span>
+                        <span className="text-amber-400 ml-2">({formatHTR(wallet.balance.locked)} locked)</span>
                       )}
                     </div>
                   )}
@@ -439,20 +442,27 @@ export function WalletPage() {
                             type="text"
                             placeholder="Destination address"
                             className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
-                            id={`send-addr-${wallet.wallet_id}`}
+                            value={walletSendForms[wallet.wallet_id]?.address ?? ""}
+                            onChange={(e) => setWalletSendForms((prev) => ({
+                              ...prev,
+                              [wallet.wallet_id]: { ...prev[wallet.wallet_id], address: e.target.value, amount: prev[wallet.wallet_id]?.amount ?? "" },
+                            }))}
                           />
                           <input
                             type="number"
                             placeholder="Amount"
                             className="w-24 px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
-                            id={`send-amount-${wallet.wallet_id}`}
+                            value={walletSendForms[wallet.wallet_id]?.amount ?? ""}
+                            onChange={(e) => setWalletSendForms((prev) => ({
+                              ...prev,
+                              [wallet.wallet_id]: { ...prev[wallet.wallet_id], amount: e.target.value, address: prev[wallet.wallet_id]?.address ?? "" },
+                            }))}
                           />
                           <button
                             onClick={() => {
-                              const addrEl = document.getElementById(`send-addr-${wallet.wallet_id}`) as HTMLInputElement;
-                              const amountEl = document.getElementById(`send-amount-${wallet.wallet_id}`) as HTMLInputElement;
-                              if (addrEl?.value && amountEl?.value) {
-                                sendFromHeadlessWallet(wallet.wallet_id, addrEl.value, parseFloat(amountEl.value));
+                              const form = walletSendForms[wallet.wallet_id];
+                              if (form?.address && form?.amount) {
+                                sendFromHeadlessWallet(wallet.wallet_id, form.address, parseFloat(form.amount));
                               }
                             }}
                             className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors flex items-center gap-1"
@@ -493,9 +503,9 @@ export function WalletPage() {
           {faucetBalance && (
             <div className="text-sm">
               <span className="text-slate-400">Available: </span>
-              <span className="text-amber-400 font-semibold">{(faucetBalance.available / 100).toFixed(2)} HTR</span>
+              <span className="text-amber-400 font-semibold">{formatHTR(faucetBalance.available)} HTR</span>
               {faucetBalance.locked > 0 && (
-                <span className="text-slate-500 ml-2">({(faucetBalance.locked / 100).toFixed(2)} locked)</span>
+                <span className="text-slate-500 ml-2">({formatHTR(faucetBalance.locked)} locked)</span>
               )}
             </div>
           )}

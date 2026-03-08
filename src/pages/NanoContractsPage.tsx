@@ -9,10 +9,11 @@ import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { useBlueprints } from "@/hooks/useBlueprints";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
+import { formatHTR } from "@/lib/utils";
 import type { BlueprintInfo, BlueprintMethod, BlueprintArg, NanoContract } from "@/types/nano-contracts";
 
 export function NanoContractsPage() {
-  const { setError } = useAppStore();
+  const setError = useAppStore((s) => s.setError);
   const { headlessWallets } = useWalletStore();
   const { contracts, addContract, removeContract } = useNanoContractStore();
   const { data: blueprints = [], refetch: refetchBlueprints } = useBlueprints();
@@ -322,7 +323,7 @@ export function NanoContractsPage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right mr-4">
-                        <div className="text-sm font-semibold text-white">{(contract.balance / 100).toFixed(2)} HTR</div>
+                        <div className="text-sm font-semibold text-white">{formatHTR(contract.balance)} HTR</div>
                         <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{contract.status}</div>
                       </div>
                       <button

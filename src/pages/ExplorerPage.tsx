@@ -4,7 +4,7 @@ import { useStartNetwork } from "@/hooks/useStartNetwork";
 import { PORTS } from "@/lib/constants";
 
 export function ExplorerPage() {
-  const { nodeStatus } = useAppStore();
+  const nodeStatus = useAppStore((s) => s.nodeStatus);
   const { startNetwork, isLoading } = useStartNetwork();
 
   const handleStartNode = startNetwork;

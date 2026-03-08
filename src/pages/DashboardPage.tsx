@@ -7,13 +7,15 @@ import { useStartNetwork } from "@/hooks/useStartNetwork";
 import * as api from "@/services/tauri";
 
 export function DashboardPage() {
-  const {
-    nodeStatus, setNodeStatus,
-    minerStatus, setMinerStatus,
-    blockHeight, setBlockHeight,
-    hashRate, setHashRate,
-    setError,
-  } = useAppStore();
+  const nodeStatus = useAppStore((s) => s.nodeStatus);
+  const setNodeStatus = useAppStore((s) => s.setNodeStatus);
+  const minerStatus = useAppStore((s) => s.minerStatus);
+  const setMinerStatus = useAppStore((s) => s.setMinerStatus);
+  const blockHeight = useAppStore((s) => s.blockHeight);
+  const setBlockHeight = useAppStore((s) => s.setBlockHeight);
+  const hashRate = useAppStore((s) => s.hashRate);
+  const setHashRate = useAppStore((s) => s.setHashRate);
+  const setError = useAppStore((s) => s.setError);
   const { setHeadlessStatus } = useWalletStore();
   const { startNetwork, isLoading: isNetworkStarting } = useStartNetwork();
 
