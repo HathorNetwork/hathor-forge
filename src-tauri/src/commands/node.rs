@@ -39,7 +39,10 @@ pub(crate) async fn start_node(
     let dev_wallet_words = "avocado spot town typical traffic vault danger century property shallow divorce festival spend attack anchor afford rotate green audit adjust fade wagon depart level";
 
     // Set platform-specific library path for bundled libraries
-    let internal_dir = binary_path.parent().unwrap().join("_internal");
+    let internal_dir = binary_path
+        .parent()
+        .ok_or_else(|| format!("Cannot determine parent directory of {:?}", binary_path))?
+        .join("_internal");
 
     // Spawn the process using tokio
     let mut cmd = TokioCommand::new(&binary_path);
@@ -73,9 +76,12 @@ pub(crate) async fn start_node(
         .spawn()
         .map_err(|e| format!("Failed to spawn hathor-core at {:?}: {}", binary_path, e))?;
 
-    let pid = child.id().unwrap_or(0);
+    let pid = child.id();
+    if pid.is_none() {
+        eprintln!("Node process exited immediately; no PID available");
+    }
     state_guard.node_running = true;
-    state_guard.node_child_id = Some(pid);
+    state_guard.node_child_id = pid;
     state_guard.data_dir = Some(config.data_dir.clone());
 
     // Handle stdout
@@ -294,7 +300,10 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
     let bridge_path = if dev_path.exists() {
         dev_path
     } else if let Ok(exe) = std::env::current_exe() {
-        let prod_path = exe.parent().unwrap().join(bridge_name);
+        let prod_path = exe
+            .parent()
+            .ok_or("Cannot determine parent directory of executable")?
+            .join(bridge_name);
         if prod_path.exists() {
             prod_path
         } else {

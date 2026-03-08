@@ -59,9 +59,12 @@ pub async fn start_miner_internal(
         .spawn()
         .map_err(|e| format!("Failed to spawn cpuminer at {:?}: {}", binary_path, e))?;
 
-    let pid = child.id().unwrap_or(0);
+    let pid = child.id();
+    if pid.is_none() {
+        eprintln!("Miner process exited immediately; no PID available");
+    }
     state_guard.miner_running = true;
-    state_guard.miner_child_id = Some(pid);
+    state_guard.miner_child_id = pid;
 
     let log_buf = state_guard.log_buffer.clone();
     let stdout = child.stdout.take();

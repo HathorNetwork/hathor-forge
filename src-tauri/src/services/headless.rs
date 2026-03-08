@@ -76,9 +76,12 @@ pub async fn start_headless_internal(
         .spawn()
         .map_err(|e| format!("Failed to spawn wallet-headless: {}", e))?;
 
-    let pid = child.id().unwrap_or(0);
+    let pid = child.id();
+    if pid.is_none() {
+        eprintln!("Wallet-headless process exited immediately; no PID available");
+    }
     state_guard.headless_running = true;
-    state_guard.headless_child_id = Some(pid);
+    state_guard.headless_child_id = pid;
 
     let log_buf = state_guard.log_buffer.clone();
     let stdout = child.stdout.take();
