@@ -32,9 +32,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /nix/store
-          key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            nix-${{ runner.os }}-
+          key: nix-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
 
       - name: Build hathor-core
         run: nix develop --command bash ./scripts/build-hathor-core.sh
@@ -84,9 +82,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /nix/store
-          key: nix-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            nix-${{ runner.os }}-
+          key: nix-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
 
       - name: Build hathor-core
         run: nix develop --command bash ./scripts/build-hathor-core.sh
@@ -235,9 +231,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: /nix/store
-          key: nix-check-${{ runner.os }}-${{ hashFiles('flake.lock') }}
-          restore-keys: |
-            nix-check-${{ runner.os }}-
+          key: nix-check-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
 
       - name: Install npm dependencies
         run: nix develop --command npm ci
@@ -253,8 +247,7 @@ jobs:
         run: nix develop --command npm test
 
       - name: npm audit
-        run: nix develop --command npm audit --audit-level=high
-        continue-on-error: true
+        run: nix develop --command npm audit --audit-level=high || echo "::warning::npm audit found vulnerabilities (see log above)"
 
       # Rust checks
       - name: Check Rust formatting
