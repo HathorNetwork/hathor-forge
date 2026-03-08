@@ -182,12 +182,18 @@ async fn main() {
     let mining_address = cli.mining_address.clone().or(saved.mining_address.clone());
 
     // Resolved URLs for display (TUI and MCP use the same defaults)
-    let fullnode_url_resolved = fullnode_url
-        .clone()
-        .unwrap_or_else(|| "http://127.0.0.1:8080".to_string());
-    let tx_mining_url_resolved = tx_mining_url
-        .clone()
-        .unwrap_or_else(|| "http://localhost:8002".to_string());
+    let fullnode_url_resolved = fullnode_url.clone().unwrap_or_else(|| {
+        format!(
+            "http://127.0.0.1:{}",
+            hathor_forge_lib::config::DEFAULT_FULLNODE_API_PORT
+        )
+    });
+    let tx_mining_url_resolved = tx_mining_url.clone().unwrap_or_else(|| {
+        format!(
+            "http://localhost:{}",
+            hathor_forge_lib::config::DEFAULT_TX_MINING_API_PORT
+        )
+    });
 
     // Save settings if requested
     if cli.save_settings {
@@ -305,7 +311,10 @@ async fn main() {
     if use_tui {
         // TUI mode
         let fn_url = fullnode_url_resolved.clone();
-        let wh_url = "http://localhost:8001".to_string();
+        let wh_url = format!(
+            "http://localhost:{}",
+            hathor_forge_lib::config::DEFAULT_WALLET_HEADLESS_PORT
+        );
         let tm_url = tx_mining_url_resolved.clone();
         if let Err(e) =
             hathor_forge_lib::tui::run_tui(tui_state, mcp_port, fn_url, wh_url, tm_url).await

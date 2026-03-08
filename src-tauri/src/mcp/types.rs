@@ -81,15 +81,24 @@ impl McpState {
         Self {
             app_state,
             wallet_seeds: Mutex::new(HashMap::new()),
-            fullnode_url: RwLock::new(
-                fullnode_url.unwrap_or_else(|| "http://127.0.0.1:8080".to_string()),
-            ),
-            wallet_headless_url: RwLock::new(
-                wallet_headless_url.unwrap_or_else(|| "http://localhost:8001".to_string()),
-            ),
-            tx_mining_url: RwLock::new(
-                tx_mining_url.unwrap_or_else(|| "http://localhost:8002".to_string()),
-            ),
+            fullnode_url: RwLock::new(fullnode_url.unwrap_or_else(|| {
+                format!(
+                    "http://127.0.0.1:{}",
+                    crate::config::DEFAULT_FULLNODE_API_PORT
+                )
+            })),
+            wallet_headless_url: RwLock::new(wallet_headless_url.unwrap_or_else(|| {
+                format!(
+                    "http://localhost:{}",
+                    crate::config::DEFAULT_WALLET_HEADLESS_PORT
+                )
+            })),
+            tx_mining_url: RwLock::new(tx_mining_url.unwrap_or_else(|| {
+                format!(
+                    "http://localhost:{}",
+                    crate::config::DEFAULT_TX_MINING_API_PORT
+                )
+            })),
             http_client,
         }
     }

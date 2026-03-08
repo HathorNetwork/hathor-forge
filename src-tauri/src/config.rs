@@ -1,5 +1,24 @@
 use serde::{Deserialize, Serialize};
 
+// ============================================================================
+// Default Port Constants
+// ============================================================================
+
+/// Fullnode HTTP API port.
+pub const DEFAULT_FULLNODE_API_PORT: u16 = 8080;
+/// Stratum mining protocol port.
+pub const DEFAULT_STRATUM_PORT: u16 = 8000;
+/// Wallet-headless service port.
+pub const DEFAULT_WALLET_HEADLESS_PORT: u16 = 8001;
+/// Tx-mining-service API port.
+pub const DEFAULT_TX_MINING_API_PORT: u16 = 8002;
+/// Tx-mining-service stratum port.
+pub const DEFAULT_TX_MINING_STRATUM_PORT: u16 = 8003;
+/// Block explorer HTTP port.
+pub const DEFAULT_EXPLORER_PORT: u16 = 3001;
+/// MCP server port.
+pub const DEFAULT_MCP_SERVER_PORT: u16 = 9876;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub api_port: u16,
@@ -14,8 +33,8 @@ impl Default for NodeConfig {
             .join("hathor-forge")
             .join("data");
         Self {
-            api_port: 8080,
-            stratum_port: 8000,
+            api_port: DEFAULT_FULLNODE_API_PORT,
+            stratum_port: DEFAULT_STRATUM_PORT,
             data_dir: data_dir.to_string_lossy().to_string(),
         }
     }
@@ -31,7 +50,7 @@ pub struct MinerConfig {
 impl Default for MinerConfig {
     fn default() -> Self {
         Self {
-            stratum_port: 8003,
+            stratum_port: DEFAULT_TX_MINING_STRATUM_PORT,
             address: "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string(),
             threads: 1,
         }
@@ -48,8 +67,8 @@ pub struct HeadlessConfig {
 impl Default for HeadlessConfig {
     fn default() -> Self {
         Self {
-            port: 8001,
-            fullnode_url: "http://localhost:8080/v1a/".to_string(),
+            port: DEFAULT_WALLET_HEADLESS_PORT,
+            fullnode_url: format!("http://localhost:{}/v1a/", DEFAULT_FULLNODE_API_PORT),
             network: "privatenet".to_string(),
         }
     }
@@ -66,9 +85,9 @@ pub struct TxMiningConfig {
 impl Default for TxMiningConfig {
     fn default() -> Self {
         Self {
-            api_port: 8002,
-            stratum_port: 8003,
-            fullnode_url: "http://localhost:8080".to_string(),
+            api_port: DEFAULT_TX_MINING_API_PORT,
+            stratum_port: DEFAULT_TX_MINING_STRATUM_PORT,
+            fullnode_url: format!("http://localhost:{}", DEFAULT_FULLNODE_API_PORT),
             address: "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string(),
         }
     }
@@ -81,15 +100,15 @@ mod tests {
     #[test]
     fn node_config_defaults() {
         let config = NodeConfig::default();
-        assert_eq!(config.api_port, 8080);
-        assert_eq!(config.stratum_port, 8000);
+        assert_eq!(config.api_port, DEFAULT_FULLNODE_API_PORT);
+        assert_eq!(config.stratum_port, DEFAULT_STRATUM_PORT);
         assert!(config.data_dir.contains("hathor-forge"));
     }
 
     #[test]
     fn miner_config_defaults() {
         let config = MinerConfig::default();
-        assert_eq!(config.stratum_port, 8003);
+        assert_eq!(config.stratum_port, DEFAULT_TX_MINING_STRATUM_PORT);
         assert_eq!(config.address, "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb");
         assert_eq!(config.threads, 1);
     }
@@ -97,17 +116,23 @@ mod tests {
     #[test]
     fn headless_config_defaults() {
         let config = HeadlessConfig::default();
-        assert_eq!(config.port, 8001);
-        assert_eq!(config.fullnode_url, "http://localhost:8080/v1a/");
+        assert_eq!(config.port, DEFAULT_WALLET_HEADLESS_PORT);
+        assert_eq!(
+            config.fullnode_url,
+            format!("http://localhost:{}/v1a/", DEFAULT_FULLNODE_API_PORT)
+        );
         assert_eq!(config.network, "privatenet");
     }
 
     #[test]
     fn tx_mining_config_defaults() {
         let config = TxMiningConfig::default();
-        assert_eq!(config.api_port, 8002);
-        assert_eq!(config.stratum_port, 8003);
-        assert_eq!(config.fullnode_url, "http://localhost:8080");
+        assert_eq!(config.api_port, DEFAULT_TX_MINING_API_PORT);
+        assert_eq!(config.stratum_port, DEFAULT_TX_MINING_STRATUM_PORT);
+        assert_eq!(
+            config.fullnode_url,
+            format!("http://localhost:{}", DEFAULT_FULLNODE_API_PORT)
+        );
         assert_eq!(config.address, "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb");
     }
 

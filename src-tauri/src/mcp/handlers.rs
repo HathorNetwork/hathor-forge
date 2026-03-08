@@ -63,7 +63,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             let app_state = state.app_state.lock().await;
             Ok(json!({
                 "running": app_state.tx_mining_running,
-                "port": if app_state.tx_mining_running { Some(8002) } else { None }
+                "port": if app_state.tx_mining_running { Some(crate::config::DEFAULT_TX_MINING_API_PORT) } else { None }
             })
             .to_string())
         }
@@ -81,7 +81,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
             let app_state = state.app_state.lock().await;
             Ok(json!({
                 "running": app_state.headless_running,
-                "port": if app_state.headless_running { Some(8001) } else { None }
+                "port": if app_state.headless_running { Some(crate::config::DEFAULT_WALLET_HEADLESS_PORT) } else { None }
             })
             .to_string())
         }
@@ -499,11 +499,11 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 },
                 "headless": {
                     "running": app_state.headless_running,
-                    "port": if app_state.headless_running { Some(8001) } else { None },
+                    "port": if app_state.headless_running { Some(crate::config::DEFAULT_WALLET_HEADLESS_PORT) } else { None },
                 },
                 "tx_mining": {
                     "running": app_state.tx_mining_running,
-                    "port": if app_state.tx_mining_running { Some(8002) } else { None },
+                    "port": if app_state.tx_mining_running { Some(crate::config::DEFAULT_TX_MINING_API_PORT) } else { None },
                 },
                 "activeWallets": seeds.keys().collect::<Vec<_>>(),
             });

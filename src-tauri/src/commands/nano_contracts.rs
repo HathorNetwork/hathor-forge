@@ -32,7 +32,8 @@ pub(crate) async fn get_nano_contract_state(
     let client = reqwest::Client::new();
     let response = client
         .get(format!(
-            "http://127.0.0.1:8080/v1a/nano_contract/state?id={}",
+            "http://127.0.0.1:{}/v1a/nano_contract/state?id={}",
+            crate::config::DEFAULT_FULLNODE_API_PORT,
             id
         ))
         .send()
@@ -62,7 +63,8 @@ pub(crate) async fn get_nano_contract_history(
     let client = reqwest::Client::new();
     let response = client
         .get(format!(
-            "http://127.0.0.1:8080/v1a/nano_contract/history?id={}",
+            "http://127.0.0.1:{}/v1a/nano_contract/history?id={}",
+            crate::config::DEFAULT_FULLNODE_API_PORT,
             id
         ))
         .send()
@@ -92,7 +94,10 @@ pub(crate) async fn list_blueprints(
 
     // Fetch recent transactions from dashboard (version 6 = blueprint)
     let response = client
-        .get("http://127.0.0.1:8080/v1a/dashboard_tx?tx=200&block=0")
+        .get(format!(
+            "http://127.0.0.1:{}/v1a/dashboard_tx?tx=200&block=0",
+            crate::config::DEFAULT_FULLNODE_API_PORT
+        ))
         .send()
         .await
         .map_err(|e| format!("Failed to fetch transactions: {}", e))?;
@@ -118,7 +123,8 @@ pub(crate) async fn list_blueprints(
                 let mut name = "Unknown".to_string();
                 if let Ok(tx_response) = client
                     .get(format!(
-                        "http://127.0.0.1:8080/v1a/transaction?id={}",
+                        "http://127.0.0.1:{}/v1a/transaction?id={}",
+                        crate::config::DEFAULT_FULLNODE_API_PORT,
                         tx_id
                     ))
                     .send()
@@ -190,7 +196,11 @@ pub(crate) async fn get_blueprint_information(
 
     let client = reqwest::Client::new();
     let response = client
-        .get(format!("http://127.0.0.1:8080/v1a/transaction?id={}", id))
+        .get(format!(
+            "http://127.0.0.1:{}/v1a/transaction?id={}",
+            crate::config::DEFAULT_FULLNODE_API_PORT,
+            id
+        ))
         .send()
         .await
         .map_err(|e| format!("Failed to fetch blueprint transaction: {}", e))?;
@@ -301,7 +311,10 @@ pub(crate) async fn headless_wallet_create_nano_contract(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://localhost:8001/wallet/nano-contracts/create")
+        .post(format!(
+            "http://localhost:{}/wallet/nano-contracts/create",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({
             "blueprint_id": request.blueprint_id,
@@ -336,7 +349,10 @@ pub(crate) async fn headless_wallet_call_nano_contract_method(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://localhost:8001/wallet/nano-contracts/execute")
+        .post(format!(
+            "http://localhost:{}/wallet/nano-contracts/execute",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({
             "nc_id": request.nc_id,

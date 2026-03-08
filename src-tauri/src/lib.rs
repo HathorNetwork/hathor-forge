@@ -13,8 +13,8 @@ pub use services::*;
 pub use state::*;
 pub use types::*;
 
-// MCP Server port
-pub const MCP_SERVER_PORT: u16 = 9876;
+// Re-export the MCP server port constant for backward compatibility.
+pub const MCP_SERVER_PORT: u16 = config::DEFAULT_MCP_SERVER_PORT;
 
 // ============================================================================
 // Tauri GUI app (only compiled with tauri-app feature)

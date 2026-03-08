@@ -22,10 +22,10 @@ pub(crate) async fn start_node(
     // Kill any zombie processes from previous runs
     kill_process_on_port(config.api_port);
     kill_process_on_port(config.stratum_port);
-    kill_process_on_port(8001); // wallet-headless port
-    kill_process_on_port(8002); // tx-mining-service port
-    kill_process_on_port(8003); // tx-mining-service stratum port
-                                // Give the OS a moment to release the ports
+    kill_process_on_port(crate::config::DEFAULT_WALLET_HEADLESS_PORT); // wallet-headless port
+    kill_process_on_port(crate::config::DEFAULT_TX_MINING_API_PORT); // tx-mining-service port
+    kill_process_on_port(crate::config::DEFAULT_TX_MINING_STRATUM_PORT); // tx-mining-service stratum port
+                                                                         // Give the OS a moment to release the ports
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let binary_path = get_binary_path("hathor-core");
@@ -188,7 +188,14 @@ pub(crate) async fn get_node_status(
 
     // Try to fetch status from the node API
     let client = reqwest::Client::new();
-    match client.get("http://127.0.0.1:8080/v1a/status").send().await {
+    match client
+        .get(format!(
+            "http://127.0.0.1:{}/v1a/status",
+            crate::config::DEFAULT_FULLNODE_API_PORT
+        ))
+        .send()
+        .await
+    {
         Ok(response) => {
             if let Ok(json) = response.json::<serde_json::Value>().await {
                 let block_height = json
@@ -321,7 +328,7 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
             "command": node_path.to_string_lossy(),
             "args": [
                 bridge_path.to_string_lossy(),
-                "http://127.0.0.1:9876/mcp"
+                &format!("http://127.0.0.1:{}/mcp", crate::config::DEFAULT_MCP_SERVER_PORT)
             ]
         }
     }))
