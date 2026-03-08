@@ -78,7 +78,12 @@ async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
                 return Response::builder()
                     .status(500)
                     .body(Body::from("Failed to read request body"))
-                    .unwrap();
+                    .unwrap_or_else(|_| {
+                        Response::builder()
+                            .status(500)
+                            .body(Body::from("Failed to build error response"))
+                            .expect("hardcoded response")
+                    });
             }
         };
         builder = builder.body(body_bytes.to_vec());
@@ -105,18 +110,33 @@ async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
                         }
                     }
 
-                    builder.body(Body::from(body.to_vec())).unwrap()
+                    builder.body(Body::from(body.to_vec())).unwrap_or_else(|_| {
+                        Response::builder()
+                            .status(500)
+                            .body(Body::from("Failed to build response"))
+                            .expect("hardcoded response")
+                    })
                 }
                 Err(_) => Response::builder()
                     .status(502)
                     .body(Body::from("Failed to read response from fullnode"))
-                    .unwrap(),
+                    .unwrap_or_else(|_| {
+                        Response::builder()
+                            .status(500)
+                            .body(Body::from("Internal error"))
+                            .expect("hardcoded response")
+                    }),
             }
         }
         Err(e) => Response::builder()
             .status(502)
             .body(Body::from(format!("Failed to connect to fullnode: {}", e)))
-            .unwrap(),
+            .unwrap_or_else(|_| {
+                Response::builder()
+                    .status(500)
+                    .body(Body::from("Internal error"))
+                    .expect("hardcoded response")
+            }),
     }
 }
 

@@ -34,7 +34,10 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
 
     let binary_path = get_binary_path("tx-mining-service");
 
-    let internal_dir = binary_path.parent().unwrap().join("_internal");
+    let binary_parent = binary_path
+        .parent()
+        .ok_or_else(|| format!("Cannot determine parent directory of {:?}", binary_path))?;
+    let internal_dir = binary_parent.join("_internal");
 
     let mut cmd = TokioCommand::new(&binary_path);
     set_library_path_env(&mut cmd, &internal_dir);
@@ -51,7 +54,7 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
             "120",
             &config.fullnode_url,
         ])
-        .current_dir(binary_path.parent().unwrap())
+        .current_dir(binary_parent)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -63,9 +66,12 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
             )
         })?;
 
-    let pid = child.id().unwrap_or(0);
+    let pid = child.id();
+    if pid.is_none() {
+        eprintln!("tx-mining-service process exited immediately; no PID available");
+    }
     state_guard.tx_mining_running = true;
-    state_guard.tx_mining_child_id = Some(pid);
+    state_guard.tx_mining_child_id = pid;
 
     let log_buf = state_guard.log_buffer.clone();
     let stdout = child.stdout.take();

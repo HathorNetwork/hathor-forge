@@ -234,7 +234,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .header("X-Wallet-Id", wallet_id)
                 .json(&json!({
                     "address": address,
-                    "value": (amount * 100.0) as i64,
+                    "value": (amount * 100.0).round() as i64,
                 }))
                 .send()
                 .await
@@ -292,7 +292,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                         "inputs": [],
                         "outputs": [{
                             "address": address,
-                            "value": (amount * 100.0) as i64,
+                            "value": (amount * 100.0).round() as i64,
                         }]
                     }
                 }))
@@ -355,7 +355,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
 
             // Calculate amount
             let fund_amount = match amount {
-                Some(a) => (a * 100.0) as i64,
+                Some(a) => (a * 100.0).round() as i64,
                 None => {
                     let ten_percent = available / 10;
                     ten_percent.clamp(100, 10000)
