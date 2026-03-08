@@ -20,7 +20,17 @@ fn get_explorer_dist_path() -> std::path::PathBuf {
         return dev_path;
     }
 
-    // Fallback to current dir
+    // Production: next to the running executable
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let exe_dist = exe_dir.join("explorer-dist");
+            if exe_dist.exists() {
+                return exe_dist;
+            }
+        }
+    }
+
+    // Fallback
     std::path::PathBuf::from("explorer-dist")
 }
 

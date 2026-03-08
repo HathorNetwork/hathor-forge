@@ -123,8 +123,6 @@ jobs:
           if-no-files-found: warn
 
   build-windows:
-    # Placeholder: Windows builds are not yet implemented.
-    # All build steps use continue-on-error until real build scripts are added.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -158,29 +156,59 @@ jobs:
             libtool
             make
 
-      # Placeholder: hathor-core Windows build not yet implemented
-      - name: Build hathor-core (Windows)
+      - name: Clone dependency repositories
         shell: pwsh
         run: |
-          Write-Host "hathor-core Windows build requires manual setup"
-          Write-Host "Install hathor-core via pip and build with PyInstaller"
-        continue-on-error: true
+          git clone --depth 1 https://github.com/HathorNetwork/hathor-core.git ..\hathor-core
+          git clone --depth 1 https://github.com/HathorNetwork/cpuminer.git ..\cpuminer
+          git clone --depth 1 https://github.com/HathorNetwork/hathor-wallet-headless.git ..\hathor-wallet-headless
+          git clone --depth 1 https://github.com/HathorNetwork/tx-mining-service.git ..\tx-mining-service
+          git clone --depth 1 https://github.com/HathorNetwork/hathor-explorer.git ..\hathor-explorer
 
-      # Placeholder: cpuminer Windows build not yet implemented
+      - name: Build hathor-core (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-hathor-core.ps1
+
       - name: Build cpuminer (Windows/MSYS2)
         shell: msys2 {0}
         run: |
-          echo "cpuminer Windows build requires hathor cpuminer source"
-          echo "Clone and build: ./autogen.sh && ./configure && make"
-        continue-on-error: true
+          export CPUMINER_SRC="$(cygpath -u "$GITHUB_WORKSPACE/../cpuminer")"
+          bash ./scripts/windows/build-cpuminer.sh
+
+      - name: Build wallet-headless (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-wallet-headless.ps1
+
+      - name: Build tx-mining-service (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-tx-mining-service.ps1
+
+      - name: Build explorer (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-explorer.ps1
+
+      - name: Bundle Node.js binary (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-node.ps1
+
+      - name: Create externalBin stubs for Tauri build
+        shell: pwsh
+        run: |
+          # Tauri's externalBin expects single files with .exe suffix on Windows,
+          # but hathor-core is a PyInstaller onedir bundle (directory).
+          # Create stub .exe files so the Tauri build check passes.
+          # The actual onedir bundles are included via resources in tauri.conf.json.
+          $binDir = "src-tauri\binaries"
+          $target = "x86_64-pc-windows-msvc"
+          if (-not (Test-Path "$binDir\hathor-core-$target.exe")) {
+            Copy-Item "$binDir\hathor-core-$target\hathor-core.exe" "$binDir\hathor-core-$target.exe"
+          }
 
       - name: Install npm dependencies
         run: npm ci
-        continue-on-error: true
 
       - name: Build Tauri app
         run: npm run tauri build
-        continue-on-error: true
 
       - name: Upload Windows bundle
         uses: actions/upload-artifact@v4
@@ -237,9 +265,12 @@ jobs:
       - name: Create stub binaries for Tauri build script
         run: |
           mkdir -p src-tauri/binaries src-tauri/explorer-dist
-          touch src-tauri/binaries/hathor-core-x86_64-unknown-linux-gnu
+          mkdir -p src-tauri/binaries/hathor-core-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/hathor-core-x86_64-unknown-linux-gnu/hathor-core
           touch src-tauri/binaries/cpuminer-x86_64-unknown-linux-gnu
           touch src-tauri/explorer-dist/.keep
+          mkdir -p src-tauri/binaries/tx-mining-service-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/tx-mining-service-x86_64-unknown-linux-gnu/tx-mining-service
 
       - name: Clippy
         run: nix develop --command cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings

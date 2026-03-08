@@ -5,6 +5,43 @@ use tracing::warn;
 
 use crate::config::HeadlessConfig;
 
+/// Get the directory containing the running executable.
+fn exe_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+}
+
+/// Get candidate directories where binaries might be located.
+/// Checks (in order): HATHOR_FORGE_BINARIES_DIR env var, CARGO_MANIFEST_DIR/binaries (dev),
+/// and the directory next to the running executable (production).
+fn get_binaries_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+
+    // 1. Explicit env var override
+    if let Ok(dir) = std::env::var("HATHOR_FORGE_BINARIES_DIR") {
+        dirs.push(PathBuf::from(dir));
+    }
+
+    // 2. Development: relative to CARGO_MANIFEST_DIR
+    let cargo_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries");
+    if cargo_dir.exists() {
+        dirs.push(cargo_dir);
+    }
+
+    // 3. Production: next to the running executable (where Tauri places bundled resources)
+    if let Some(dir) = exe_dir() {
+        let exe_binaries = dir.join("binaries");
+        if exe_binaries.exists() {
+            dirs.push(exe_binaries);
+        }
+        // Also check the exe directory itself (for externalBin sidecars)
+        dirs.push(dir);
+    }
+
+    dirs
+}
+
 /// Get the path to a binary (handles dev vs production, platform differences)
 pub fn get_binary_path(name: &str) -> PathBuf {
     let target = if cfg!(target_os = "macos") {
@@ -29,39 +66,40 @@ pub fn get_binary_path(name: &str) -> PathBuf {
         ""
     };
 
-    let binaries_dir = match std::env::var("HATHOR_FORGE_BINARIES_DIR") {
-        Ok(dir) => PathBuf::from(dir),
-        Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries"),
-    };
+    let binaries_dirs = get_binaries_dirs();
 
-    // hathor-core and tx-mining-service use onedir mode
-    if name == "hathor-core" || name == "tx-mining-service" {
-        let binary_name = format!("{}{}", name, exe_suffix);
-        let onedir_path = binaries_dir
-            .join(format!("{}-{}", name, target))
-            .join(&binary_name);
-        if onedir_path.exists() {
-            return onedir_path;
+    for binaries_dir in &binaries_dirs {
+        // hathor-core and tx-mining-service use onedir mode
+        if name == "hathor-core" || name == "tx-mining-service" {
+            let binary_name = format!("{}{}", name, exe_suffix);
+            let onedir_path = binaries_dir
+                .join(format!("{}-{}", name, target))
+                .join(&binary_name);
+            if onedir_path.exists() {
+                return onedir_path;
+            }
+        }
+
+        // Single-file binaries with target triple suffix
+        let dev_path = binaries_dir.join(format!("{}-{}{}", name, target, exe_suffix));
+        if dev_path.exists() {
+            return dev_path;
+        }
+
+        // Bare name (for Nix or PATH-style layouts)
+        let bare_path = binaries_dir.join(format!("{}{}", name, exe_suffix));
+        if bare_path.exists() {
+            return bare_path;
         }
     }
 
-    // Single-file binaries with target triple suffix
-    let dev_path = binaries_dir.join(format!("{}-{}{}", name, target, exe_suffix));
-    if dev_path.exists() {
-        return dev_path;
-    }
-
-    // Bare name (for Nix or PATH-style layouts)
-    let bare_path = binaries_dir.join(format!("{}{}", name, exe_suffix));
-    if bare_path.exists() {
-        return bare_path;
-    }
-
-    // Fallback
-    PathBuf::from("binaries").join(format!("{}-{}{}", name, target, exe_suffix))
+    // Fallback: use first binaries_dir for error reporting
+    let fallback_dir = binaries_dirs.first().cloned().unwrap_or_else(|| PathBuf::from("binaries"));
+    fallback_dir.join(format!("{}-{}{}", name, target, exe_suffix))
 }
 
-/// Set platform-specific library path environment variable
+/// Set platform-specific library path environment variable so that bundled
+/// shared libraries (in the PyInstaller `_internal` directory) can be found.
 pub fn set_library_path_env(cmd: &mut TokioCommand, internal_dir: &std::path::Path) {
     #[cfg(target_os = "macos")]
     cmd.env("DYLD_FALLBACK_LIBRARY_PATH", internal_dir);
@@ -70,7 +108,15 @@ pub fn set_library_path_env(cmd: &mut TokioCommand, internal_dir: &std::path::Pa
     cmd.env("LD_LIBRARY_PATH", internal_dir);
 
     #[cfg(target_os = "windows")]
-    let _ = (cmd, internal_dir);
+    {
+        // On Windows, prepend the _internal dir to PATH so the loader finds DLLs there.
+        let mut path = std::ffi::OsString::from(internal_dir);
+        path.push(";");
+        if let Some(existing) = std::env::var_os("PATH") {
+            path.push(existing);
+        }
+        cmd.env("PATH", path);
+    }
 }
 
 /// Get the path to the bundled Node.js binary.
@@ -102,21 +148,25 @@ pub fn get_node_binary_path() -> Result<PathBuf, String> {
         ""
     };
 
-    let binaries_dir = match std::env::var("HATHOR_FORGE_BINARIES_DIR") {
-        Ok(dir) => PathBuf::from(dir),
-        Err(_) => PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries"),
-    };
+    let binaries_dirs = get_binaries_dirs();
 
-    // Try target-triple suffixed binary first
-    let target_path = binaries_dir.join(format!("node-{}{}", target, exe_suffix));
-    if target_path.exists() {
-        return Ok(target_path);
-    }
+    let mut last_target_path = PathBuf::new();
+    let mut last_bare_path = PathBuf::new();
 
-    // Try bare name
-    let bare_path = binaries_dir.join(format!("node{}", exe_suffix));
-    if bare_path.exists() {
-        return Ok(bare_path);
+    for binaries_dir in &binaries_dirs {
+        // Try target-triple suffixed binary first
+        let target_path = binaries_dir.join(format!("node-{}{}", target, exe_suffix));
+        if target_path.exists() {
+            return Ok(target_path);
+        }
+        last_target_path = target_path;
+
+        // Try bare name
+        let bare_path = binaries_dir.join(format!("node{}", exe_suffix));
+        if bare_path.exists() {
+            return Ok(bare_path);
+        }
+        last_bare_path = bare_path;
     }
 
     // Dev fallback: use node from PATH
@@ -126,7 +176,7 @@ pub fn get_node_binary_path() -> Result<PathBuf, String> {
 
     Err(format!(
         "Bundled Node.js binary not found. Looked for {:?} and {:?}",
-        target_path, bare_path
+        last_target_path, last_bare_path
     ))
 }
 
@@ -139,6 +189,14 @@ pub fn get_headless_dist_path() -> PathBuf {
     let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("wallet-headless-dist");
     if dev_path.exists() {
         return dev_path;
+    }
+
+    // Production: next to the running executable
+    if let Some(exe_dir) = exe_dir() {
+        let exe_path = exe_dir.join("wallet-headless-dist");
+        if exe_path.exists() {
+            return exe_path;
+        }
     }
 
     PathBuf::from("wallet-headless-dist")
@@ -214,12 +272,29 @@ pub fn kill_process_on_port(port: u16) {
     #[cfg(windows)]
     {
         use std::process::Command;
+        // netstat -ano output: "  TCP    127.0.0.1:8080    0.0.0.0:0    LISTENING    12345"
+        // Match on ":PORT " with a trailing space/whitespace to avoid substring matches
+        // (e.g., port 80 matching ":8080").
+        let port_suffix = format!(":{}", port);
         if let Ok(output) = Command::new("netstat").args(["-ano", "-p", "TCP"]).output() {
             let output_str = String::from_utf8_lossy(&output.stdout);
             for line in output_str.lines() {
-                if line.contains(&format!(":{}", port)) && line.contains("LISTENING") {
-                    if let Some(pid) = line.split_whitespace().last() {
-                        let _ = Command::new("taskkill").args(["/PID", pid, "/F"]).output();
+                if !line.contains("LISTENING") {
+                    continue;
+                }
+                // Parse the local address column (second whitespace-separated field)
+                let fields: Vec<&str> = line.split_whitespace().collect();
+                // Expected: [Proto, LocalAddr, ForeignAddr, State, PID]
+                if fields.len() < 5 {
+                    continue;
+                }
+                let local_addr = fields[1];
+                // Check that the port suffix is at the end of the local address
+                if local_addr.ends_with(&port_suffix) {
+                    let pid = fields[4];
+                    if pid.parse::<u32>().is_ok() {
+                        let _ =
+                            Command::new("taskkill").args(["/PID", pid, "/F"]).output();
                     }
                 }
             }
@@ -260,6 +335,29 @@ pub async fn kill_process(pid: u32) {
     #[cfg(windows)]
     {
         use std::process::Command;
+        // Try graceful shutdown first (sends WM_CLOSE / CTRL_CLOSE_EVENT)
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string()])
+            .output();
+        // Wait up to 5 seconds for the process to exit
+        for _ in 0..50 {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            let output = Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+                .output();
+            if let Ok(out) = output {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                if !stdout.contains(&pid.to_string()) {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+        warn!(
+            pid = pid,
+            "Process did not exit after graceful taskkill, forcing"
+        );
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
             .output();
@@ -297,6 +395,28 @@ pub fn kill_process_sync(pid: u32) {
     #[cfg(windows)]
     {
         use std::process::Command;
+        // Try graceful shutdown first
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string()])
+            .output();
+        for _ in 0..50 {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            let output = Command::new("tasklist")
+                .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+                .output();
+            if let Ok(out) = output {
+                let stdout = String::from_utf8_lossy(&out.stdout);
+                if !stdout.contains(&pid.to_string()) {
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+        warn!(
+            pid = pid,
+            "Process did not exit after graceful taskkill, forcing"
+        );
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
             .output();

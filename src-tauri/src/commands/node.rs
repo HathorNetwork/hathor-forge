@@ -279,3 +279,39 @@ pub(crate) async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<S
 
     Ok(format!("Data directory removed: {:?}", data_dir))
 }
+
+/// Returns the Claude Desktop MCP config snippet with resolved paths to the
+/// bundled Node.js binary and the stdio bridge script.
+#[tauri::command]
+pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
+    let node_path = crate::platform::get_node_binary_path()?;
+
+    // Try dev path first, then production path next to the executable
+    let bridge_name = "mcp-stdio-bridge.mjs";
+    let dev_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(bridge_name);
+    let bridge_path = if dev_path.exists() {
+        dev_path
+    } else if let Ok(exe) = std::env::current_exe() {
+        let prod_path = exe.parent().unwrap().join(bridge_name);
+        if prod_path.exists() {
+            prod_path
+        } else {
+            return Err(format!(
+                "MCP bridge script not found at {:?} or {:?}",
+                dev_path, prod_path
+            ));
+        }
+    } else {
+        return Err(format!("MCP bridge script not found at {:?}", dev_path));
+    };
+
+    Ok(serde_json::json!({
+        "hathor-forge": {
+            "command": node_path.to_string_lossy(),
+            "args": [
+                bridge_path.to_string_lossy(),
+                "http://127.0.0.1:9876/mcp"
+            ]
+        }
+    }))
+}
