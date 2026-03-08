@@ -4,6 +4,7 @@ import { useContractStatesPolling } from "@/hooks/useContractStates";
 import { useTauriEvents } from "@/hooks/useTauriEvents";
 import { useInitialStateReconciliation } from "@/hooks/useInitialStateReconciliation";
 
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Header } from "@/components/layout/Header";
 import { ErrorBanner } from "@/components/layout/ErrorBanner";
@@ -46,7 +47,9 @@ function App() {
         <Header />
         <ErrorBanner />
         <div className="flex-1 overflow-auto p-6">
-          {renderContent()}
+          <ErrorBoundary>
+            {renderContent()}
+          </ErrorBoundary>
         </div>
       </main>
     </div>
