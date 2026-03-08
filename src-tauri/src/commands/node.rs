@@ -282,6 +282,7 @@ pub(crate) async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<S
 
 /// Returns the Claude Desktop MCP config snippet with resolved paths to the
 /// bundled Node.js binary and the stdio bridge script.
+#[cfg(feature = "tauri-app")]
 #[tauri::command]
 pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
     let node_path = crate::platform::get_node_binary_path()?;
