@@ -100,18 +100,18 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
 
 /// Stop the tx-mining-service (internal version)
 pub async fn stop_tx_mining_internal(state: &SharedState) -> Result<String, String> {
-    let mut state_guard = state.lock().await;
+    let pid = {
+        let mut guard = state.lock().await;
+        if !guard.tx_mining_running {
+            return Ok("tx-mining-service is not running".to_string());
+        }
+        guard.tx_mining_running = false;
+        guard.tx_mining_child_id.take()
+    };
 
-    if !state_guard.tx_mining_running {
-        return Ok("tx-mining-service is not running".to_string());
-    }
-
-    if let Some(pid) = state_guard.tx_mining_child_id {
+    if let Some(pid) = pid {
         kill_process(pid).await;
     }
-
-    state_guard.tx_mining_running = false;
-    state_guard.tx_mining_child_id = None;
 
     Ok("tx-mining-service stopped".to_string())
 }
