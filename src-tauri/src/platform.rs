@@ -94,7 +94,10 @@ pub fn get_binary_path(name: &str) -> PathBuf {
     }
 
     // Fallback: use first binaries_dir for error reporting
-    let fallback_dir = binaries_dirs.first().cloned().unwrap_or_else(|| PathBuf::from("binaries"));
+    let fallback_dir = binaries_dirs
+        .first()
+        .cloned()
+        .unwrap_or_else(|| PathBuf::from("binaries"));
     fallback_dir.join(format!("{}-{}{}", name, target, exe_suffix))
 }
 
@@ -293,8 +296,7 @@ pub fn kill_process_on_port(port: u16) {
                 if local_addr.ends_with(&port_suffix) {
                     let pid = fields[4];
                     if pid.parse::<u32>().is_ok() {
-                        let _ =
-                            Command::new("taskkill").args(["/PID", pid, "/F"]).output();
+                        let _ = Command::new("taskkill").args(["/PID", pid, "/F"]).output();
                     }
                 }
             }
