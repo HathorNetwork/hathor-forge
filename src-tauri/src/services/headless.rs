@@ -104,18 +104,18 @@ pub async fn start_headless_internal(
 
 /// Stop the wallet-headless service (internal version)
 pub async fn stop_headless_internal(state: &SharedState) -> Result<String, String> {
-    let mut state_guard = state.lock().await;
+    let pid = {
+        let mut guard = state.lock().await;
+        if !guard.headless_running {
+            return Ok("Wallet-headless is not running".to_string());
+        }
+        guard.headless_running = false;
+        guard.headless_child_id.take()
+    };
 
-    if !state_guard.headless_running {
-        return Ok("Wallet-headless is not running".to_string());
-    }
-
-    if let Some(pid) = state_guard.headless_child_id {
+    if let Some(pid) = pid {
         kill_process(pid).await;
     }
-
-    state_guard.headless_running = false;
-    state_guard.headless_child_id = None;
 
     Ok("Wallet-headless stopped".to_string())
 }

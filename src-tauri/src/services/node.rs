@@ -103,36 +103,48 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
 
 /// Stop the Hathor fullnode (internal version)
 pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
-    let mut state_guard = state.lock().await;
+    // Extract all PIDs and update state, then drop the lock before killing processes.
+    let (miner_pid, headless_pid, tx_mining_pid, node_pid) = {
+        let mut guard = state.lock().await;
 
-    if let Some(pid) = state_guard.miner_child_id {
+        let miner_pid = guard.miner_child_id.take();
+        if miner_pid.is_some() {
+            guard.miner_running = false;
+        }
+
+        let headless_pid = guard.headless_child_id.take();
+        if headless_pid.is_some() {
+            guard.headless_running = false;
+        }
+
+        let tx_mining_pid = guard.tx_mining_child_id.take();
+        if tx_mining_pid.is_some() {
+            guard.tx_mining_running = false;
+        }
+
+        if !guard.node_running {
+            return Ok("Node is not running".to_string());
+        }
+
+        let node_pid = guard.node_child_id.take();
+        guard.node_running = false;
+
+        (miner_pid, headless_pid, tx_mining_pid, node_pid)
+    };
+
+    // Kill all processes without holding the lock
+    if let Some(pid) = miner_pid {
         kill_process(pid).await;
-        state_guard.miner_running = false;
-        state_guard.miner_child_id = None;
     }
-
-    if let Some(pid) = state_guard.headless_child_id {
-        kill_process(pid).await;
-        state_guard.headless_running = false;
-        state_guard.headless_child_id = None;
-    }
-
-    if let Some(pid) = state_guard.tx_mining_child_id {
-        kill_process(pid).await;
-        state_guard.tx_mining_running = false;
-        state_guard.tx_mining_child_id = None;
-    }
-
-    if !state_guard.node_running {
-        return Ok("Node is not running".to_string());
-    }
-
-    if let Some(pid) = state_guard.node_child_id {
+    if let Some(pid) = headless_pid {
         kill_process(pid).await;
     }
-
-    state_guard.node_running = false;
-    state_guard.node_child_id = None;
+    if let Some(pid) = tx_mining_pid {
+        kill_process(pid).await;
+    }
+    if let Some(pid) = node_pid {
+        kill_process(pid).await;
+    }
 
     Ok("Node stopped".to_string())
 }

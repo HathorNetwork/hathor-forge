@@ -87,18 +87,18 @@ pub async fn start_miner_internal(
 
 /// Stop the CPU miner (internal version)
 pub async fn stop_miner_internal(state: &SharedState) -> Result<String, String> {
-    let mut state_guard = state.lock().await;
+    let pid = {
+        let mut guard = state.lock().await;
+        if !guard.miner_running {
+            return Ok("Miner is not running".to_string());
+        }
+        guard.miner_running = false;
+        guard.miner_child_id.take()
+    };
 
-    if !state_guard.miner_running {
-        return Ok("Miner is not running".to_string());
-    }
-
-    if let Some(pid) = state_guard.miner_child_id {
+    if let Some(pid) = pid {
         kill_process(pid).await;
     }
-
-    state_guard.miner_running = false;
-    state_guard.miner_child_id = None;
 
     Ok("Miner stopped".to_string())
 }
