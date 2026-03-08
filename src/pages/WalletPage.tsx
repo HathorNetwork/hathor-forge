@@ -7,6 +7,7 @@ import { useWalletStore } from "@/store/useWalletStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
 import { formatHTR } from "@/lib/utils";
+import { PORTS } from "@/lib/constants";
 import type { HeadlessWallet } from "@/types";
 
 export function WalletPage() {
@@ -52,7 +53,7 @@ export function WalletPage() {
   const startHeadless = async () => {
     try {
       await api.startHeadless();
-      setHeadlessStatus({ running: true, port: 8001 });
+      setHeadlessStatus({ running: true, port: PORTS.WALLET_HEADLESS });
     } catch (e) {
       setError(String(e));
     }

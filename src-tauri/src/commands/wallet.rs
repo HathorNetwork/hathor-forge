@@ -17,7 +17,10 @@ pub(crate) async fn get_wallet_addresses(
 
     // Get current address from the wallet
     let address_response = client
-        .get("http://127.0.0.1:8080/v1a/wallet/address")
+        .get(format!(
+            "http://127.0.0.1:{}/v1a/wallet/address",
+            crate::config::DEFAULT_FULLNODE_API_PORT
+        ))
         .send()
         .await
         .map_err(|e| format!("Failed to fetch address: {}", e))?;
@@ -34,7 +37,10 @@ pub(crate) async fn get_wallet_addresses(
 
     // Get wallet balance
     let balance_response = client
-        .get("http://127.0.0.1:8080/v1a/wallet/balance")
+        .get(format!(
+            "http://127.0.0.1:{}/v1a/wallet/balance",
+            crate::config::DEFAULT_FULLNODE_API_PORT
+        ))
         .send()
         .await
         .map_err(|e| format!("Failed to fetch balance: {}", e))?;
@@ -72,7 +78,10 @@ pub(crate) async fn get_fullnode_balance(
     let client = reqwest::Client::new();
 
     let response = client
-        .get("http://127.0.0.1:8080/v1a/wallet/balance/")
+        .get(format!(
+            "http://127.0.0.1:{}/v1a/wallet/balance/",
+            crate::config::DEFAULT_FULLNODE_API_PORT
+        ))
         .send()
         .await
         .map_err(|e| format!("Failed to get balance: {}", e))?;
@@ -118,7 +127,10 @@ pub(crate) async fn send_tx(
 
     // Use the fullnode's wallet send_tokens endpoint
     let response = client
-        .post("http://127.0.0.1:8080/v1a/wallet/send_tokens/")
+        .post(format!(
+            "http://127.0.0.1:{}/v1a/wallet/send_tokens/",
+            crate::config::DEFAULT_FULLNODE_API_PORT
+        ))
         .json(&serde_json::json!({
             "data": {
                 "inputs": [],

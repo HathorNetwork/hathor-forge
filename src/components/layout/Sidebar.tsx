@@ -2,6 +2,7 @@ import {
   Activity, Settings, Terminal, Zap, Compass, Wallet, BookOpen,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { PORTS } from "@/lib/constants";
 import type { PageType } from "@/types";
 
 const navItems: { icon: typeof Activity; label: string; page: PageType }[] = [
@@ -65,11 +66,11 @@ export function Sidebar() {
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-slate-500">RPC</span>
-              <span className="font-mono text-slate-300">127.0.0.1:8080</span>
+              <span className="font-mono text-slate-300">127.0.0.1:{PORTS.FULLNODE_API}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-slate-500">Stratum</span>
-              <span className="font-mono text-slate-300">127.0.0.1:8000</span>
+              <span className="font-mono text-slate-300">127.0.0.1:{PORTS.STRATUM}</span>
             </div>
           </div>
         </div>

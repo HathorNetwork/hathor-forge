@@ -35,7 +35,14 @@ pub(crate) async fn start_headless(
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
 
     // Generate config file in the dist directory
-    generate_headless_config(&config, &headless_path, "http://localhost:8002")?;
+    generate_headless_config(
+        &config,
+        &headless_path,
+        &format!(
+            "http://localhost:{}",
+            crate::config::DEFAULT_TX_MINING_API_PORT
+        ),
+    )?;
 
     // Find node binary to run with
     let node_bin = get_node_binary_path()?;
@@ -152,7 +159,7 @@ pub(crate) async fn get_headless_status(
     Ok(HeadlessStatus {
         running: state_guard.headless_running,
         port: if state_guard.headless_running {
-            Some(8001)
+            Some(crate::config::DEFAULT_WALLET_HEADLESS_PORT)
         } else {
             None
         },
@@ -177,7 +184,10 @@ pub(crate) async fn create_headless_wallet(
 
     // Start a wallet with the provided seed
     let response = client
-        .post("http://localhost:8001/start")
+        .post(format!(
+            "http://localhost:{}/start",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .json(&serde_json::json!({
             "wallet-id": request.wallet_id,
             "seed": request.seed,
@@ -223,7 +233,10 @@ pub(crate) async fn get_headless_wallet_status(
     let client = reqwest::Client::new();
 
     let response = client
-        .get("http://localhost:8001/wallet/status")
+        .get(format!(
+            "http://localhost:{}/wallet/status",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -264,7 +277,10 @@ pub(crate) async fn get_headless_wallet_balance(
     let client = reqwest::Client::new();
 
     let response = client
-        .get("http://localhost:8001/wallet/balance")
+        .get(format!(
+            "http://localhost:{}/wallet/balance",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -298,7 +314,10 @@ pub(crate) async fn get_headless_wallet_addresses(
     let client = reqwest::Client::new();
 
     let response = client
-        .get("http://localhost:8001/wallet/addresses")
+        .get(format!(
+            "http://localhost:{}/wallet/addresses",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -338,7 +357,10 @@ pub(crate) async fn headless_wallet_send_tx(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://localhost:8001/wallet/simple-send-tx")
+        .post(format!(
+            "http://localhost:{}/wallet/simple-send-tx",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({
             "address": request.address,
@@ -387,7 +409,10 @@ pub(crate) async fn close_headless_wallet(
     let client = reqwest::Client::new();
 
     let response = client
-        .post("http://localhost:8001/wallet/stop")
+        .post(format!(
+            "http://localhost:{}/wallet/stop",
+            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+        ))
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await

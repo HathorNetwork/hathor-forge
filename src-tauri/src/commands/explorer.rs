@@ -42,7 +42,12 @@ async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
         .query()
         .map(|q| format!("?{}", q))
         .unwrap_or_default();
-    let fullnode_url = format!("http://127.0.0.1:8080/v1a/{}{}", path, query);
+    let fullnode_url = format!(
+        "http://127.0.0.1:{}/v1a/{}{}",
+        crate::config::DEFAULT_FULLNODE_API_PORT,
+        path,
+        query
+    );
 
     let client = reqwest::Client::new();
     let method = req.method().clone();
@@ -147,7 +152,10 @@ async fn proxy_ws(ws: WebSocketUpgrade) -> impl IntoResponse {
 
 async fn handle_ws_proxy(mut client_ws: WebSocket) {
     // Connect to fullnode WebSocket
-    let fullnode_url = "ws://127.0.0.1:8080/v1a/ws/";
+    let fullnode_url = &format!(
+        "ws://127.0.0.1:{}/v1a/ws/",
+        crate::config::DEFAULT_FULLNODE_API_PORT
+    );
 
     let ws_stream = match tokio_tungstenite::connect_async(fullnode_url).await {
         Ok((stream, _)) => stream,
@@ -284,12 +292,16 @@ pub(crate) async fn start_explorer_server(
         .fallback_service(ServeDir::new(&explorer_path).append_index_html_on_directories(true))
         .layer(cors);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3001));
+    let addr = SocketAddr::from(([127, 0, 0, 1], crate::config::DEFAULT_EXPLORER_PORT));
 
     // Create the server
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(|e| format!("Failed to bind to port 3001: {}", e))?;
+    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
+        format!(
+            "Failed to bind to port {}: {}",
+            crate::config::DEFAULT_EXPLORER_PORT,
+            e
+        )
+    })?;
 
     state_guard.explorer_server_running = true;
     state_guard.explorer_shutdown = Some(shutdown_tx);
@@ -317,7 +329,10 @@ pub(crate) async fn start_explorer_server(
         let _ = app_handle.emit("explorer-terminated", ());
     });
 
-    Ok("Explorer server started on http://localhost:3001".to_string())
+    Ok(format!(
+        "Explorer server started on http://localhost:{}",
+        crate::config::DEFAULT_EXPLORER_PORT
+    ))
 }
 
 // Stop the explorer HTTP server

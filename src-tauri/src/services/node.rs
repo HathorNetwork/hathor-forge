@@ -18,9 +18,9 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     // Kill any zombie processes from previous runs
     kill_process_on_port(config.api_port);
     kill_process_on_port(config.stratum_port);
-    kill_process_on_port(8001);
-    kill_process_on_port(8002);
-    kill_process_on_port(8003);
+    kill_process_on_port(crate::config::DEFAULT_WALLET_HEADLESS_PORT);
+    kill_process_on_port(crate::config::DEFAULT_TX_MINING_API_PORT);
+    kill_process_on_port(crate::config::DEFAULT_TX_MINING_STRATUM_PORT);
 
     drop(state_guard);
 
