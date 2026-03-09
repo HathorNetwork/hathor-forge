@@ -59,7 +59,7 @@ pub async fn start_mcp_server(
         event_emitter,
     );
 
-    let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
+    let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     info!(
         service = "mcp",
         port = port,

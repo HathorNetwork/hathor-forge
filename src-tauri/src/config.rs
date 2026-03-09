@@ -28,11 +28,11 @@ pub const DEFAULT_MCP_SERVER_PORT: u16 = 9876;
 pub fn find_available_port(preferred: u16) -> u16 {
     use std::net::TcpListener;
     // Try the preferred port first.
-    if TcpListener::bind(("127.0.0.1", preferred)).is_ok() {
+    if TcpListener::bind(("0.0.0.0", preferred)).is_ok() {
         return preferred;
     }
     // Fall back to OS-assigned port.
-    TcpListener::bind(("127.0.0.1", 0))
+    TcpListener::bind(("0.0.0.0", 0))
         .map(|l| l.local_addr().map(|a| a.port()).unwrap_or(preferred))
         .unwrap_or(preferred)
 }

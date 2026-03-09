@@ -313,7 +313,7 @@ pub(crate) async fn start_explorer_server(
         .layer(Extension(FullnodePort(fullnode_port)))
         .layer(cors);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], explorer_port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], explorer_port));
 
     // Bind without holding the lock (async I/O)
     let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
