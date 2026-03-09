@@ -19,7 +19,7 @@ export function Sidebar() {
   const { currentPage, setCurrentPage, unreadLogCount } = useUIStore();
 
   return (
-    <aside className="w-72 border-r border-slate-800/50 bg-[#0d1117] flex flex-col">
+    <aside className="w-72 border-r border-slate-800/50 bg-[#0d1117] flex flex-col" aria-label="Main navigation">
       <div className="p-6 border-b border-slate-800/50">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
@@ -32,21 +32,22 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1" aria-label="Main navigation">
         {navItems.map((item) => (
           <button
             key={item.label}
             onClick={() => setCurrentPage(item.page)}
+            aria-current={currentPage === item.page ? "page" : undefined}
             className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 ${
               currentPage === item.page
                 ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
                 : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent"
             }`}
           >
-            <item.icon className="h-4 w-4" />
+            <item.icon className="h-4 w-4" aria-hidden="true" />
             {item.label}
             {item.page === "logs" && unreadLogCount > 0 && (
-              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400">
+              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400" aria-label={`${unreadLogCount} unread logs`}>
                 {unreadLogCount}
               </span>
             )}
