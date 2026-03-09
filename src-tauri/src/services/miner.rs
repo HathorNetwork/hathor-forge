@@ -2,8 +2,9 @@ use std::process::Stdio;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::MinerConfig;
-use crate::platform::{get_binary_path, kill_process};
-use crate::state::{spawn_log_reader, SharedState};
+use crate::platform::get_binary_path;
+use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
+use crate::state::SharedState;
 
 use super::tx_mining::start_tx_mining_internal;
 
@@ -59,30 +60,13 @@ pub async fn start_miner_internal(
         .spawn()
         .map_err(|e| format!("Failed to spawn cpuminer at {:?}: {}", binary_path, e))?;
 
-    let pid = child.id();
-    if pid.is_none() {
-        eprintln!("Miner process exited immediately; no PID available");
-    }
+    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "miner");
     state_guard.miner_running = true;
     state_guard.miner_child_id = pid;
 
-    let log_buf = state_guard.log_buffer.clone();
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let state_clone = state.clone();
-
-    if let Some(out) = stdout {
-        spawn_log_reader(out, log_buf.clone(), "miner");
-    }
-    if let Some(err) = stderr {
-        spawn_log_reader(err, log_buf, "miner");
-    }
-
-    tokio::spawn(async move {
-        let _ = child.wait().await;
-        let mut state_guard = state_clone.lock().await;
-        state_guard.miner_running = false;
-        state_guard.miner_child_id = None;
+    spawn_exit_monitor(child, state.clone(), |s| {
+        s.miner_running = false;
+        s.miner_child_id = None;
     });
 
     Ok(format!("Miner started with {} threads", config.threads))
@@ -90,18 +74,14 @@ pub async fn start_miner_internal(
 
 /// Stop the CPU miner (internal version)
 pub async fn stop_miner_internal(state: &SharedState) -> Result<String, String> {
-    let pid = {
-        let mut guard = state.lock().await;
-        if !guard.miner_running {
-            return Ok("Miner is not running".to_string());
-        }
-        guard.miner_running = false;
-        guard.miner_child_id.take()
-    };
-
-    if let Some(pid) = pid {
-        kill_process(pid).await;
-    }
-
-    Ok("Miner stopped".to_string())
+    stop_service(
+        state,
+        "Miner",
+        |s| s.miner_running,
+        |s| {
+            s.miner_running = false;
+            s.miner_child_id.take()
+        },
+    )
+    .await
 }
