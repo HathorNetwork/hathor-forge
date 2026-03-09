@@ -166,9 +166,18 @@ $env:VCPKG_INCLUDE = $VcpkgInclude
 $env:VCPKG_LIB = $VcpkgLib
 
 # Build and install python-rocksdb
+# Use --no-build-isolation so Cython and env vars (VCPKG_INCLUDE/LIB) are available
+# Use -v for verbose output to see compilation errors
 Write-Host "Building python-rocksdb..."
-pip install .
+Write-Host "  VCPKG_INCLUDE=$env:VCPKG_INCLUDE"
+Write-Host "  VCPKG_LIB=$env:VCPKG_LIB"
+pip install --no-build-isolation -v .
 if ($LASTEXITCODE -ne 0) { throw "python-rocksdb build failed" }
+
+# Check that _rocksdb.pyd was actually built
+Write-Host "Checking for _rocksdb extension..."
+$pydFile = python -c "import importlib.util; spec = importlib.util.find_spec('rocksdb._rocksdb'); print(spec.origin if spec else 'NOT FOUND')"
+Write-Host "  _rocksdb location: $pydFile"
 
 # Verify it imports
 Write-Host "Verifying python-rocksdb import..."
