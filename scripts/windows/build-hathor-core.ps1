@@ -27,10 +27,12 @@ python -m venv venv
 
 # Install dependencies
 Write-Host "Installing hathor-core and dependencies..."
-pip install --upgrade pip wheel
+python -m pip install --upgrade pip wheel
 
 Set-Location $HathorCoreDir
-pip install -e .
+# Use non-editable install so packages are physically in site-packages
+# (editable installs use .pth links that PyInstaller can't follow on Windows)
+pip install .
 
 pip install pyinstaller
 
