@@ -324,7 +324,11 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
         #[cfg(target_os = "macos")]
         let resources_path = {
             let p = exe_dir.join("../Resources").join(bridge_name);
-            if p.exists() { Some(p) } else { None }
+            if p.exists() {
+                Some(p)
+            } else {
+                None
+            }
         };
         #[cfg(not(target_os = "macos"))]
         let resources_path: Option<std::path::PathBuf> = None;

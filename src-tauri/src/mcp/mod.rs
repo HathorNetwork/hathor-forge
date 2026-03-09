@@ -51,7 +51,13 @@ pub async fn start_mcp_server(
     tx_mining_url: Option<String>,
     event_emitter: Option<Box<dyn EventEmitter>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let app = create_mcp_router(app_state, fullnode_url, wallet_headless_url, tx_mining_url, event_emitter);
+    let app = create_mcp_router(
+        app_state,
+        fullnode_url,
+        wallet_headless_url,
+        tx_mining_url,
+        event_emitter,
+    );
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
     info!(

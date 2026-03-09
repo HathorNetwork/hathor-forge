@@ -117,8 +117,15 @@ pub fn run() {
             }
 
             tauri::async_runtime::spawn(async move {
-                if let Err(e) =
-                    mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT, None, None, None, Some(emitter)).await
+                if let Err(e) = mcp::start_mcp_server(
+                    mcp_state,
+                    MCP_SERVER_PORT,
+                    None,
+                    None,
+                    None,
+                    Some(emitter),
+                )
+                .await
                 {
                     error!(
                         service = "mcp",
