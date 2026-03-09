@@ -4,7 +4,7 @@ import {
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useWalletStore } from "@/store/useWalletStore";
-import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { Modal } from "@/components/ui/Modal";
 import * as api from "@/services/tauri";
 import { formatHTR } from "@/lib/utils";
 import { PORTS } from "@/lib/constants";
@@ -37,7 +37,6 @@ export function WalletPage() {
     setNewWalletId("");
     setImportSeed("");
   }, [setShowCreateWallet, setNewSeed, setNewWalletId, setImportSeed]);
-  useEscapeKey(closeCreateWalletModal, showCreateWallet);
 
   // Abort controller for cancelling pollWalletStatus on unmount
   const pollAbortRef = useRef<AbortController | null>(null);
@@ -563,15 +562,16 @@ export function WalletPage() {
 
       {/* Create Wallet Modal */}
       {showCreateWallet && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <Wallet className="w-5 h-5 text-amber-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">Create New Wallet</h3>
+        <Modal
+          title="Create New Wallet"
+          onClose={closeCreateWalletModal}
+          maxWidth="max-w-lg"
+          icon={
+            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+              <Wallet className="w-5 h-5 text-amber-400" />
             </div>
-
+          }
+        >
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -635,12 +635,7 @@ export function WalletPage() {
 
             <div className="flex gap-3 justify-end mt-6">
               <button
-                onClick={() => {
-                  setShowCreateWallet(false);
-                  setNewSeed(null);
-                  setNewWalletId("");
-                  setImportSeed("");
-                }}
+                onClick={closeCreateWalletModal}
                 className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
               >
                 Cancel
@@ -663,8 +658,7 @@ export function WalletPage() {
                 )}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

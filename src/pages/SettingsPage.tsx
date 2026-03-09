@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { AlertTriangle, Trash2, Loader2 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
-import { useEscapeKey } from "@/hooks/useEscapeKey";
+import { Modal } from "@/components/ui/Modal";
 import * as api from "@/services/tauri";
 
 export function SettingsPage() {
@@ -13,7 +13,6 @@ export function SettingsPage() {
   const clearContracts = useNanoContractStore((s) => s.clearContracts);
 
   const closeResetModal = useCallback(() => setShowResetConfirm(false), []);
-  useEscapeKey(closeResetModal, showResetConfirm);
 
   const handleResetData = async () => {
     if (nodeStatus === "running") {
@@ -80,21 +79,22 @@ export function SettingsPage() {
 
       {/* Reset Confirmation Modal */}
       {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-red-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">Reset Blockchain Data?</h3>
+        <Modal
+          title="Reset Blockchain Data?"
+          onClose={closeResetModal}
+          icon={
+            <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+              <AlertTriangle className="w-5 h-5 text-red-400" />
             </div>
+          }
+        >
             <p className="text-slate-400 mb-6">
               This will permanently delete all blockchain data including blocks, transactions, and wallet history.
               You will need to mine from block 0 again. This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setShowResetConfirm(false)}
+                onClick={closeResetModal}
                 className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
               >
                 Cancel
@@ -111,8 +111,7 @@ export function SettingsPage() {
                 )}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
 
     </div>
