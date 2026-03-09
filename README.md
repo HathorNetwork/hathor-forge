@@ -8,6 +8,14 @@ A local blockchain development environment for [Hathor Network](https://hathor.n
 
 Start a fullnode, mine blocks, create wallets, and send transactions — all locally, zero configuration.
 
+<p align="center">
+  <img src="screenshot1.png" alt="Dashboard" width="700" />
+</p>
+
+<p align="center">
+  <img src="screenshot2.png" alt="Wallet Manager" width="700" />
+</p>
+
 ## Getting Started
 
 ### Option 1: CLI (no GUI needed)
