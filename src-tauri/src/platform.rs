@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use tokio::process::Command as TokioCommand;
-use tracing::warn;
+use tracing::{debug, warn};
 
 use crate::config::HeadlessConfig;
 
@@ -45,7 +45,17 @@ fn get_binaries_dirs() -> Vec<PathBuf> {
         if exe_binaries.exists() {
             dirs.push(exe_binaries);
         }
-        // Also check the exe directory itself (for externalBin sidecars)
+
+        // Windows: some installers place resources in a resources/ subdirectory
+        #[cfg(target_os = "windows")]
+        {
+            let resources_binaries = dir.join("resources").join("binaries");
+            if resources_binaries.exists() {
+                dirs.push(resources_binaries);
+            }
+        }
+
+        // Also check the exe directory itself
         dirs.push(dir);
     }
 
@@ -77,6 +87,12 @@ pub fn get_binary_path(name: &str) -> PathBuf {
     };
 
     let binaries_dirs = get_binaries_dirs();
+    debug!(
+        binary = name,
+        target = target,
+        candidate_dirs = ?binaries_dirs,
+        "Resolving binary path"
+    );
 
     for binaries_dir in &binaries_dirs {
         // hathor-core and tx-mining-service use onedir mode
@@ -86,6 +102,7 @@ pub fn get_binary_path(name: &str) -> PathBuf {
                 .join(format!("{}-{}", name, target))
                 .join(&binary_name);
             if onedir_path.exists() {
+                debug!(path = ?onedir_path, "Found onedir binary");
                 return onedir_path;
             }
         }
@@ -104,6 +121,12 @@ pub fn get_binary_path(name: &str) -> PathBuf {
     }
 
     // Fallback: use first binaries_dir for error reporting
+    warn!(
+        binary = name,
+        target = target,
+        candidate_dirs = ?binaries_dirs,
+        "Binary not found in any candidate directory, using fallback path"
+    );
     let fallback_dir = binaries_dirs
         .first()
         .cloned()
@@ -219,6 +242,15 @@ pub fn get_headless_dist_path() -> PathBuf {
         let exe_path = dir.join("wallet-headless-dist");
         if exe_path.exists() {
             return exe_path;
+        }
+
+        // Windows: some installers place resources in a resources/ subdirectory
+        #[cfg(target_os = "windows")]
+        {
+            let resources_path = dir.join("resources").join("wallet-headless-dist");
+            if resources_path.exists() {
+                return resources_path;
+            }
         }
     }
 

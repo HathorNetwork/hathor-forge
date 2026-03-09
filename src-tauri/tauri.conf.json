@@ -34,7 +34,6 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/hathor-core",
       "binaries/cpuminer"
     ],
     "resources": [

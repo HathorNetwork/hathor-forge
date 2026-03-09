@@ -35,6 +35,15 @@ fn get_explorer_dist_path() -> std::path::PathBuf {
             if exe_dist.exists() {
                 return exe_dist;
             }
+
+            // Windows: some installers place resources in a resources/ subdirectory
+            #[cfg(target_os = "windows")]
+            {
+                let resources_dist = exe_dir.join("resources").join("explorer-dist");
+                if resources_dist.exists() {
+                    return resources_dist;
+                }
+            }
         }
     }
 

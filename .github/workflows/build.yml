@@ -232,19 +232,6 @@ jobs:
         shell: pwsh
         run: .\scripts\windows\build-node.ps1
 
-      - name: Create externalBin stubs for Tauri build
-        shell: pwsh
-        run: |
-          # Tauri's externalBin expects single files with .exe suffix on Windows,
-          # but hathor-core is a PyInstaller onedir bundle (directory).
-          # Create stub .exe files so the Tauri build check passes.
-          # The actual onedir bundles are included via resources in tauri.conf.json.
-          $binDir = "src-tauri\binaries"
-          $target = "x86_64-pc-windows-msvc"
-          if (-not (Test-Path "$binDir\hathor-core-$target.exe")) {
-            Copy-Item "$binDir\hathor-core-$target\hathor-core.exe" "$binDir\hathor-core-$target.exe"
-          }
-
       - name: Install npm dependencies
         run: npm ci
 

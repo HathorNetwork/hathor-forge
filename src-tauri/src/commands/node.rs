@@ -340,6 +340,22 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
             if prod_path.exists() {
                 prod_path
             } else {
+                // Windows: check resources/ subdirectory
+                #[cfg(target_os = "windows")]
+                {
+                    let win_path = exe_dir.join("resources").join(bridge_name);
+                    if win_path.exists() {
+                        return Ok(serde_json::json!({
+                            "hathor-forge": {
+                                "command": node_path.to_string_lossy(),
+                                "args": [
+                                    win_path.to_string_lossy(),
+                                    &format!("http://127.0.0.1:{}/mcp", crate::config::DEFAULT_MCP_SERVER_PORT)
+                                ]
+                            }
+                        }));
+                    }
+                }
                 return Err(format!(
                     "MCP bridge script not found at {:?} or {:?}",
                     dev_path, prod_path
