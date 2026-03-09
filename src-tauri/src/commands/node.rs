@@ -316,17 +316,31 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
     let bridge_path = if dev_path.exists() {
         dev_path
     } else if let Ok(exe) = std::env::current_exe() {
-        let prod_path = exe
+        let exe_dir = exe
             .parent()
-            .ok_or("Cannot determine parent directory of executable")?
-            .join(bridge_name);
-        if prod_path.exists() {
-            prod_path
+            .ok_or("Cannot determine parent directory of executable")?;
+
+        // macOS: Tauri places resources in Contents/Resources/
+        #[cfg(target_os = "macos")]
+        let resources_path = {
+            let p = exe_dir.join("../Resources").join(bridge_name);
+            if p.exists() { Some(p) } else { None }
+        };
+        #[cfg(not(target_os = "macos"))]
+        let resources_path: Option<std::path::PathBuf> = None;
+
+        if let Some(p) = resources_path {
+            p
         } else {
-            return Err(format!(
-                "MCP bridge script not found at {:?} or {:?}",
-                dev_path, prod_path
-            ));
+            let prod_path = exe_dir.join(bridge_name);
+            if prod_path.exists() {
+                prod_path
+            } else {
+                return Err(format!(
+                    "MCP bridge script not found at {:?} or {:?}",
+                    dev_path, prod_path
+                ));
+            }
         }
     } else {
         return Err(format!("MCP bridge script not found at {:?}", dev_path));

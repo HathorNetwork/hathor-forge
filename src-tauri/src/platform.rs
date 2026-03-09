@@ -29,8 +29,18 @@ fn get_binaries_dirs() -> Vec<PathBuf> {
         dirs.push(cargo_dir);
     }
 
-    // 3. Production: next to the running executable (where Tauri places bundled resources)
+    // 3. Production: Tauri places resources in Contents/Resources/ on macOS,
+    //    next to the executable on Linux/Windows.
     if let Some(dir) = exe_dir() {
+        // macOS: Contents/MacOS/../Resources/binaries
+        #[cfg(target_os = "macos")]
+        {
+            let resources_binaries = dir.join("../Resources/binaries");
+            if resources_binaries.exists() {
+                dirs.push(resources_binaries);
+            }
+        }
+
         let exe_binaries = dir.join("binaries");
         if exe_binaries.exists() {
             dirs.push(exe_binaries);
@@ -194,9 +204,19 @@ pub fn get_headless_dist_path() -> PathBuf {
         return dev_path;
     }
 
-    // Production: next to the running executable
-    if let Some(exe_dir) = exe_dir() {
-        let exe_path = exe_dir.join("wallet-headless-dist");
+    // Production: Tauri places resources in Contents/Resources/ on macOS,
+    // next to the executable on Linux/Windows.
+    if let Some(dir) = exe_dir() {
+        // macOS: Contents/MacOS/../Resources/wallet-headless-dist
+        #[cfg(target_os = "macos")]
+        {
+            let resources_path = dir.join("../Resources/wallet-headless-dist");
+            if resources_path.exists() {
+                return resources_path;
+            }
+        }
+
+        let exe_path = dir.join("wallet-headless-dist");
         if exe_path.exists() {
             return exe_path;
         }

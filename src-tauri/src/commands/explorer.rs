@@ -20,9 +20,17 @@ fn get_explorer_dist_path() -> std::path::PathBuf {
         return dev_path;
     }
 
-    // Production: next to the running executable
+    // Production: Tauri places resources in Contents/Resources/ on macOS
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
+            #[cfg(target_os = "macos")]
+            {
+                let resources_dist = exe_dir.join("../Resources/explorer-dist");
+                if resources_dist.exists() {
+                    return resources_dist;
+                }
+            }
+
             let exe_dist = exe_dir.join("explorer-dist");
             if exe_dist.exists() {
                 return exe_dist;
