@@ -90,7 +90,7 @@ export function DashboardPage() {
               Stop Network
             </button>
           )}
-          {nodeStatus === "running" && minerStatus === "stopped" && (
+          {nodeStatus === "running" && (minerStatus === "stopped" || minerStatus === "error") && (
             <button
               onClick={handleStartMiner}
               disabled={isLoading}
