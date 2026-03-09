@@ -26,10 +26,12 @@ This generates a React project pre-configured with Hathor wallet integration, re
 
 Hathor nano contracts are called **blueprints** — Python 3.11 classes that run on-chain.
 
-To help the user write blueprints, **suggest they install the hathor-blueprints Claude Code skill** by running this slash command inside Claude Code:
+To help the user write blueprints, **suggest they install the hathor-blueprints Claude Code skill**:
 
-```
-/install-skill https://github.com/HathorNetwork/hathor-skills/tree/master/skills/hathor-blueprints
+```bash
+# Clone the skills repo and copy the blueprint skill to your Claude Code skills directory
+git clone https://github.com/HathorNetwork/hathor-skills.git /tmp/hathor-skills
+cp -r /tmp/hathor-skills/skills/hathor-blueprints ~/.claude/skills/
 ```
 
 This skill gives you deep knowledge of blueprint syntax, patterns, and best practices. Without it, you will not have enough context to write correct blueprints.

@@ -38,6 +38,144 @@ pub(crate) async fn start_node(
 
     let binary_path = get_binary_path("hathor-core");
 
+    // --- Diagnostic logging for binary path resolution ---
+    let _ = app.emit(
+        "node-log",
+        &format!("[DIAG] exe_path = {:?}", std::env::current_exe().ok()),
+    );
+    let _ = app.emit(
+        "node-log",
+        &format!("[DIAG] binary_path = {:?}", binary_path),
+    );
+    let _ = app.emit(
+        "node-log",
+        &format!("[DIAG] binary_path.exists() = {}", binary_path.exists()),
+    );
+    if let Some(parent) = binary_path.parent() {
+        let _ = app.emit("node-log", &format!("[DIAG] parent dir = {:?}", parent));
+        let internal = parent.join("_internal");
+        let _ = app.emit(
+            "node-log",
+            &format!("[DIAG] _internal dir = {:?}", internal),
+        );
+        let _ = app.emit(
+            "node-log",
+            &format!("[DIAG] _internal.exists() = {}", internal.exists()),
+        );
+        if internal.exists() {
+            // List top-level contents of _internal
+            if let Ok(entries) = fs::read_dir(&internal) {
+                let items: Vec<String> = entries
+                    .filter_map(|e| e.ok())
+                    .take(20)
+                    .map(|e| {
+                        format!(
+                            "{} ({})",
+                            e.file_name().to_string_lossy(),
+                            if e.path().is_dir() { "dir" } else { "file" }
+                        )
+                    })
+                    .collect();
+                let _ = app.emit(
+                    "node-log",
+                    &format!("[DIAG] _internal contents: {:?}", items),
+                );
+            }
+        }
+        // List parent directory contents
+        if let Ok(entries) = fs::read_dir(parent) {
+            let items: Vec<String> = entries
+                .filter_map(|e| e.ok())
+                .take(30)
+                .map(|e| {
+                    format!(
+                        "{} ({})",
+                        e.file_name().to_string_lossy(),
+                        if e.path().is_dir() { "dir" } else { "file" }
+                    )
+                })
+                .collect();
+            let _ = app.emit(
+                "node-log",
+                &format!("[DIAG] parent dir contents: {:?}", items),
+            );
+        }
+    }
+    // Also list exe_dir contents
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(exe_dir) = exe.parent() {
+            let _ = app.emit("node-log", &format!("[DIAG] exe_dir = {:?}", exe_dir));
+            if let Ok(entries) = fs::read_dir(exe_dir) {
+                let items: Vec<String> = entries
+                    .filter_map(|e| e.ok())
+                    .take(40)
+                    .map(|e| {
+                        format!(
+                            "{} ({})",
+                            e.file_name().to_string_lossy(),
+                            if e.path().is_dir() { "dir" } else { "file" }
+                        )
+                    })
+                    .collect();
+                let _ = app.emit("node-log", &format!("[DIAG] exe_dir contents: {:?}", items));
+            }
+            // Check if binaries/ subdir exists
+            let binaries_dir = exe_dir.join("binaries");
+            let _ = app.emit(
+                "node-log",
+                &format!("[DIAG] exe_dir/binaries exists = {}", binaries_dir.exists()),
+            );
+            if binaries_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&binaries_dir) {
+                    let items: Vec<String> = entries
+                        .filter_map(|e| e.ok())
+                        .take(20)
+                        .map(|e| {
+                            format!(
+                                "{} ({})",
+                                e.file_name().to_string_lossy(),
+                                if e.path().is_dir() { "dir" } else { "file" }
+                            )
+                        })
+                        .collect();
+                    let _ = app.emit(
+                        "node-log",
+                        &format!("[DIAG] binaries/ contents: {:?}", items),
+                    );
+                }
+            }
+            // Check resources/ subdir
+            let resources_dir = exe_dir.join("resources");
+            let _ = app.emit(
+                "node-log",
+                &format!(
+                    "[DIAG] exe_dir/resources exists = {}",
+                    resources_dir.exists()
+                ),
+            );
+            if resources_dir.exists() {
+                if let Ok(entries) = fs::read_dir(&resources_dir) {
+                    let items: Vec<String> = entries
+                        .filter_map(|e| e.ok())
+                        .take(20)
+                        .map(|e| {
+                            format!(
+                                "{} ({})",
+                                e.file_name().to_string_lossy(),
+                                if e.path().is_dir() { "dir" } else { "file" }
+                            )
+                        })
+                        .collect();
+                    let _ = app.emit(
+                        "node-log",
+                        &format!("[DIAG] resources/ contents: {:?}", items),
+                    );
+                }
+            }
+        }
+    }
+    // --- End diagnostic logging ---
+
     // Ensure data directory exists
     fs::create_dir_all(&config.data_dir)
         .map_err(|e| format!("Failed to create data directory: {}", e))?;
