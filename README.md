@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/app-icon-256.png" alt="Hathor Forge" width="128" />
+</p>
+
 # Hathor Forge
 
 A local blockchain development environment for [Hathor Network](https://hathor.network). Think Ganache, but for Hathor.
