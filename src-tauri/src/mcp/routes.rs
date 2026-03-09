@@ -33,7 +33,8 @@ pub async fn handle_mcp_request(
                 "serverInfo": {
                     "name": "hathor-forge",
                     "version": "1.0.0"
-                }
+                },
+                "instructions": include_str!("instructions.md")
             })),
             error: None,
         },
