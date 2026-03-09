@@ -35,8 +35,11 @@ pub async fn start_miner_internal(
 
     let mut state_guard = state.lock().await;
 
-    // Re-check after re-acquiring the lock to prevent TOCTOU race condition:
-    // another caller may have started the miner while we released the lock.
+    // Re-check ALL preconditions after re-acquiring the lock to prevent TOCTOU race:
+    // the node may have stopped, or another caller may have started the miner.
+    if !state_guard.node_running {
+        return Err("Node must be running before starting miner".to_string());
+    }
     if state_guard.miner_running {
         return Ok("Miner is already running".to_string());
     }

@@ -56,8 +56,11 @@ pub async fn start_headless_internal(
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
     let mut state_guard = state.lock().await;
 
-    // Re-check after re-acquiring the lock to prevent TOCTOU race condition:
-    // another caller may have started wallet-headless while we released the lock.
+    // Re-check ALL preconditions after re-acquiring the lock to prevent TOCTOU race:
+    // the node may have stopped, or another caller may have started wallet-headless.
+    if !state_guard.node_running {
+        return Err("Node must be running before starting wallet-headless".to_string());
+    }
     if state_guard.headless_running {
         return Ok("Wallet-headless is already running".to_string());
     }

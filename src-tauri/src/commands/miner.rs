@@ -29,7 +29,15 @@ pub(crate) async fn start_miner(
         }
     }
 
+    // Re-acquire lock and re-check ALL preconditions (node may have stopped,
+    // or another caller may have started the miner while we released the lock)
     let mut state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node must be running before starting miner".to_string());
+    }
+    if state_guard.miner_running {
+        return Err("Miner is already running".to_string());
+    }
     let binary_path = get_binary_path("cpuminer");
 
     // Spawn the process using tokio
@@ -147,20 +155,31 @@ pub(crate) async fn start_tx_mining(
     state: tauri::State<'_, SharedState>,
 ) -> Result<String, String> {
     let config = TxMiningConfig::default();
-    let mut state_guard = state.lock().await;
 
-    if !state_guard.node_running {
-        return Err("Node must be running before starting tx-mining-service".to_string());
+    // Check state early (without holding lock during cleanup)
+    {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node must be running before starting tx-mining-service".to_string());
+        }
+        if state_guard.tx_mining_running {
+            return Err("tx-mining-service is already running".to_string());
+        }
     }
 
-    if state_guard.tx_mining_running {
-        return Err("tx-mining-service is already running".to_string());
-    }
-
-    // Kill any zombie process on the tx-mining ports
+    // Kill any zombie process on the tx-mining ports (no lock held)
     kill_process_on_port(config.api_port);
     kill_process_on_port(config.stratum_port);
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    // Re-acquire lock and re-check ALL preconditions
+    let mut state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node must be running before starting tx-mining-service".to_string());
+    }
+    if state_guard.tx_mining_running {
+        return Err("tx-mining-service is already running".to_string());
+    }
 
     let binary_path = get_binary_path("tx-mining-service");
 

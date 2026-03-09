@@ -261,10 +261,12 @@ pub(crate) async fn start_explorer_server(
     app: tauri::AppHandle,
     state: tauri::State<'_, SharedState>,
 ) -> Result<String, String> {
-    let mut state_guard = state.lock().await;
-
-    if state_guard.explorer_server_running {
-        return Err("Explorer server is already running".to_string());
+    // Check state early without holding lock across async bind
+    {
+        let state_guard = state.lock().await;
+        if state_guard.explorer_server_running {
+            return Err("Explorer server is already running".to_string());
+        }
     }
 
     let explorer_path = get_explorer_dist_path();
@@ -274,9 +276,6 @@ pub(crate) async fn start_explorer_server(
             explorer_path
         ));
     }
-
-    // Create shutdown channel
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
 
     // Build the router with CORS support and API proxy
     let cors = CorsLayer::new()
@@ -294,7 +293,7 @@ pub(crate) async fn start_explorer_server(
 
     let addr = SocketAddr::from(([127, 0, 0, 1], crate::config::DEFAULT_EXPLORER_PORT));
 
-    // Create the server
+    // Bind without holding the lock (async I/O)
     let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
         format!(
             "Failed to bind to port {}: {}",
@@ -303,6 +302,14 @@ pub(crate) async fn start_explorer_server(
         )
     })?;
 
+    // Re-acquire lock and re-check before committing state
+    let mut state_guard = state.lock().await;
+    if state_guard.explorer_server_running {
+        return Err("Explorer server is already running".to_string());
+    }
+
+    // Create shutdown channel
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
     state_guard.explorer_server_running = true;
     state_guard.explorer_shutdown = Some(shutdown_tx);
 

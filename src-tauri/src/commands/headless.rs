@@ -12,14 +12,16 @@ pub(crate) async fn start_headless(
     config: Option<HeadlessConfig>,
 ) -> Result<String, String> {
     let config = config.unwrap_or_default();
-    let mut state_guard = state.lock().await;
 
-    if !state_guard.node_running {
-        return Err("Node must be running before starting wallet-headless".to_string());
-    }
-
-    if state_guard.headless_running {
-        return Err("Wallet-headless is already running".to_string());
+    // Check state early (without holding lock during cleanup)
+    {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node must be running before starting wallet-headless".to_string());
+        }
+        if state_guard.headless_running {
+            return Err("Wallet-headless is already running".to_string());
+        }
     }
 
     let headless_path = get_headless_dist_path();
@@ -30,9 +32,18 @@ pub(crate) async fn start_headless(
         ));
     }
 
-    // Kill any zombie process on the headless port
+    // Kill any zombie process on the headless port (no lock held)
     kill_process_on_port(config.port);
     tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+
+    // Re-acquire lock and re-check ALL preconditions
+    let mut state_guard = state.lock().await;
+    if !state_guard.node_running {
+        return Err("Node must be running before starting wallet-headless".to_string());
+    }
+    if state_guard.headless_running {
+        return Err("Wallet-headless is already running".to_string());
+    }
 
     // Generate config file in the dist directory
     generate_headless_config(
