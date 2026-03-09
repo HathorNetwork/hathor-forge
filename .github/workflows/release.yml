@@ -1,0 +1,285 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-24.11
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: actions/cache@v4
+        with:
+          path: /nix/store
+          key: nix-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-${{ runner.os }}-
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Build hathor-core
+        run: nix develop --command bash ./scripts/build-hathor-core.sh
+
+      - name: Build cpuminer
+        run: nix develop --command bash ./scripts/build-cpuminer.sh
+
+      - name: Build wallet-headless
+        run: nix develop --command bash ./scripts/build-wallet-headless.sh
+
+      - name: Build tx-mining-service
+        run: nix develop --command bash ./scripts/build-tx-mining-service.sh
+
+      - name: Build explorer
+        run: nix develop --command bash ./scripts/build-explorer.sh
+
+      - name: Bundle Node.js binary
+        run: nix develop --command bash ./scripts/build-node.sh
+
+      - name: Install npm dependencies
+        run: nix develop --command npm ci
+
+      - name: Build Tauri app
+        run: nix develop --command npm run tauri build -- --bundles deb,appimage
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: warn
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-24.11
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Cache Nix store
+        uses: actions/cache@v4
+        with:
+          path: /nix/store
+          key: nix-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-${{ runner.os }}-
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+
+      - name: Build hathor-core
+        run: nix develop --command bash ./scripts/build-hathor-core.sh
+
+      - name: Build cpuminer
+        run: nix develop --command bash ./scripts/build-cpuminer.sh
+
+      - name: Build wallet-headless
+        run: nix develop --command bash ./scripts/build-wallet-headless.sh
+
+      - name: Build tx-mining-service
+        run: nix develop --command bash ./scripts/build-tx-mining-service.sh
+
+      - name: Build explorer
+        run: nix develop --command bash ./scripts/build-explorer.sh
+
+      - name: Bundle Node.js binary
+        run: nix develop --command bash ./scripts/build-node.sh
+
+      - name: Install npm dependencies
+        run: nix develop --command npm ci
+
+      - name: Build Tauri app
+        run: nix develop --command npm run tauri build -- --bundles dmg
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: warn
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-${{ runner.os }}-
+
+      - name: Install MSYS2 (for cpuminer autotools)
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-curl
+            autoconf
+            automake
+            libtool
+            make
+
+      - name: Clone dependency repositories
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/HathorNetwork/hathor-core.git ..\hathor-core
+          git clone --depth 1 https://github.com/HathorNetwork/cpuminer.git ..\cpuminer
+          git clone --depth 1 https://github.com/HathorNetwork/hathor-wallet-headless.git ..\hathor-wallet-headless
+          git clone --depth 1 https://github.com/HathorNetwork/tx-mining-service.git ..\tx-mining-service
+          git clone --depth 1 https://github.com/HathorNetwork/hathor-explorer.git ..\hathor-explorer
+
+      - name: Build hathor-core (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-hathor-core.ps1
+
+      - name: Build cpuminer (Windows/MSYS2)
+        shell: msys2 {0}
+        run: |
+          export CPUMINER_SRC="$(cygpath -u "$GITHUB_WORKSPACE/../cpuminer")"
+          bash ./scripts/windows/build-cpuminer.sh
+
+      - name: Build wallet-headless (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-wallet-headless.ps1
+
+      - name: Build tx-mining-service (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-tx-mining-service.ps1
+
+      - name: Build explorer (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-explorer.ps1
+
+      - name: Bundle Node.js binary (Windows)
+        shell: pwsh
+        run: .\scripts\windows\build-node.ps1
+
+      - name: Create externalBin stubs for Tauri build
+        shell: pwsh
+        run: |
+          $binDir = "src-tauri\binaries"
+          $target = "x86_64-pc-windows-msvc"
+          if (-not (Test-Path "$binDir\hathor-core-$target.exe")) {
+            Copy-Item "$binDir\hathor-core-$target\hathor-core.exe" "$binDir\hathor-core-$target.exe"
+          }
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Tauri app
+        run: npm run tauri build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn
+
+  release:
+    needs: [build-linux, build-macos, build-windows]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: List release files
+        run: find release-artifacts -type f | sort
+
+      - name: Create GitHub Release
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+          files: |
+            release-artifacts/linux-release/**/*
+            release-artifacts/macos-release/**/*
+            release-artifacts/windows-release/**/*
