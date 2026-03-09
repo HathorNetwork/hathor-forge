@@ -421,11 +421,12 @@ export function WalletPage() {
                               <button
                                 onClick={() => copyAddress(addr)}
                                 className="p-1 hover:bg-slate-700 rounded transition-colors"
+                                aria-label={copiedAddress === addr ? "Address copied" : "Copy address"}
                               >
                                 {copiedAddress === addr ? (
-                                  <Check className="w-3 h-3 text-green-400" />
+                                  <Check className="w-3 h-3 text-green-400" aria-hidden="true" />
                                 ) : (
-                                  <Copy className="w-3 h-3 text-slate-500" />
+                                  <Copy className="w-3 h-3 text-slate-500" aria-hidden="true" />
                                 )}
                               </button>
                             </div>
@@ -442,6 +443,7 @@ export function WalletPage() {
                           <input
                             type="text"
                             placeholder="Destination address"
+                            aria-label="Destination address"
                             className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
                             value={walletSendForms[wallet.wallet_id]?.address ?? ""}
                             onChange={(e) => setWalletSendForms((prev) => ({
@@ -452,6 +454,7 @@ export function WalletPage() {
                           <input
                             type="number"
                             placeholder="Amount"
+                            aria-label="Amount in HTR"
                             className="w-24 px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
                             value={walletSendForms[wallet.wallet_id]?.amount ?? ""}
                             onChange={(e) => setWalletSendForms((prev) => ({
@@ -484,7 +487,7 @@ export function WalletPage() {
 
       {/* Transaction Result */}
       {txResult && (
-        <div className={`p-3 rounded-lg text-sm ${
+        <div role="alert" aria-live="assertive" className={`p-3 rounded-lg text-sm ${
           txResult.type === "success"
             ? "bg-green-500/10 text-green-400 border border-green-500/30"
             : "bg-red-500/10 text-red-400 border border-red-500/30"
@@ -515,10 +518,11 @@ export function WalletPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="faucet-address" className="block text-sm font-medium text-slate-300 mb-2">
                 Destination Address
               </label>
               <input
+                id="faucet-address"
                 type="text"
                 value={faucetAddress}
                 onChange={(e) => setFaucetAddress(e.target.value)}
@@ -527,10 +531,11 @@ export function WalletPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="faucet-amount" className="block text-sm font-medium text-slate-300 mb-2">
                 Amount (HTR)
               </label>
               <input
+                id="faucet-amount"
                 type="number"
                 value={faucetAmount}
                 onChange={(e) => setFaucetAmount(e.target.value)}
@@ -569,16 +574,17 @@ export function WalletPage() {
           maxWidth="max-w-lg"
           icon={
             <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-              <Wallet className="w-5 h-5 text-amber-400" />
+              <Wallet className="w-5 h-5 text-amber-400" aria-hidden="true" />
             </div>
           }
         >
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label htmlFor="new-wallet-id" className="block text-sm font-medium text-slate-300 mb-2">
                   Wallet ID
                 </label>
                 <input
+                  id="new-wallet-id"
                   type="text"
                   value={newWalletId}
                   onChange={(e) => setNewWalletId(e.target.value)}
@@ -611,18 +617,20 @@ export function WalletPage() {
                       <button
                         onClick={() => navigator.clipboard.writeText(newSeed)}
                         className="p-1 hover:bg-emerald-500/20 rounded transition-colors"
+                        aria-label="Copy seed phrase"
                       >
-                        <Copy className="w-4 h-4 text-emerald-400" />
+                        <Copy className="w-4 h-4 text-emerald-400" aria-hidden="true" />
                       </button>
                     </div>
                     <p className="text-sm text-emerald-300 font-mono leading-relaxed break-all">{newSeed}</p>
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-sm font-medium text-slate-300 mb-2">
+                    <label htmlFor="import-seed" className="block text-sm font-medium text-slate-300 mb-2">
                       Seed Phrase (24 words)
                     </label>
                     <textarea
+                      id="import-seed"
                       value={importSeed}
                       onChange={(e) => setImportSeed(e.target.value)}
                       placeholder="Enter your 24-word seed phrase..."

@@ -43,7 +43,7 @@ export function SettingsPage() {
       {/* Danger Zone */}
       <div className="border border-red-500/30 rounded-xl bg-red-500/5 p-6">
         <div className="flex items-center gap-3 mb-4">
-          <AlertTriangle className="w-5 h-5 text-red-400" />
+          <AlertTriangle className="w-5 h-5 text-red-400" aria-hidden="true" />
           <h3 className="text-lg font-semibold text-red-400">Danger Zone</h3>
         </div>
 
@@ -60,13 +60,13 @@ export function SettingsPage() {
               disabled={nodeStatus === "running" || resetStatus === "resetting"}
               className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              <Trash2 className="w-4 h-4" />
+              <Trash2 className="w-4 h-4" aria-hidden="true" />
               Reset Data
             </button>
           </div>
 
           {resetStatus !== "idle" && (
-            <div className={`p-3 rounded-lg text-sm ${
+            <div role="status" aria-live="polite" className={`p-3 rounded-lg text-sm ${
               resetStatus === "success" ? "bg-green-500/10 text-green-400 border border-green-500/30" :
               resetStatus === "error" ? "bg-red-500/10 text-red-400 border border-red-500/30" :
               "bg-slate-800 text-slate-400"
@@ -84,7 +84,7 @@ export function SettingsPage() {
           onClose={closeResetModal}
           icon={
             <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-red-400" />
+              <AlertTriangle className="w-5 h-5 text-red-400" aria-hidden="true" />
             </div>
           }
         >
@@ -107,7 +107,7 @@ export function SettingsPage() {
                 {resetStatus === "resetting" ? (
                   <><Loader2 className="w-4 h-4 animate-spin" />Resetting...</>
                 ) : (
-                  <><Trash2 className="w-4 h-4" />Yes, Reset Data</>
+                  <><Trash2 className="w-4 h-4" aria-hidden="true" />Yes, Reset Data</>
                 )}
               </button>
             </div>

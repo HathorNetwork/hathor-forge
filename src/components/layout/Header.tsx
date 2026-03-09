@@ -5,17 +5,17 @@ export function Header() {
   const { nodeStatus, minerStatus, blockHeight, hashRate } = useNodeStore();
 
   return (
-    <header className="h-16 border-b border-slate-800/50 bg-[#0d1117] flex items-center justify-between px-6">
+    <header className="h-16 border-b border-slate-800/50 bg-[#0d1117] flex items-center justify-between px-6" role="banner">
       <div className="flex items-center gap-8">
         <div className="flex items-center gap-3">
-          <Database className="w-4 h-4 text-slate-500" />
+          <Database className="w-4 h-4 text-slate-500" aria-hidden="true" />
           <div>
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Block Height</span>
             <span className="text-lg font-bold font-mono text-white">{blockHeight.toLocaleString()}</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Cpu className="w-4 h-4 text-slate-500" />
+          <Cpu className="w-4 h-4 text-slate-500" aria-hidden="true" />
           <div>
             <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Hash Rate</span>
             <span className="text-lg font-bold font-mono text-white">{hashRate}</span>
@@ -25,7 +25,7 @@ export function Header() {
 
       <div className="flex items-center gap-4">
         {/* Node Status */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/50">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/50" role="status" aria-live="polite" aria-label={`Node status: ${nodeStatus}`}>
           <div
             className={`w-2 h-2 rounded-full ${
               nodeStatus === "running"
@@ -36,6 +36,7 @@ export function Header() {
                 ? "bg-rose-400"
                 : "bg-slate-600"
             }`}
+            aria-hidden="true"
           />
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Node</span>
           <span
@@ -54,7 +55,7 @@ export function Header() {
         </div>
 
         {/* Miner Status */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/50">
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/50" role="status" aria-live="polite" aria-label={`Miner status: ${minerStatus}`}>
           <div
             className={`w-2 h-2 rounded-full ${
               minerStatus === "mining"
@@ -65,6 +66,7 @@ export function Header() {
                 ? "bg-rose-400"
                 : "bg-slate-600"
             }`}
+            aria-hidden="true"
           />
           <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Miner</span>
           <span
