@@ -1,4 +1,4 @@
-import { useAppStore } from "./store/useAppStore";
+import { useUIStore } from "./store/useUIStore";
 import { useNodeStatusPolling } from "@/hooks/useNodeStatus";
 import { useContractStatesPolling } from "@/hooks/useContractStates";
 import { useTauriEvents } from "@/hooks/useTauriEvents";
@@ -19,7 +19,7 @@ import { ApiExplorerPage } from "@/pages/ApiExplorerPage";
 
 
 function App() {
-  const currentPage = useAppStore((s) => s.currentPage);
+  const currentPage = useUIStore((s) => s.currentPage);
 
   // Global hooks: polling, event subscriptions & initial state
   useTauriEvents();

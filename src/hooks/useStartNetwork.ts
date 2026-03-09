@@ -1,10 +1,12 @@
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
+import { useUIStore } from "@/store/useUIStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import * as api from "@/services/tauri";
 import { PORTS } from "@/lib/constants";
 
 export function useStartNetwork() {
-  const { nodeStatus, setNodeStatus, setError } = useAppStore();
+  const { nodeStatus, setNodeStatus } = useNodeStore();
+  const { setError } = useUIStore();
   const { setHeadlessStatus } = useWalletStore();
 
   const isLoading = nodeStatus === "starting";

@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import * as api from "@/services/tauri";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
 import { POLLING_INTERVALS } from "@/lib/constants";
 
 export function useBlueprints() {
-  const nodeStatus = useAppStore((s) => s.nodeStatus);
+  const nodeStatus = useNodeStore((s) => s.nodeStatus);
 
   return useQuery({
     queryKey: ["blueprints"],

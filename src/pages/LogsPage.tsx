@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useUIStore } from "@/store/useUIStore";
 import type { LogSource, LogEntry } from "@/types";
 
 function getLogLevelStyle(level: LogEntry["level"]) {
@@ -21,11 +21,11 @@ function getSourceStyle(source: LogSource) {
 }
 
 export function LogsPage() {
-  const logs = useAppStore((s) => s.logs);
-  const logFilters = useAppStore((s) => s.logFilters);
-  const clearLogs = useAppStore((s) => s.clearLogs);
-  const toggleLogFilter = useAppStore((s) => s.toggleLogFilter);
-  const markLogsRead = useAppStore((s) => s.markLogsRead);
+  const logs = useUIStore((s) => s.logs);
+  const logFilters = useUIStore((s) => s.logFilters);
+  const clearLogs = useUIStore((s) => s.clearLogs);
+  const toggleLogFilter = useUIStore((s) => s.toggleLogFilter);
+  const markLogsRead = useUIStore((s) => s.markLogsRead);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const filteredLogs = logs.filter((log) => logFilters.has(log.source));

@@ -1,14 +1,15 @@
 import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
+import { useUIStore } from "@/store/useUIStore";
 import { useWalletStore } from "@/store/useWalletStore";
 
 export function useTauriEvents() {
-  const addLog = useAppStore((s) => s.addLog);
-  const setNodeStatus = useAppStore((s) => s.setNodeStatus);
-  const setMinerStatus = useAppStore((s) => s.setMinerStatus);
-  const setHashRate = useAppStore((s) => s.setHashRate);
-  const setError = useAppStore((s) => s.setError);
+  const addLog = useUIStore((s) => s.addLog);
+  const setNodeStatus = useNodeStore((s) => s.setNodeStatus);
+  const setMinerStatus = useNodeStore((s) => s.setMinerStatus);
+  const setHashRate = useNodeStore((s) => s.setHashRate);
+  const setError = useUIStore((s) => s.setError);
   const setHeadlessStatus = useWalletStore((s) => s.setHeadlessStatus);
   const setHeadlessWallets = useWalletStore((s) => s.setHeadlessWallets);
 

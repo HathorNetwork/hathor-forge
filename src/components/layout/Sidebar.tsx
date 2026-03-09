@@ -1,7 +1,7 @@
 import {
   Activity, Settings, Terminal, Zap, Compass, Wallet, BookOpen,
 } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useUIStore } from "@/store/useUIStore";
 import { PORTS } from "@/lib/constants";
 import type { PageType } from "@/types";
 
@@ -16,7 +16,7 @@ const navItems: { icon: typeof Activity; label: string; page: PageType }[] = [
 ];
 
 export function Sidebar() {
-  const { currentPage, setCurrentPage, unreadLogCount } = useAppStore();
+  const { currentPage, setCurrentPage, unreadLogCount } = useUIStore();
 
   return (
     <aside className="w-72 border-r border-slate-800/50 bg-[#0d1117] flex flex-col">
