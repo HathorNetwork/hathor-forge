@@ -4,9 +4,10 @@ use tokio::process::Command as TokioCommand;
 use crate::config::HeadlessConfig;
 use crate::platform::{
     detect_network_from_url, generate_headless_config, get_headless_dist_path,
-    get_node_binary_path, kill_process, kill_process_on_port,
+    get_node_binary_path, kill_process_on_port,
 };
-use crate::state::{spawn_log_reader, SharedState};
+use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
+use crate::state::SharedState;
 
 /// Start the wallet-headless service (internal version).
 ///
@@ -76,30 +77,13 @@ pub async fn start_headless_internal(
         .spawn()
         .map_err(|e| format!("Failed to spawn wallet-headless: {}", e))?;
 
-    let pid = child.id();
-    if pid.is_none() {
-        eprintln!("Wallet-headless process exited immediately; no PID available");
-    }
+    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "wallet");
     state_guard.headless_running = true;
     state_guard.headless_child_id = pid;
 
-    let log_buf = state_guard.log_buffer.clone();
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let state_clone = state.clone();
-
-    if let Some(out) = stdout {
-        spawn_log_reader(out, log_buf.clone(), "wallet");
-    }
-    if let Some(err) = stderr {
-        spawn_log_reader(err, log_buf, "wallet");
-    }
-
-    tokio::spawn(async move {
-        let _ = child.wait().await;
-        let mut state_guard = state_clone.lock().await;
-        state_guard.headless_running = false;
-        state_guard.headless_child_id = None;
+    spawn_exit_monitor(child, state.clone(), |s| {
+        s.headless_running = false;
+        s.headless_child_id = None;
     });
 
     Ok(format!("Wallet-headless started on port {}", config.port))
@@ -107,18 +91,14 @@ pub async fn start_headless_internal(
 
 /// Stop the wallet-headless service (internal version)
 pub async fn stop_headless_internal(state: &SharedState) -> Result<String, String> {
-    let pid = {
-        let mut guard = state.lock().await;
-        if !guard.headless_running {
-            return Ok("Wallet-headless is not running".to_string());
-        }
-        guard.headless_running = false;
-        guard.headless_child_id.take()
-    };
-
-    if let Some(pid) = pid {
-        kill_process(pid).await;
-    }
-
-    Ok("Wallet-headless stopped".to_string())
+    stop_service(
+        state,
+        "Wallet-headless",
+        |s| s.headless_running,
+        |s| {
+            s.headless_running = false;
+            s.headless_child_id.take()
+        },
+    )
+    .await
 }

@@ -4,7 +4,8 @@ use tokio::process::Command as TokioCommand;
 
 use crate::config::NodeConfig;
 use crate::platform::{get_binary_path, kill_process, kill_process_on_port, set_library_path_env};
-use crate::state::{spawn_log_reader, SharedState};
+use crate::process::{setup_child_logging, spawn_exit_monitor};
+use crate::state::SharedState;
 
 /// Start the Hathor fullnode (internal version without Tauri AppHandle)
 pub async fn start_node_internal(state: &SharedState) -> Result<String, String> {
@@ -77,31 +78,14 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
         .spawn()
         .map_err(|e| format!("Failed to spawn hathor-core at {:?}: {}", binary_path, e))?;
 
-    let pid = child.id();
-    if pid.is_none() {
-        eprintln!("Node process exited immediately; no PID available");
-    }
+    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "node");
     state_guard.node_running = true;
     state_guard.node_child_id = pid;
     state_guard.data_dir = Some(config.data_dir.clone());
 
-    let log_buf = state_guard.log_buffer.clone();
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let state_clone = state.clone();
-
-    if let Some(out) = stdout {
-        spawn_log_reader(out, log_buf.clone(), "node");
-    }
-    if let Some(err) = stderr {
-        spawn_log_reader(err, log_buf, "node");
-    }
-
-    tokio::spawn(async move {
-        let _ = child.wait().await;
-        let mut state_guard = state_clone.lock().await;
-        state_guard.node_running = false;
-        state_guard.node_child_id = None;
+    spawn_exit_monitor(child, state.clone(), |s| {
+        s.node_running = false;
+        s.node_child_id = None;
     });
 
     Ok(format!("Node started on port {}", config.api_port))

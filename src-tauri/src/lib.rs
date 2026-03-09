@@ -1,6 +1,7 @@
 pub mod config;
 pub mod mcp;
 pub mod platform;
+pub mod process;
 pub mod services;
 pub mod state;
 pub mod tui;

@@ -2,8 +2,9 @@ use std::process::Stdio;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::TxMiningConfig;
-use crate::platform::{get_binary_path, kill_process, kill_process_on_port, set_library_path_env};
-use crate::state::{spawn_log_reader, SharedState};
+use crate::platform::{get_binary_path, kill_process_on_port, set_library_path_env};
+use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
+use crate::state::SharedState;
 
 /// Start the tx-mining-service (internal version)
 pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, String> {
@@ -66,30 +67,13 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
             )
         })?;
 
-    let pid = child.id();
-    if pid.is_none() {
-        eprintln!("tx-mining-service process exited immediately; no PID available");
-    }
+    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "tx-mining");
     state_guard.tx_mining_running = true;
     state_guard.tx_mining_child_id = pid;
 
-    let log_buf = state_guard.log_buffer.clone();
-    let stdout = child.stdout.take();
-    let stderr = child.stderr.take();
-    let state_clone = state.clone();
-
-    if let Some(out) = stdout {
-        spawn_log_reader(out, log_buf.clone(), "tx-mining");
-    }
-    if let Some(err) = stderr {
-        spawn_log_reader(err, log_buf, "tx-mining");
-    }
-
-    tokio::spawn(async move {
-        let _ = child.wait().await;
-        let mut state_guard = state_clone.lock().await;
-        state_guard.tx_mining_running = false;
-        state_guard.tx_mining_child_id = None;
+    spawn_exit_monitor(child, state.clone(), |s| {
+        s.tx_mining_running = false;
+        s.tx_mining_child_id = None;
     });
 
     Ok(format!(
@@ -100,18 +84,14 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
 
 /// Stop the tx-mining-service (internal version)
 pub async fn stop_tx_mining_internal(state: &SharedState) -> Result<String, String> {
-    let pid = {
-        let mut guard = state.lock().await;
-        if !guard.tx_mining_running {
-            return Ok("tx-mining-service is not running".to_string());
-        }
-        guard.tx_mining_running = false;
-        guard.tx_mining_child_id.take()
-    };
-
-    if let Some(pid) = pid {
-        kill_process(pid).await;
-    }
-
-    Ok("tx-mining-service stopped".to_string())
+    stop_service(
+        state,
+        "tx-mining-service",
+        |s| s.tx_mining_running,
+        |s| {
+            s.tx_mining_running = false;
+            s.tx_mining_child_id.take()
+        },
+    )
+    .await
 }
