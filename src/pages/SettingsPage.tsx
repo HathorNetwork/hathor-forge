@@ -69,7 +69,7 @@ export function SettingsPage() {
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
-        <p className="text-slate-500">Configure your local development environment</p>
+        <p className="text-white/30">Configure your local development environment</p>
       </div>
 
       {/* MCP Integration */}
@@ -79,13 +79,13 @@ export function SettingsPage() {
           <h3 className="text-lg font-semibold text-blue-400">MCP Integration</h3>
         </div>
 
-        <p className="text-sm text-slate-400 mb-4">
+        <p className="text-sm text-white/30 mb-4">
           Connect AI assistants like Claude to control your local blockchain environment.
         </p>
 
         <div className="space-y-4">
           {/* Claude Code / HTTP config */}
-          <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+          <div className="p-4 bg-white/3 rounded-lg border border-white/5">
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-medium text-white">Claude Code / .mcp.json</h4>
               <button
@@ -99,14 +99,14 @@ export function SettingsPage() {
                 )}
               </button>
             </div>
-            <p className="text-xs text-slate-500 mb-2">
-              Paste into your project's <code className="text-slate-400">.mcp.json</code> or run: <code className="text-slate-400">claude mcp add --transport http hathor-forge http://127.0.0.1:{PORTS.MCP_SERVER}/mcp</code>
+            <p className="text-xs text-white/30 mb-2">
+              Paste into your project's <code className="text-white/70">.mcp.json</code> or run: <code className="text-white/70">claude mcp add --transport http hathor-forge http://127.0.0.1:{PORTS.MCP_SERVER}/mcp</code>
             </p>
-            <pre className="text-xs text-slate-300 font-mono bg-slate-950 rounded p-3 overflow-x-auto">{mcpHttpConfig}</pre>
+            <pre className="text-xs text-white/70 font-mono bg-black/40 rounded p-3 overflow-x-auto">{mcpHttpConfig}</pre>
           </div>
 
           {/* Claude Desktop / stdio config */}
-          <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+          <div className="p-4 bg-white/3 rounded-lg border border-white/5">
             <div className="flex items-center justify-between mb-2">
               <h4 className="font-medium text-white">Claude Desktop (stdio)</h4>
               <button
@@ -120,7 +120,7 @@ export function SettingsPage() {
                 )}
               </button>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-white/30">
               Copies a config snippet with resolved paths to the bundled Node.js binary and stdio bridge. Paste into Claude Desktop's config file.
             </p>
             {mcpError && (
@@ -140,10 +140,10 @@ export function SettingsPage() {
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+          <div className="flex items-center justify-between p-4 bg-white/3 rounded-lg border border-white/5">
             <div>
               <h4 className="font-medium text-white">Reset Blockchain Data</h4>
-              <p className="text-sm text-slate-500 mt-1">
+              <p className="text-sm text-white/30 mt-1">
                 Delete all blockchain data and start fresh. This will remove all blocks, transactions, and wallet history.
               </p>
             </div>
@@ -161,7 +161,7 @@ export function SettingsPage() {
             <div role="status" aria-live="polite" className={`p-3 rounded-lg text-sm ${
               resetStatus === "success" ? "bg-green-500/10 text-green-400 border border-green-500/30" :
               resetStatus === "error" ? "bg-red-500/10 text-red-400 border border-red-500/30" :
-              "bg-slate-800 text-slate-400"
+              "bg-white/5 text-white/30"
             }`}>
               {resetStatus === "resetting" ? "Resetting data..." : resetMessage}
             </div>
@@ -180,14 +180,14 @@ export function SettingsPage() {
             </div>
           }
         >
-            <p className="text-slate-400 mb-6">
+            <p className="text-white/30 mb-6">
               This will permanently delete all blockchain data including blocks, transactions, and wallet history.
               You will need to mine from block 0 again. This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={closeResetModal}
-                className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-white/30 hover:text-white transition-colors"
               >
                 Cancel
               </button>

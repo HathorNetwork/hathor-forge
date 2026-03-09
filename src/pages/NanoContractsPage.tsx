@@ -180,12 +180,12 @@ export function NanoContractsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white mb-2">Nano Contracts</h2>
-          <p className="text-slate-500">Deploy, manage, and interact with nano contracts</p>
+          <p className="text-white/30">Deploy, manage, and interact with nano contracts</p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={() => setShowRegisterContract(true)}
-            className="px-4 py-2 bg-slate-800 border border-slate-700 text-slate-300 rounded-lg hover:bg-slate-700 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-white/5 border border-white/5 text-white/70 rounded-lg hover:bg-white/5 transition-colors flex items-center gap-2"
           >
             <Plus className="w-4 h-4" />
             Register Contract
@@ -196,7 +196,7 @@ export function NanoContractsPage() {
               setSelectedBlueprint(null);
               setInitArgs({});
             }}
-            className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2"
+            className="px-4 py-2 bg-[#9cf35b] text-[#000f61] rounded-lg hover:bg-[#bff658] transition-colors flex items-center gap-2"
           >
             <Zap className="w-4 h-4" />
             Initialize (OCB)
@@ -206,51 +206,51 @@ export function NanoContractsPage() {
 
       {/* Search and Filters */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
         <input
           type="text"
           placeholder="Search by Contract ID or Blueprint ID..."
           value={nanoSearch}
           onChange={(e) => setNanoSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-[#0d1117] border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+          className="w-full pl-10 pr-4 py-2 bg-[#0b0a12] border border-white/5 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
         />
       </div>
 
       {/* Blueprints on Network */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Blueprints on Network</h3>
+          <h3 className="text-sm font-semibold text-white/30 uppercase tracking-wider">Blueprints on Network</h3>
           <button
             onClick={fetchBlueprints}
-            className="p-1.5 text-slate-500 hover:text-slate-300 transition-colors rounded-lg hover:bg-slate-800"
+            className="p-1.5 text-white/30 hover:text-white/70 transition-colors rounded-lg hover:bg-white/5"
             title="Refresh blueprints"
           >
             <RefreshCw className="w-3.5 h-3.5" />
           </button>
         </div>
         {blueprints.length === 0 ? (
-          <div className="border border-slate-800 rounded-lg bg-slate-900/30 p-6 text-center">
-            <FileCode className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">No blueprints published on the network yet.</p>
+          <div className="border border-white/5 rounded-lg bg-white/3 p-6 text-center">
+            <FileCode className="w-8 h-8 text-white/15 mx-auto mb-2" />
+            <p className="text-sm text-white/30">No blueprints published on the network yet.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {blueprints.map((bp) => (
-              <div key={bp.id} className="border border-slate-800 rounded-lg bg-slate-900/30 p-4 hover:border-amber-500/30 transition-colors">
+              <div key={bp.id} className="border border-white/5 rounded-lg bg-white/3 p-4 hover:border-[#9cf35b]/30 transition-colors">
                 <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <FileCode className="w-4 h-4 text-amber-400" />
+                  <div className="w-9 h-9 rounded-lg bg-[#9cf35b]/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <FileCode className="w-4 h-4 text-[#9cf35b]" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-white text-sm">{bp.name}</div>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[11px] text-slate-500 font-mono truncate">{bp.id.slice(0, 20)}...</span>
-                      <button onClick={() => navigator.clipboard.writeText(bp.id)} className="p-0.5 hover:bg-slate-800 rounded shrink-0">
-                        <Copy className="w-2.5 h-2.5 text-slate-500" />
+                      <span className="text-[11px] text-white/30 font-mono truncate">{bp.id.slice(0, 20)}...</span>
+                      <button onClick={() => navigator.clipboard.writeText(bp.id)} className="p-0.5 hover:bg-white/5 rounded shrink-0">
+                        <Copy className="w-2.5 h-2.5 text-white/30" />
                       </button>
                     </div>
                     {bp.timestamp > 0 && (
-                      <div className="flex items-center gap-1 mt-1.5 text-[10px] text-slate-600">
+                      <div className="flex items-center gap-1 mt-1.5 text-[10px] text-white/25">
                         <Clock className="w-3 h-3" />
                         {new Date(bp.timestamp * 1000).toLocaleString()}
                       </div>
@@ -262,7 +262,7 @@ export function NanoContractsPage() {
                     setShowInitWizard(true);
                     handleSelectBlueprint(bp.id);
                   }}
-                  className="mt-3 w-full px-3 py-1.5 text-xs font-medium bg-slate-800 text-slate-300 rounded-md hover:bg-slate-700 hover:text-white transition-colors flex items-center justify-center gap-1.5"
+                  className="mt-3 w-full px-3 py-1.5 text-xs font-medium bg-white/5 text-white/70 rounded-md hover:bg-white/5 hover:text-white transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Zap className="w-3 h-3" />
                   Initialize Contract
@@ -276,16 +276,16 @@ export function NanoContractsPage() {
       {/* Contracts List */}
       <div className="space-y-4">
         {filteredContracts.length === 0 ? (
-          <div className="border border-slate-800 rounded-xl bg-slate-900/30 p-12 text-center">
-            <Zap className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+          <div className="border border-white/5 rounded-xl bg-white/3 p-12 text-center">
+            <Zap className="w-12 h-12 text-white/15 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-white mb-2">No Nano Contracts found</h3>
-            <p className="text-slate-500 max-w-md mx-auto mb-6">
+            <p className="text-white/30 max-w-md mx-auto mb-6">
               You haven't registered any nano contracts yet. Register an existing one or initialize a new one from a blueprint.
             </p>
             <div className="flex justify-center gap-3">
               <button
                 onClick={() => setShowRegisterContract(true)}
-                className="px-4 py-2 bg-slate-800 text-white rounded-lg hover:bg-slate-700 transition-colors"
+                className="px-4 py-2 bg-white/5 text-white rounded-lg hover:bg-white/5 transition-colors"
               >
                 Register Contract
               </button>
@@ -295,7 +295,7 @@ export function NanoContractsPage() {
                   setSelectedBlueprint(null);
                   setInitArgs({});
                 }}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"
+                className="px-4 py-2 bg-[#9cf35b] text-[#000f61] rounded-lg hover:bg-[#bff658] transition-colors"
               >
                 Initialize OCB
               </button>
@@ -304,37 +304,37 @@ export function NanoContractsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {filteredContracts.map((contract) => (
-              <div key={contract.id} className="border border-slate-800 rounded-xl bg-slate-900/30 overflow-hidden hover:border-slate-700 transition-colors">
+              <div key={contract.id} className="border border-white/5 rounded-xl bg-white/3 overflow-hidden hover:border-white/10 transition-colors">
                 <div className="p-5">
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                        <Zap className="w-5 h-5 text-amber-400" />
+                      <div className="w-10 h-10 rounded-lg bg-[#9cf35b]/10 flex items-center justify-center">
+                        <Zap className="w-5 h-5 text-[#9cf35b]" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <span className="font-mono font-semibold text-white">{contract.id.slice(0, 16)}...</span>
-                          <button onClick={() => navigator.clipboard.writeText(contract.id)} className="p-1 hover:bg-slate-800 rounded">
-                            <Copy className="w-3 h-3 text-slate-500" />
+                          <button onClick={() => navigator.clipboard.writeText(contract.id)} className="p-1 hover:bg-white/5 rounded">
+                            <Copy className="w-3 h-3 text-white/30" />
                           </button>
                         </div>
-                        <span className="text-xs text-slate-500">Blueprint: {contract.blueprintId}</span>
+                        <span className="text-xs text-white/30">Blueprint: {contract.blueprintId}</span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right mr-4">
                         <div className="text-sm font-semibold text-white">{formatHTR(contract.balance)} HTR</div>
-                        <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{contract.status}</div>
+                        <div className="text-[10px] text-white/30 uppercase font-bold tracking-wider">{contract.status}</div>
                       </div>
                       <button
                         onClick={() => handleOpenInteract(contract)}
-                        className="px-4 py-2 bg-amber-500 text-white text-sm font-semibold rounded-lg hover:bg-amber-600 transition-colors"
+                        className="px-4 py-2 bg-[#9cf35b] text-[#000f61] text-sm font-semibold rounded-lg hover:bg-[#bff658] transition-colors"
                       >
                         Interact
                       </button>
                       <button
                         onClick={() => removeContract(contract.id)}
-                        className="p-2 text-slate-500 hover:text-rose-400 transition-colors"
+                        className="p-2 text-white/30 hover:text-rose-400 transition-colors"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -350,19 +350,19 @@ export function NanoContractsPage() {
       {/* Register Contract Modal */}
       {showRegisterContract && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
+          <div className="bg-[#0b0a12] border border-white/5 rounded-xl p-6 max-w-lg w-full mx-4 shadow-2xl">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <Plus className="w-5 h-5 text-amber-400" />
+              <div className="w-10 h-10 rounded-full bg-[#9cf35b]/20 flex items-center justify-center">
+                <Plus className="w-5 h-5 text-[#9cf35b]" />
               </div>
               <h3 className="text-lg font-semibold text-white">Register Nano Contract</h3>
             </div>
-            <p className="text-slate-400 mb-6">
+            <p className="text-white/30 mb-6">
               Enter the ID of an existing nano contract to start tracking and interacting with it.
             </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
+                <label className="block text-sm font-medium text-white/70 mb-2">
                   Contract ID
                 </label>
                 <input
@@ -370,7 +370,7 @@ export function NanoContractsPage() {
                   value={registerContractId}
                   onChange={(e) => setRegisterContractId(e.target.value)}
                   placeholder="Enter contract ID (hex)..."
-                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                  className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
                 />
               </div>
             </div>
@@ -380,7 +380,7 @@ export function NanoContractsPage() {
                   setShowRegisterContract(false);
                   setRegisterContractId("");
                 }}
-                className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-white/30 hover:text-white transition-colors"
               >
                 Cancel
               </button>
@@ -398,7 +398,7 @@ export function NanoContractsPage() {
                   }
                 }}
                 disabled={!registerContractId}
-                className="px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                className="px-6 py-2 bg-[#9cf35b] text-[#000f61] rounded-lg hover:bg-[#bff658] transition-colors disabled:opacity-50"
               >
                 Register
               </button>
@@ -410,34 +410,34 @@ export function NanoContractsPage() {
       {/* Initialization Wizard Modal */}
       {showInitWizard && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-[#0b0a12] border border-white/5 rounded-xl p-6 max-w-2xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                <Zap className="w-5 h-5 text-amber-400" />
+              <div className="w-10 h-10 rounded-full bg-[#9cf35b]/20 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-[#9cf35b]" />
               </div>
               <h3 className="text-lg font-semibold text-white">Initialize Nano Contract (OCB)</h3>
             </div>
 
             {!selectedBlueprint ? (
               <div className="space-y-4">
-                <p className="text-slate-400 mb-4">Select a blueprint to initialize:</p>
+                <p className="text-white/30 mb-4">Select a blueprint to initialize:</p>
                 <div className="grid grid-cols-1 gap-2">
                   {blueprints.length > 0 ? (
                     blueprints.map((bp) => (
                       <button
                         key={bp.id}
                         onClick={() => handleSelectBlueprint(bp.id)}
-                        className="flex items-center justify-between p-4 rounded-lg bg-slate-900 border border-slate-800 hover:border-amber-500/50 transition-colors text-left"
+                        className="flex items-center justify-between p-4 rounded-lg bg-white/3 border border-white/5 hover:border-[#9cf35b]/30 transition-colors text-left"
                       >
                         <div>
                           <div className="font-semibold text-white">{bp.name}</div>
-                          <div className="text-xs text-slate-500 font-mono">{bp.id}</div>
+                          <div className="text-xs text-white/30 font-mono">{bp.id}</div>
                         </div>
-                        <Plus className="w-4 h-4 text-slate-500" />
+                        <Plus className="w-4 h-4 text-white/30" />
                       </button>
                     ))
                   ) : (
-                    <div className="text-center py-8 text-slate-500">
+                    <div className="text-center py-8 text-white/30">
                       No blueprints available on the network.
                     </div>
                   )}
@@ -448,40 +448,40 @@ export function NanoContractsPage() {
                 <div>
                   <button
                     onClick={() => setSelectedBlueprint(null)}
-                    className="text-xs text-amber-400 hover:text-amber-300 mb-2 flex items-center gap-1"
+                    className="text-xs text-[#9cf35b] hover:text-[#9cf35b] mb-2 flex items-center gap-1"
                   >
                     &larr; Back to blueprints
                   </button>
                   <h4 className="font-bold text-white text-xl">{selectedBlueprint.plan.name}</h4>
-                  <p className="text-sm text-slate-500 font-mono">{selectedBlueprint.id}</p>
+                  <p className="text-sm text-white/30 font-mono">{selectedBlueprint.id}</p>
                 </div>
 
                 {/* Initialization Arguments */}
-                <div className="space-y-4 border-t border-slate-800 pt-4">
-                  <h5 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Initialization Arguments</h5>
+                <div className="space-y-4 border-t border-white/5 pt-4">
+                  <h5 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Initialization Arguments</h5>
                   {selectedBlueprint.plan.methods.find((m: BlueprintMethod) => m.name === "initialize")?.args.map((arg: BlueprintArg) => (
                     <div key={arg.name}>
-                      <label className="block text-sm font-medium text-slate-400 mb-1">
-                        {arg.name} <span className="text-[10px] text-slate-600 uppercase">({arg.type})</span>
+                      <label className="block text-sm font-medium text-white/30 mb-1">
+                        {arg.name} <span className="text-[10px] text-white/25 uppercase">({arg.type})</span>
                       </label>
                       <input
                         type="text"
                         value={initArgs[arg.name] || ""}
                         onChange={(e) => setInitArgs({ ...initArgs, [arg.name]: e.target.value })}
                         placeholder={`Enter ${arg.name}...`}
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+                        className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
                       />
                     </div>
-                  )) || <p className="text-sm text-slate-500 italic">No initialization arguments required.</p>}
+                  )) || <p className="text-sm text-white/30 italic">No initialization arguments required.</p>}
                 </div>
 
                 {/* Wallet Selection */}
-                <div className="space-y-4 border-t border-slate-800 pt-4">
-                  <h5 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Signing Wallet</h5>
+                <div className="space-y-4 border-t border-white/5 pt-4">
+                  <h5 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Signing Wallet</h5>
                   <select
                     value={selectedWalletForInit}
                     onChange={(e) => setSelectedWalletForInit(e.target.value)}
-                    className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-500/50"
+                    className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white focus:outline-none focus:border-[#9cf35b]/30"
                   >
                     <option value="">Select a wallet...</option>
                     {headlessWallets.filter(w => w.status_code === 3).map(w => (
@@ -501,14 +501,14 @@ export function NanoContractsPage() {
                       setShowInitWizard(false);
                       setSelectedBlueprint(null);
                     }}
-                    className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                    className="px-4 py-2 text-white/30 hover:text-white transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleInitializeContract}
                     disabled={isInitializing || !selectedWalletForInit}
-                    className="px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    className="px-6 py-2 bg-[#9cf35b] text-[#000f61] rounded-lg hover:bg-[#bff658] transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
                     {isInitializing ? (
                       <>
@@ -532,20 +532,20 @@ export function NanoContractsPage() {
       {/* Interaction Modal */}
       {selectedContractForInteract && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-xl p-6 max-w-4xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <div className="bg-[#0b0a12] border border-white/5 rounded-xl p-6 max-w-4xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-                  <Zap className="w-5 h-5 text-amber-400" />
+                <div className="w-10 h-10 rounded-full bg-[#9cf35b]/20 flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-[#9cf35b]" />
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-white">Interact with Nano Contract</h3>
-                  <p className="text-xs text-slate-500 font-mono">{selectedContractForInteract.id}</p>
+                  <p className="text-xs text-white/30 font-mono">{selectedContractForInteract.id}</p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedContractForInteract(null)}
-                className="p-2 text-slate-500 hover:text-white transition-colors"
+                className="p-2 text-white/30 hover:text-white transition-colors"
               >
                 <Square className="w-5 h-5" />
               </button>
@@ -555,7 +555,7 @@ export function NanoContractsPage() {
               {/* Left Panel: Methods and State */}
               <div className="w-1/3 flex flex-col gap-6 overflow-y-auto pr-2">
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Methods</h4>
+                  <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-3">Methods</h4>
                   <div className="space-y-2">
                     {selectedContractForInteract.blueprint.plan.methods
                       .filter((m: BlueprintMethod) => m.name !== "initialize")
@@ -568,8 +568,8 @@ export function NanoContractsPage() {
                           }}
                           className={`w-full text-left px-4 py-2 rounded-lg border transition-all ${
                             selectedMethod?.name === method.name
-                              ? "bg-amber-500/10 border-amber-500/50 text-amber-400"
-                              : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                              ? "bg-[#9cf35b]/10 border-[#9cf35b]/30 text-[#9cf35b]"
+                              : "bg-white/3 border-white/5 text-white/30 hover:border-white/10"
                           }`}
                         >
                           <div className="font-semibold">{method.name}</div>
@@ -579,50 +579,50 @@ export function NanoContractsPage() {
                 </div>
 
                 <div>
-                  <h4 className="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-3">Current State</h4>
-                  <div className="bg-slate-950 rounded-lg p-4 font-mono text-xs text-emerald-400 overflow-x-auto">
+                  <h4 className="text-sm font-semibold text-white/70 uppercase tracking-wider mb-3">Current State</h4>
+                  <div className="bg-black/40 rounded-lg p-4 font-mono text-xs text-[#9cf35b]/70 overflow-x-auto">
                     <pre>{JSON.stringify(selectedContractForInteract.state, null, 2)}</pre>
                   </div>
                 </div>
               </div>
 
               {/* Right Panel: Call Form */}
-              <div className="flex-1 bg-slate-900/50 rounded-xl border border-slate-800 p-6 overflow-y-auto">
+              <div className="flex-1 bg-white/3 rounded-xl border border-white/5 p-6 overflow-y-auto">
                 {selectedMethod ? (
                   <div className="space-y-6">
                     <div>
                       <h4 className="text-xl font-bold text-white mb-1">{selectedMethod.name}</h4>
-                      <p className="text-sm text-slate-500">Enter arguments to call this method</p>
+                      <p className="text-sm text-white/30">Enter arguments to call this method</p>
                     </div>
 
                     <div className="space-y-4">
                       {selectedMethod.args.map((arg: BlueprintArg) => (
                         <div key={arg.name}>
-                          <label className="block text-sm font-medium text-slate-400 mb-1">
-                            {arg.name} <span className="text-[10px] text-slate-600 uppercase">({arg.type})</span>
+                          <label className="block text-sm font-medium text-white/30 mb-1">
+                            {arg.name} <span className="text-[10px] text-white/25 uppercase">({arg.type})</span>
                           </label>
                           <input
                             type="text"
                             value={methodArgs[arg.name] || ""}
                             onChange={(e) => setMethodArgs({ ...methodArgs, [arg.name]: e.target.value })}
                             placeholder={`Enter ${arg.name}...`}
-                            className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-600 focus:outline-none focus:border-amber-500/50"
+                            className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
                           />
                         </div>
                       ))}
 
                       {selectedMethod.args.length === 0 && (
-                        <p className="text-sm text-slate-500 italic">No arguments required for this method.</p>
+                        <p className="text-sm text-white/30 italic">No arguments required for this method.</p>
                       )}
                     </div>
 
                     {/* Wallet Selection */}
-                    <div className="space-y-4 border-t border-slate-800 pt-6">
-                      <h5 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Signing Wallet</h5>
+                    <div className="space-y-4 border-t border-white/5 pt-6">
+                      <h5 className="text-sm font-semibold text-white/70 uppercase tracking-wider">Signing Wallet</h5>
                       <select
                         value={selectedWalletForInteract}
                         onChange={(e) => setSelectedWalletForInteract(e.target.value)}
-                        className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-500/50"
+                        className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white focus:outline-none focus:border-[#9cf35b]/30"
                       >
                         <option value="">Select a wallet...</option>
                         {headlessWallets.filter(w => w.status_code === 3).map(w => (
@@ -637,7 +637,7 @@ export function NanoContractsPage() {
                       <button
                         onClick={() => handleCallMethod()}
                         disabled={isSubmittingMethod || !selectedWalletForInteract}
-                        className="px-8 py-3 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 transition-colors shadow-lg shadow-amber-500/20 disabled:opacity-50 flex items-center gap-2"
+                        className="px-8 py-3 bg-[#9cf35b] text-[#000f61] font-bold rounded-lg hover:bg-[#bff658] transition-colors shadow-lg shadow-[#9cf35b]/20 disabled:opacity-50 flex items-center gap-2"
                       >
                         {isSubmittingMethod ? (
                           <>
@@ -655,9 +655,9 @@ export function NanoContractsPage() {
                   </div>
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center text-center">
-                    <Zap className="w-12 h-12 text-slate-700 mb-4" />
-                    <h4 className="text-lg font-semibold text-slate-400">Select a method</h4>
-                    <p className="text-sm text-slate-600 max-w-xs">
+                    <Zap className="w-12 h-12 text-white/10 mb-4" />
+                    <h4 className="text-lg font-semibold text-white/30">Select a method</h4>
+                    <p className="text-sm text-white/25 max-w-xs">
                       Select one of the available methods from the left panel to call it on this contract.
                     </p>
                   </div>

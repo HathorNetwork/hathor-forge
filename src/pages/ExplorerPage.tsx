@@ -14,13 +14,13 @@ export function ExplorerPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <Compass className="w-12 h-12 mx-auto mb-4 text-slate-600" />
+          <Compass className="w-12 h-12 mx-auto mb-4 text-white/15" />
           <h2 className="text-2xl font-bold text-white mb-2">Explorer</h2>
-          <p className="text-slate-500 mb-4">Start the network to use the explorer</p>
+          <p className="text-white/30 mb-4">Start the network to use the explorer</p>
           <button
             onClick={handleStartNode}
             disabled={isLoading}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-semibold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed mx-auto"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#9cf35b] text-[#000f61] font-bold text-sm shadow-lg shadow-[#9cf35b]/25 hover:bg-[#bff658] transition-colors disabled:opacity-50 disabled:cursor-not-allowed mx-auto"
           >
             {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
             Start Network

@@ -278,9 +278,9 @@ export function WalletPage() {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <Wallet className="w-12 h-12 text-slate-600 mx-auto mb-4" />
+          <Wallet className="w-12 h-12 text-white/15 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-white mb-2">Node Not Running</h2>
-          <p className="text-slate-500">Start the node to access wallets</p>
+          <p className="text-white/30">Start the node to access wallets</p>
         </div>
       </div>
     );
@@ -292,13 +292,13 @@ export function WalletPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white mb-2">Wallet Manager</h2>
-          <p className="text-slate-500">Create and manage multiple wallets</p>
+          <p className="text-white/30">Create and manage multiple wallets</p>
         </div>
         <div className="flex gap-3">
           {!headlessStatus.running ? (
             <button
               onClick={startHeadless}
-              className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-[#9cf35b]/10 text-[#9cf35b] border border-[#9cf35b]/30 rounded-lg hover:bg-[#9cf35b]/20 transition-colors flex items-center gap-2"
             >
               <Play className="w-4 h-4" />
               Start Wallet Service
@@ -307,14 +307,14 @@ export function WalletPage() {
             <>
               <button
                 onClick={() => setShowCreateWallet(true)}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-[#9cf35b] text-[#000f61] rounded-lg hover:bg-[#bff658] transition-colors flex items-center gap-2"
               >
                 <Wallet className="w-4 h-4" />
                 New Wallet
               </button>
               <button
                 onClick={stopHeadless}
-                className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg hover:bg-slate-600 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-white/5 text-white/70 rounded-lg hover:bg-white/5 transition-colors flex items-center gap-2"
               >
                 <Square className="w-4 h-4" />
                 Stop Service
@@ -325,10 +325,10 @@ export function WalletPage() {
       </div>
 
       {/* Headless Status */}
-      <div className={`p-4 rounded-lg border ${headlessStatus.running ? "bg-emerald-500/10 border-emerald-500/30" : "bg-slate-800/50 border-slate-700"}`}>
+      <div className={`p-4 rounded-lg border ${headlessStatus.running ? "bg-[#9cf35b]/8 border-[#9cf35b]/25" : "bg-white/3 border-white/5"}`}>
         <div className="flex items-center gap-3">
-          <div className={`w-2 h-2 rounded-full ${headlessStatus.running ? "bg-emerald-400" : "bg-slate-500"}`} />
-          <span className="text-sm font-medium text-slate-300">
+          <div className={`w-2 h-2 rounded-full ${headlessStatus.running ? "bg-[#9cf35b] shadow-[0_0_6px_#9cf35b]" : "bg-white/20"}`} />
+          <span className="text-sm font-medium text-white/70">
             Wallet Service: {headlessStatus.running ? `Running on port ${headlessStatus.port}` : "Stopped"}
           </span>
         </div>
@@ -338,21 +338,21 @@ export function WalletPage() {
       {headlessStatus.running && (
         <div className="space-y-4">
           {headlessWallets.length === 0 ? (
-            <div className="border border-slate-800 rounded-xl bg-slate-900/30 p-8 text-center">
-              <Wallet className="w-12 h-12 text-slate-600 mx-auto mb-4" />
-              <p className="text-slate-500">No wallets yet. Click "New Wallet" to create one.</p>
+            <div className="border border-white/5 rounded-xl bg-white/3 p-8 text-center">
+              <Wallet className="w-12 h-12 text-white/15 mx-auto mb-4" />
+              <p className="text-white/30">No wallets yet. Click "New Wallet" to create one.</p>
             </div>
           ) : (
             headlessWallets.map((wallet) => (
-              <div key={wallet.wallet_id} className="border border-slate-800 rounded-xl bg-slate-900/30 overflow-hidden">
-                <div className="p-4 border-b border-slate-800 bg-slate-900/50">
+              <div key={wallet.wallet_id} className="border border-white/5 rounded-xl bg-white/3 overflow-hidden">
+                <div className="p-4 border-b border-white/5 bg-white/3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <Wallet className="w-5 h-5 text-amber-400" />
+                      <Wallet className="w-5 h-5 text-[#9cf35b]" />
                       <span className="font-semibold text-white">{wallet.wallet_id}</span>
                       <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                        wallet.status_code === 3 ? "bg-emerald-500/20 text-emerald-400" :
-                        "bg-amber-500/20 text-amber-400"
+                        wallet.status_code === 3 ? "bg-[#9cf35b]/20 text-[#9cf35b]" :
+                        "bg-[#ff8000]/20 text-[#ff8000]"
                       }`}>
                         {wallet.status}
                       </span>
@@ -360,14 +360,14 @@ export function WalletPage() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setExpandedWallet(expandedWallet === wallet.wallet_id ? null : wallet.wallet_id)}
-                        className="px-3 py-1 text-sm text-slate-400 hover:text-white transition-colors"
+                        className="px-3 py-1 text-sm text-white/30 hover:text-white transition-colors"
                       >
                         {expandedWallet === wallet.wallet_id ? "Collapse" : "Expand"}
                       </button>
                       <button
                         onClick={() => fundWallet(wallet.wallet_id)}
                         disabled={wallet.status_code !== 3 || !faucetBalance?.available}
-                        className="px-3 py-1 text-sm bg-emerald-500/10 text-emerald-400 rounded hover:bg-emerald-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1 text-sm bg-[#9cf35b]/10 text-[#9cf35b] rounded hover:bg-[#9cf35b]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         title={!faucetBalance?.available ? "Wait for blocks to be mined" : "Send funds from faucet"}
                       >
                         Fund
@@ -375,7 +375,7 @@ export function WalletPage() {
                       {wallet.seed && (
                         <button
                           onClick={() => copySeed(wallet)}
-                          className="px-3 py-1 text-sm bg-amber-500/10 text-amber-400 rounded hover:bg-amber-500/20 transition-colors flex items-center gap-1"
+                          className="px-3 py-1 text-sm bg-[#9cf35b]/10 text-[#9cf35b] rounded hover:bg-[#9cf35b]/20 transition-colors flex items-center gap-1"
                         >
                           {copiedAddress === wallet.wallet_id + "-seed" ? (
                             <><Check className="w-3 h-3" /> Copied</>
@@ -386,7 +386,7 @@ export function WalletPage() {
                       )}
                       <button
                         onClick={() => loadWalletDetails(wallet.wallet_id)}
-                        className="px-3 py-1 text-sm bg-slate-700 text-slate-300 rounded hover:bg-slate-600 transition-colors"
+                        className="px-3 py-1 text-sm bg-white/5 text-white/70 rounded hover:bg-white/5 transition-colors"
                       >
                         Refresh
                       </button>
@@ -399,10 +399,10 @@ export function WalletPage() {
                     </div>
                   </div>
                   {wallet.balance && (
-                    <div className="mt-2 text-sm text-slate-400">
+                    <div className="mt-2 text-sm text-white/30">
                       Balance: <span className="text-white font-semibold">{formatHTR(wallet.balance.available)} HTR</span>
                       {wallet.balance.locked > 0 && (
-                        <span className="text-amber-400 ml-2">({formatHTR(wallet.balance.locked)} locked)</span>
+                        <span className="text-[#9cf35b] ml-2">({formatHTR(wallet.balance.locked)} locked)</span>
                       )}
                     </div>
                   )}
@@ -413,21 +413,21 @@ export function WalletPage() {
                     {/* Addresses */}
                     {wallet.addresses && wallet.addresses.length > 0 && (
                       <div>
-                        <h4 className="text-sm font-medium text-slate-400 mb-2">Addresses</h4>
+                        <h4 className="text-sm font-medium text-white/30 mb-2">Addresses</h4>
                         <div className="space-y-1 max-h-48 overflow-y-auto">
                           {wallet.addresses.slice(0, 10).map((addr, i) => (
-                            <div key={addr} className="flex items-center gap-2 p-2 bg-slate-800/50 rounded">
-                              <span className="text-xs text-slate-500">#{i}</span>
-                              <code className="text-xs text-slate-300 font-mono flex-1 truncate">{addr}</code>
+                            <div key={addr} className="flex items-center gap-2 p-2 bg-white/5 rounded">
+                              <span className="text-xs text-white/30">#{i}</span>
+                              <code className="text-xs text-white/70 font-mono flex-1 truncate">{addr}</code>
                               <button
                                 onClick={() => copyAddress(addr)}
-                                className="p-1 hover:bg-slate-700 rounded transition-colors"
+                                className="p-1 hover:bg-white/5 rounded transition-colors"
                                 aria-label={copiedAddress === addr ? "Address copied" : "Copy address"}
                               >
                                 {copiedAddress === addr ? (
                                   <Check className="w-3 h-3 text-green-400" aria-hidden="true" />
                                 ) : (
-                                  <Copy className="w-3 h-3 text-slate-500" aria-hidden="true" />
+                                  <Copy className="w-3 h-3 text-white/30" aria-hidden="true" />
                                 )}
                               </button>
                             </div>
@@ -438,14 +438,14 @@ export function WalletPage() {
 
                     {/* Send from this wallet */}
                     {wallet.status_code === 3 && (
-                      <div className="border-t border-slate-800 pt-4">
-                        <h4 className="text-sm font-medium text-slate-400 mb-2">Send HTR</h4>
+                      <div className="border-t border-white/5 pt-4">
+                        <h4 className="text-sm font-medium text-white/30 mb-2">Send HTR</h4>
                         <div className="flex gap-2">
                           <input
                             type="text"
                             placeholder="Destination address"
                             aria-label="Destination address"
-                            className="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                            className="flex-1 px-3 py-2 bg-white/5 border border-white/5 rounded text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
                             value={walletSendForms[wallet.wallet_id]?.address ?? ""}
                             onChange={(e) => setWalletSendForms((prev) => ({
                               ...prev,
@@ -456,7 +456,7 @@ export function WalletPage() {
                             type="number"
                             placeholder="Amount"
                             aria-label="Amount in HTR"
-                            className="w-24 px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                            className="w-24 px-3 py-2 bg-white/5 border border-white/5 rounded text-sm text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
                             value={walletSendForms[wallet.wallet_id]?.amount ?? ""}
                             onChange={(e) => setWalletSendForms((prev) => ({
                               ...prev,
@@ -470,7 +470,7 @@ export function WalletPage() {
                                 sendFromHeadlessWallet(wallet.wallet_id, form.address, parseFloat(form.amount));
                               }
                             }}
-                            className="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600 transition-colors flex items-center gap-1"
+                            className="px-4 py-2 bg-[#9cf35b] text-[#000f61] rounded hover:bg-[#bff658] transition-colors flex items-center gap-1"
                           >
                             <Send className="w-4 h-4" />
                             Send
@@ -498,19 +498,19 @@ export function WalletPage() {
       )}
 
       {/* Fullnode Wallet (Faucet) */}
-      <div className="border border-amber-500/30 rounded-xl bg-amber-500/5 p-6">
+      <div className="border border-[#9cf35b]/30 rounded-xl bg-[#9cf35b]/5 p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <Send className="w-5 h-5 text-amber-400" />
-            <h3 className="text-lg font-semibold text-amber-400">Fullnode Faucet</h3>
-            <span className="text-xs text-slate-500">(Send HTR from fullnode's built-in wallet)</span>
+            <Send className="w-5 h-5 text-[#9cf35b]" />
+            <h3 className="text-lg font-semibold text-[#9cf35b]">Fullnode Faucet</h3>
+            <span className="text-xs text-white/30">(Send HTR from fullnode's built-in wallet)</span>
           </div>
           {faucetBalance && (
             <div className="text-sm">
-              <span className="text-slate-400">Available: </span>
-              <span className="text-amber-400 font-semibold">{formatHTR(faucetBalance.available)} HTR</span>
+              <span className="text-white/30">Available: </span>
+              <span className="text-[#9cf35b] font-semibold">{formatHTR(faucetBalance.available)} HTR</span>
               {faucetBalance.locked > 0 && (
-                <span className="text-slate-500 ml-2">({formatHTR(faucetBalance.locked)} locked)</span>
+                <span className="text-white/30 ml-2">({formatHTR(faucetBalance.locked)} locked)</span>
               )}
             </div>
           )}
@@ -519,7 +519,7 @@ export function WalletPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="faucet-address" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="faucet-address" className="block text-sm font-medium text-white/70 mb-2">
                 Destination Address
               </label>
               <input
@@ -528,11 +528,11 @@ export function WalletPage() {
                 value={faucetAddress}
                 onChange={(e) => setFaucetAddress(e.target.value)}
                 placeholder="Enter Hathor address..."
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
               />
             </div>
             <div>
-              <label htmlFor="faucet-amount" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="faucet-amount" className="block text-sm font-medium text-white/70 mb-2">
                 Amount (HTR)
               </label>
               <input
@@ -542,7 +542,7 @@ export function WalletPage() {
                 onChange={(e) => setFaucetAmount(e.target.value)}
                 min="0.01"
                 step="0.01"
-                className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:border-amber-500/50"
+                className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white focus:outline-none focus:border-[#9cf35b]/30"
               />
             </div>
           </div>
@@ -550,7 +550,7 @@ export function WalletPage() {
           <button
             onClick={handleSendTx}
             disabled={sendingTx || !faucetAddress || !faucetAmount}
-            className="px-6 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 bg-[#9cf35b] text-[#000f61] rounded-lg hover:bg-[#bff658] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {sendingTx ? (
               <>
@@ -574,14 +574,14 @@ export function WalletPage() {
           onClose={closeCreateWalletModal}
           maxWidth="max-w-lg"
           icon={
-            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
-              <Wallet className="w-5 h-5 text-amber-400" aria-hidden="true" />
+            <div className="w-10 h-10 rounded-full bg-[#9cf35b]/20 flex items-center justify-center">
+              <Wallet className="w-5 h-5 text-[#9cf35b]" aria-hidden="true" />
             </div>
           }
         >
             <div className="space-y-4">
               <div>
-                <label htmlFor="new-wallet-id" className="block text-sm font-medium text-slate-300 mb-2">
+                <label htmlFor="new-wallet-id" className="block text-sm font-medium text-white/70 mb-2">
                   Wallet ID
                 </label>
                 <input
@@ -590,7 +590,7 @@ export function WalletPage() {
                   value={newWalletId}
                   onChange={(e) => setNewWalletId(e.target.value)}
                   placeholder="e.g., my-wallet"
-                  className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50"
+                  className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30"
                 />
               </div>
 
@@ -599,35 +599,35 @@ export function WalletPage() {
                 <div className="flex gap-2">
                   <button
                     onClick={generateNewSeed}
-                    className="flex-1 px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-500/20 transition-colors"
+                    className="flex-1 px-4 py-2 bg-[#9cf35b]/10 text-[#9cf35b] border border-[#9cf35b]/30 rounded-lg hover:bg-[#9cf35b]/20 transition-colors"
                   >
                     Generate New Seed
                   </button>
                   <button
                     onClick={() => { setNewSeed(null); }}
-                    className={`flex-1 px-4 py-2 border rounded-lg transition-colors ${!newSeed ? "bg-amber-500/10 text-amber-400 border-amber-500/30" : "bg-slate-800 text-slate-400 border-slate-700"}`}
+                    className={`flex-1 px-4 py-2 border rounded-lg transition-colors ${!newSeed ? "bg-[#9cf35b]/10 text-[#9cf35b] border-[#9cf35b]/30" : "bg-white/5 text-white/30 border-white/5"}`}
                   >
                     Import Existing
                   </button>
                 </div>
 
                 {newSeed ? (
-                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg">
+                  <div className="p-4 bg-[#9cf35b]/8 border border-[#9cf35b]/25 rounded-lg">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-emerald-400">Generated Seed (Save this!)</span>
+                      <span className="text-sm font-medium text-[#9cf35b]">Generated Seed (Save this!)</span>
                       <button
                         onClick={() => navigator.clipboard.writeText(newSeed)}
-                        className="p-1 hover:bg-emerald-500/20 rounded transition-colors"
+                        className="p-1 hover:bg-[#9cf35b]/15 rounded transition-colors"
                         aria-label="Copy seed phrase"
                       >
-                        <Copy className="w-4 h-4 text-emerald-400" aria-hidden="true" />
+                        <Copy className="w-4 h-4 text-[#9cf35b]" aria-hidden="true" />
                       </button>
                     </div>
-                    <p className="text-sm text-emerald-300 font-mono leading-relaxed break-all">{newSeed}</p>
+                    <p className="text-sm text-[#9cf35b]/80 font-mono leading-relaxed break-all">{newSeed}</p>
                   </div>
                 ) : (
                   <div>
-                    <label htmlFor="import-seed" className="block text-sm font-medium text-slate-300 mb-2">
+                    <label htmlFor="import-seed" className="block text-sm font-medium text-white/70 mb-2">
                       Seed Phrase (24 words)
                     </label>
                     <textarea
@@ -636,7 +636,7 @@ export function WalletPage() {
                       onChange={(e) => setImportSeed(e.target.value)}
                       placeholder="Enter your 24-word seed phrase..."
                       rows={3}
-                      className="w-full px-4 py-2 bg-slate-900 border border-slate-700 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-amber-500/50 font-mono text-sm"
+                      className="w-full px-4 py-2 bg-white/3 border border-white/5 rounded-lg text-white placeholder-white/20 focus:outline-none focus:border-[#9cf35b]/30 font-mono text-sm"
                     />
                   </div>
                 )}
@@ -646,14 +646,14 @@ export function WalletPage() {
             <div className="flex gap-3 justify-end mt-6">
               <button
                 onClick={closeCreateWalletModal}
-                className="px-4 py-2 text-slate-400 hover:text-white transition-colors"
+                className="px-4 py-2 text-white/30 hover:text-white transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={createWallet}
                 disabled={creatingWallet || !newWalletId || (!newSeed && !importSeed)}
-                className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-[#9cf35b] text-[#000f61] rounded-lg hover:bg-[#bff658] transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {creatingWallet ? (
                   <>

@@ -5,85 +5,116 @@ export function Header() {
   const { nodeStatus, minerStatus, blockHeight, hashRate } = useNodeStore();
 
   return (
-    <header className="h-16 border-b border-slate-800/50 bg-[#0d1117] flex items-center justify-between px-6" role="banner">
-      <div className="flex items-center gap-8">
-        <div className="flex items-center gap-3">
-          <Database className="w-4 h-4 text-slate-500" aria-hidden="true" />
+    <header
+      className="h-12 border-b border-white/[0.06] bg-[#080a10] flex items-center justify-between px-5"
+      role="banner"
+      style={{ boxShadow: "0 1px 0 rgba(156,243,91,0.04)" }}
+    >
+      {/* Live telemetry */}
+      <div className="flex items-center gap-0">
+        <div className="flex items-center gap-2.5 pr-5 border-r border-white/[0.06]">
+          <Database className="w-3 h-3 text-[#9cf35b]/40" aria-hidden="true" />
           <div>
-            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Block Height</span>
-            <span className="text-lg font-bold font-mono text-white">{blockHeight.toLocaleString()}</span>
+            <span className="text-[8px] font-bold text-white/20 uppercase tracking-[0.15em] block leading-none mb-0.5">
+              Block Height
+            </span>
+            <span className="text-[13px] font-bold font-mono text-white leading-none tabular-nums">
+              {blockHeight.toLocaleString()}
+            </span>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <Cpu className="w-4 h-4 text-slate-500" aria-hidden="true" />
+        <div className="flex items-center gap-2.5 pl-5">
+          <Cpu className="w-3 h-3 text-[#9cf35b]/40" aria-hidden="true" />
           <div>
-            <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider block">Hash Rate</span>
-            <span className="text-lg font-bold font-mono text-white">{hashRate}</span>
+            <span className="text-[8px] font-bold text-white/20 uppercase tracking-[0.15em] block leading-none mb-0.5">
+              Hash Rate
+            </span>
+            <span className="text-[13px] font-bold font-mono text-white leading-none tabular-nums">
+              {hashRate}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        {/* Node Status */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/50" role="status" aria-live="polite" aria-label={`Node status: ${nodeStatus}`}>
-          <div
-            className={`w-2 h-2 rounded-full ${
-              nodeStatus === "running"
-                ? "bg-emerald-400 shadow-lg shadow-emerald-400/50"
-                : nodeStatus === "starting"
-                ? "bg-amber-400 animate-pulse"
-                : nodeStatus === "error"
-                ? "bg-rose-400"
-                : "bg-slate-600"
-            }`}
-            aria-hidden="true"
-          />
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Node</span>
-          <span
-            className={`text-xs font-bold uppercase tracking-wide ${
-              nodeStatus === "running"
-                ? "text-emerald-400"
-                : nodeStatus === "starting"
-                ? "text-amber-400"
-                : nodeStatus === "error"
-                ? "text-rose-400"
-                : "text-slate-500"
-            }`}
-          >
-            {nodeStatus}
-          </span>
-        </div>
-
-        {/* Miner Status */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/50 border border-slate-800/50" role="status" aria-live="polite" aria-label={`Miner status: ${minerStatus}`}>
-          <div
-            className={`w-2 h-2 rounded-full ${
-              minerStatus === "mining"
-                ? "bg-emerald-400 shadow-lg shadow-emerald-400/50"
-                : minerStatus === "starting"
-                ? "bg-amber-400 animate-pulse"
-                : minerStatus === "error"
-                ? "bg-rose-400"
-                : "bg-slate-600"
-            }`}
-            aria-hidden="true"
-          />
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Miner</span>
-          <span
-            className={`text-xs font-bold uppercase tracking-wide ${
-              minerStatus === "mining"
-                ? "text-emerald-400"
-                : minerStatus === "starting"
-                ? "text-amber-400"
-                : minerStatus === "error"
-                ? "text-rose-400"
-                : "text-slate-500"
-            }`}
-          >
-            {minerStatus}
-          </span>
-        </div>
+      {/* Status capsules */}
+      <div className="flex items-center gap-1.5">
+        <StatusCapsule
+          label="Node"
+          status={nodeStatus}
+          activeStatus="running"
+          activeColor="#9cf35b"
+          startingColor="#ff8000"
+        />
+        <StatusCapsule
+          label="Miner"
+          status={minerStatus}
+          activeStatus="mining"
+          activeColor="#9cf35b"
+          startingColor="#ff8000"
+        />
       </div>
     </header>
   );
+}
+
+function StatusCapsule({
+  label,
+  status,
+  activeStatus,
+  activeColor,
+  startingColor,
+}: {
+  label: string;
+  status: string;
+  activeStatus: string;
+  activeColor: string;
+  startingColor: string;
+}) {
+  const isActive = status === activeStatus;
+  const isStarting = status === "starting";
+  const isError = status === "error";
+
+  const color = isActive
+    ? activeColor
+    : isStarting
+    ? startingColor
+    : isError
+    ? "#f43f5e"
+    : "rgba(255,255,255,0.2)";
+
+  const bgOpacity = isActive || isStarting ? "0.08" : isError ? "0.08" : "0.03";
+  const borderOpacity = isActive || isStarting ? "0.25" : isError ? "0.25" : "0.08";
+
+  return (
+    <div
+      className="flex items-center gap-2 px-2.5 py-1 rounded-md text-[9px] font-bold uppercase tracking-[0.12em] transition-all duration-300"
+      style={{
+        background: `rgba(${hexToRgb(color)}, ${bgOpacity})`,
+        border: `1px solid rgba(${hexToRgb(color)}, ${borderOpacity})`,
+        color: isActive || isStarting || isError ? color : "rgba(255,255,255,0.25)",
+      }}
+      role="status"
+      aria-label={`${label} status: ${status}`}
+    >
+      <span
+        className="w-1.5 h-1.5 rounded-full shrink-0"
+        style={{
+          background: color,
+          boxShadow: isActive ? `0 0 6px ${color}, 0 0 12px ${color}40` : "none",
+          animation: isStarting ? "pulse 1.5s ease-in-out infinite" : "none",
+        }}
+      />
+      <span style={{ color: "rgba(255,255,255,0.35)" }}>{label}</span>
+      <span>{status}</span>
+    </div>
+  );
+}
+
+function hexToRgb(hex: string): string {
+  if (hex.startsWith("rgba")) return "255,255,255";
+  const clean = hex.replace("#", "");
+  const r = parseInt(clean.substring(0, 2), 16);
+  const g = parseInt(clean.substring(2, 4), 16);
+  const b = parseInt(clean.substring(4, 6), 16);
+  return `${r},${g},${b}`;
 }

@@ -78,7 +78,7 @@ export function Modal({ title, onClose, children, icon, maxWidth = "max-w-md" }:
     >
       <div
         ref={dialogRef}
-        className={`bg-[#0d1117] border border-slate-800 rounded-xl p-6 ${maxWidth} w-full mx-4 shadow-2xl`}
+        className={`bg-[#0b0a12] border border-white/5 rounded-xl p-6 ${maxWidth} w-full mx-4 shadow-2xl`}
       >
         <div className="flex items-center gap-3 mb-4">
           {icon}

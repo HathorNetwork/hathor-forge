@@ -28,12 +28,12 @@ function CopyableValue({ value }: { value: string }) {
     <button
       onClick={copy}
       title="Copy to clipboard"
-      className="flex items-center gap-1 font-mono text-slate-300 hover:text-amber-400 transition-colors group"
+      className="flex items-center gap-1 font-mono text-[11px] text-white/35 hover:text-[#9cf35b] transition-colors duration-150 group"
     >
-      <span>{value}</span>
+      <span className="truncate">{value}</span>
       {copied
-        ? <Check className="w-3 h-3 text-green-400 shrink-0" />
-        : <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 shrink-0 transition-opacity" />
+        ? <Check className="w-2.5 h-2.5 text-[#9cf35b] shrink-0" />
+        : <Copy className="w-2.5 h-2.5 opacity-0 group-hover:opacity-50 shrink-0 transition-opacity" />
       }
     </button>
   );
@@ -59,24 +59,29 @@ function WalletConnectModal({ localIp, onClose }: { localIp: string; onClose: ()
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-start p-4" style={{ pointerEvents: "none" }}>
-      <div ref={ref} style={{ pointerEvents: "auto" }} className="w-80 rounded-xl bg-[#0d1117] border border-slate-700/60 shadow-2xl p-5 mb-16 ml-2">
+      <div
+        ref={ref}
+        style={{ pointerEvents: "auto", background: "linear-gradient(135deg, #0a1628 0%, #060d1f 100%)" }}
+        className="w-72 rounded-xl border border-[#9cf35b]/15 shadow-2xl shadow-black/80 p-4 mb-16 ml-1"
+      >
         <div className="flex items-center justify-between mb-4">
-          <span className="text-sm font-semibold text-slate-200">Connect Wallet</span>
-          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
-            <X className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-[#9cf35b] shadow-[0_0_6px_#9cf35b]" />
+            <span className="text-xs font-semibold text-white">Connect Mobile Wallet</span>
+          </div>
+          <button onClick={onClose} className="text-white/20 hover:text-white/60 transition-colors">
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
         <div className="space-y-3">
           {items.map(({ label, value }) => (
-            <div key={label}>
-              <span className="text-xs text-slate-500 uppercase tracking-wider">{label}</span>
-              <div className="mt-1">
-                <CopyableValue value={value} />
-              </div>
+            <div key={label} className="flex items-center justify-between gap-2">
+              <span className="text-[9px] font-bold text-white/25 uppercase tracking-[0.12em] shrink-0">{label}</span>
+              <CopyableValue value={value} />
             </div>
           ))}
         </div>
-        <p className="mt-4 text-xs text-slate-600">Use these URLs to connect the Hathor mobile wallet to your local node.</p>
+        <p className="mt-4 text-[10px] text-white/20 leading-relaxed">Point Hathor mobile wallet at these URLs to connect to your local node.</p>
       </div>
     </div>
   );
@@ -93,78 +98,135 @@ export function Sidebar() {
   }, []);
 
   return (
-    <aside className="w-72 border-r border-slate-800/50 bg-[#0d1117] flex flex-col" aria-label="Main navigation">
-      <div className="px-6 pt-8 pb-6 border-b border-slate-800/50">
-        <div className="flex items-center gap-3">
-          <img src="/app-icon.png" alt="Hathor Forge" className="w-10 h-10" />
+    <aside
+      className="w-[220px] border-r border-white/[0.05] flex flex-col"
+      aria-label="Main navigation"
+      style={{ background: "linear-gradient(180deg, #000f61 0%, #000c52 100%)" }}
+    >
+      {/* Logo — pt-8 clears macOS traffic lights */}
+      <div className="px-4 pt-8 pb-4 border-b border-white/[0.05]">
+        <div className="flex items-center gap-2.5">
+          <img src="/app-icon.png" alt="Hathor Forge" className="w-8 h-8 rounded-lg" />
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">Hathor Forge</h1>
-            <p className="text-xs text-slate-500 font-medium tracking-wide uppercase">Local Development</p>
+            <h1 className="text-[13px] font-bold tracking-tight text-white leading-none">Hathor Forge</h1>
+            <p className="text-[9px] text-white/25 font-medium tracking-[0.15em] uppercase mt-0.5">Local Dev</p>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-1" aria-label="Main navigation">
-        {navItems.map((item) => (
-          <button
-            key={item.label}
-            onClick={() => setCurrentPage(item.page)}
-            aria-current={currentPage === item.page ? "page" : undefined}
-            className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-all duration-200 ${
-              currentPage === item.page
-                ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
-                : "text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-transparent"
-            }`}
-          >
-            <item.icon className="h-4 w-4" aria-hidden="true" />
-            {item.label}
-            {item.page === "logs" && unreadLogCount > 0 && (
-              <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-400" aria-label={`${unreadLogCount} unread logs`}>
-                {unreadLogCount}
-              </span>
-            )}
-          </button>
-        ))}
+      {/* Navigation */}
+      <nav className="flex-1 p-2 pt-3 space-y-px" aria-label="Main navigation">
+        {navItems.map((item) => {
+          const isActive = currentPage === item.page;
+          return (
+            <button
+              key={item.label}
+              onClick={() => setCurrentPage(item.page)}
+              aria-current={isActive ? "page" : undefined}
+              className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium transition-all duration-150 relative group"
+              style={{
+                background: isActive ? "#9cf35b" : "transparent",
+                color: isActive ? "#000f61" : "rgba(255,255,255,0.4)",
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                  e.currentTarget.style.color = "rgba(255,255,255,0.85)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = "rgba(255,255,255,0.4)";
+                }
+              }}
+            >
+              <item.icon
+                className="h-[15px] w-[15px] shrink-0"
+                aria-hidden="true"
+                style={{ opacity: isActive ? 1 : 0.7 }}
+              />
+              <span className={isActive ? "font-bold" : ""}>{item.label}</span>
+              {item.page === "logs" && unreadLogCount > 0 && (
+                <span
+                  className="ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold"
+                  style={{
+                    background: isActive ? "rgba(0,15,97,0.2)" : "rgba(156,243,91,0.15)",
+                    color: isActive ? "#000f61" : "#9cf35b",
+                  }}
+                >
+                  {unreadLogCount}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </nav>
 
-      {/* Network Status Card */}
-      <div className="p-4 border-t border-slate-800/50">
-        <div className="rounded-xl bg-slate-900/50 border border-slate-800/50 p-4 space-y-4">
-          {/* Local services */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Network</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-400 uppercase tracking-wide">
-                Localnet
-              </span>
+      {/* Network card */}
+      <div className="p-2.5 border-t border-white/[0.05]">
+        <div
+          className="rounded-lg border border-white/[0.06] p-3 space-y-3"
+          style={{ background: "rgba(0,0,0,0.35)" }}
+        >
+          {/* Header row */}
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-bold text-white/25 uppercase tracking-[0.15em]">Network</span>
+            <span
+              className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide"
+              style={{
+                background: "rgba(156,243,91,0.12)",
+                color: "#9cf35b",
+                border: "1px solid rgba(156,243,91,0.2)",
+              }}
+            >
+              Localnet
+            </span>
+          </div>
+
+          {/* Endpoints */}
+          <div className="space-y-1.5">
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-[9px] font-bold text-white/20 uppercase tracking-[0.1em] shrink-0">RPC</span>
+              <CopyableValue value={`127.0.0.1:${PORTS.FULLNODE_API}`} />
             </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">RPC</span>
-                <CopyableValue value={`127.0.0.1:${PORTS.FULLNODE_API}`} />
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500">Stratum</span>
-                <CopyableValue value={`127.0.0.1:${PORTS.STRATUM}`} />
-              </div>
+            <div className="flex justify-between items-center gap-2">
+              <span className="text-[9px] font-bold text-white/20 uppercase tracking-[0.1em] shrink-0">Stratum</span>
+              <CopyableValue value={`127.0.0.1:${PORTS.STRATUM}`} />
             </div>
           </div>
 
-          {/* Mobile wallet connect */}
-          <div className="border-t border-slate-800/50 pt-3">
-            <button
-              onClick={() => setShowWalletConnect((v) => !v)}
-              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border border-slate-800/50 hover:border-slate-700/50 transition-all"
-            >
-              <Smartphone className="w-4 h-4 shrink-0" />
-              <span>Connect Wallet</span>
-            </button>
-          </div>
-          {showWalletConnect && (
-            <WalletConnectModal localIp={localIp} onClose={() => setShowWalletConnect(false)} />
-          )}
+          {/* Connect wallet button */}
+          <button
+            onClick={() => setShowWalletConnect((v) => !v)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-all duration-150"
+            style={{
+              background: showWalletConnect ? "rgba(156,243,91,0.08)" : "rgba(255,255,255,0.03)",
+              border: `1px solid ${showWalletConnect ? "rgba(156,243,91,0.2)" : "rgba(255,255,255,0.06)"}`,
+              color: showWalletConnect ? "#9cf35b" : "rgba(255,255,255,0.35)",
+            }}
+            onMouseEnter={(e) => {
+              if (!showWalletConnect) {
+                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                e.currentTarget.style.color = "rgba(255,255,255,0.7)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!showWalletConnect) {
+                e.currentTarget.style.background = "rgba(255,255,255,0.03)";
+                e.currentTarget.style.color = "rgba(255,255,255,0.35)";
+              }
+            }}
+          >
+            <Smartphone className="w-3 h-3 shrink-0" />
+            <span>Connect Wallet</span>
+          </button>
         </div>
       </div>
+
+      {showWalletConnect && (
+        <WalletConnectModal localIp={localIp} onClose={() => setShowWalletConnect(false)} />
+      )}
     </aside>
   );
 }

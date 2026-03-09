@@ -50,7 +50,7 @@ function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#0a0e14] text-slate-200 font-sans relative">
+    <div className="flex h-screen text-white font-sans relative" style={{ background: "#090b10" }}>
       {/* Full-width drag region at top for window dragging */}
       <div className="absolute top-0 left-0 right-0 h-8 select-none z-50" data-tauri-drag-region />
       <Sidebar />

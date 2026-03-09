@@ -40,7 +40,7 @@ export function SwaggerUIComponent({ apiType }: SwaggerUIComponentProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400">Loading API specification...</div>
+        <div className="text-white/35">Loading API specification...</div>
       </div>
     );
   }
@@ -56,7 +56,7 @@ export function SwaggerUIComponent({ apiType }: SwaggerUIComponentProps) {
   if (!spec) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-slate-400">No specification loaded</div>
+        <div className="text-white/35">No specification loaded</div>
       </div>
     );
   }
