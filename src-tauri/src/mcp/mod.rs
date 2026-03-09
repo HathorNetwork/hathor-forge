@@ -15,7 +15,7 @@ use axum::{
 use std::sync::Arc;
 use tracing::info;
 
-pub use types::{McpSharedState, McpState};
+pub use types::{EventEmitter, McpSharedState, McpState};
 
 use crate::SharedState;
 
@@ -25,12 +25,14 @@ pub fn create_mcp_router(
     fullnode_url: Option<String>,
     wallet_headless_url: Option<String>,
     tx_mining_url: Option<String>,
+    event_emitter: Option<Box<dyn EventEmitter>>,
 ) -> Router {
     let mcp_state = Arc::new(McpState::new(
         app_state,
         fullnode_url,
         wallet_headless_url,
         tx_mining_url,
+        event_emitter,
     ));
 
     Router::new()
@@ -47,8 +49,9 @@ pub async fn start_mcp_server(
     fullnode_url: Option<String>,
     wallet_headless_url: Option<String>,
     tx_mining_url: Option<String>,
+    event_emitter: Option<Box<dyn EventEmitter>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let app = create_mcp_router(app_state, fullnode_url, wallet_headless_url, tx_mining_url);
+    let app = create_mcp_router(app_state, fullnode_url, wallet_headless_url, tx_mining_url, event_emitter);
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", port)).await?;
     info!(

@@ -7,6 +7,12 @@ use tokio::sync::{Mutex, RwLock};
 
 use crate::SharedState;
 
+/// Trait for emitting events to the frontend.
+/// This allows the MCP server to notify the UI when state changes.
+pub trait EventEmitter: Send + Sync {
+    fn emit_event(&self, event: &str, payload: &str);
+}
+
 // ============================================================================
 // JSON-RPC Protocol Types
 // ============================================================================
@@ -63,6 +69,8 @@ pub struct McpState {
     pub tx_mining_url: RwLock<String>,
     /// Shared HTTP client with connection pooling and default timeout.
     pub http_client: reqwest::Client,
+    /// Optional event emitter for notifying the frontend of state changes.
+    pub event_emitter: Option<Box<dyn EventEmitter>>,
 }
 
 impl McpState {
@@ -71,6 +79,7 @@ impl McpState {
         fullnode_url: Option<String>,
         wallet_headless_url: Option<String>,
         tx_mining_url: Option<String>,
+        event_emitter: Option<Box<dyn EventEmitter>>,
     ) -> Self {
         let http_client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(30))
@@ -100,6 +109,14 @@ impl McpState {
                 )
             })),
             http_client,
+            event_emitter,
+        }
+    }
+
+    /// Emit an event to the frontend if an emitter is available.
+    pub fn emit(&self, event: &str, payload: &str) {
+        if let Some(ref emitter) = self.event_emitter {
+            emitter.emit_event(event, payload);
         }
     }
 }

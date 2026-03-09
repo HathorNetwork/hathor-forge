@@ -1,9 +1,20 @@
 use super::commands::*;
 use super::*;
 use std::sync::Arc;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tokio::sync::Mutex;
 use tracing::{error, info};
+
+/// Tauri AppHandle-based event emitter for MCP → frontend communication.
+struct TauriEventEmitter {
+    app_handle: tauri::AppHandle,
+}
+
+impl mcp::EventEmitter for TauriEventEmitter {
+    fn emit_event(&self, event: &str, payload: &str) {
+        let _ = self.app_handle.emit(event, payload.to_string());
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -60,10 +71,13 @@ pub fn run() {
             graceful_shutdown,
             get_mcp_config,
         ])
-        .setup(move |_app| {
+        .setup(move |app| {
+            let emitter = Box::new(TauriEventEmitter {
+                app_handle: app.handle().clone(),
+            });
+
             #[cfg(target_os = "macos")]
             {
-                let app = _app;
                 use tauri::menu::{AboutMetadata, MenuBuilder, MenuItemBuilder, SubmenuBuilder};
                 let quit_item = MenuItemBuilder::new("Quit Hathor Forge")
                     .id("custom-quit")
@@ -104,7 +118,7 @@ pub fn run() {
 
             tauri::async_runtime::spawn(async move {
                 if let Err(e) =
-                    mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT, None, None, None).await
+                    mcp::start_mcp_server(mcp_state, MCP_SERVER_PORT, None, None, None, Some(emitter)).await
                 {
                     error!(
                         service = "mcp",

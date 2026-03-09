@@ -246,6 +246,13 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                     .unwrap_or("Failed to create wallet in wallet-headless")
                     .to_string()
             };
+            if success {
+                state.emit("wallet-created", &json!({
+                    "wallet_id": wallet_id,
+                    "seed": wallet_seed,
+                }).to_string());
+            }
+
             Ok(json!({
                 "success": success,
                 "wallet_id": wallet_id,
@@ -339,6 +346,10 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .map_err(|e| format!("Failed to close wallet: {}", e))?;
 
             state.wallet_seeds.lock().await.remove(wallet_id);
+
+            state.emit("wallet-closed", &json!({
+                "wallet_id": wallet_id,
+            }).to_string());
 
             let text = resp.text().await.unwrap_or_default();
             Ok(text)
@@ -451,6 +462,12 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .map_err(|e| format!("Failed to send from faucet: {}", e))?;
 
             let text = send_resp.text().await.unwrap_or_default();
+
+            state.emit("wallet-funded", &json!({
+                "wallet_id": wallet_id,
+                "amount": fund_amount as f64 / 100.0,
+            }).to_string());
+
             Ok(format!(
                 r#"{{"funded": true, "wallet_id": "{}", "amount": {}, "result": {}}}"#,
                 wallet_id,

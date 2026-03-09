@@ -75,7 +75,7 @@ jobs:
         run: nix develop --command npm ci
 
       - name: Build Tauri app
-        run: nix develop --command npm run tauri build -- --bundles deb,appimage
+        run: nix develop --command npm run tauri build -- --bundles deb
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -83,7 +83,6 @@ jobs:
           name: linux-release
           path: |
             src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
           if-no-files-found: warn
 
   build-macos:
@@ -144,14 +143,20 @@ jobs:
         run: nix develop --command npm ci
 
       - name: Build Tauri app
-        run: nix develop --command npm run tauri build -- --bundles dmg
+        run: nix develop --command npm run tauri build -- --bundles app
+
+      - name: Create DMG
+        run: |
+          APP_PATH="src-tauri/target/release/bundle/macos/Hathor Forge.app"
+          DMG_PATH="src-tauri/target/release/bundle/Hathor-Forge.dmg"
+          hdiutil create -volname "Hathor Forge" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: macos-release
           path: |
-            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/*.dmg
           if-no-files-found: warn
 
   build-windows:

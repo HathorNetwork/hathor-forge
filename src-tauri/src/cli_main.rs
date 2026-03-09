@@ -296,6 +296,7 @@ async fn main() {
             fullnode_url.clone(),
             None,
             tx_mining_url.clone(),
+            None,
         )
         .await
         {

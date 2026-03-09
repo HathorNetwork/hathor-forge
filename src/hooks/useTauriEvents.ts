@@ -73,6 +73,82 @@ export function useTauriEvents() {
       setHeadlessWallets([]);
     }));
 
+    // MCP → frontend state sync events
+    register(listen<string>("wallet-created", (event) => {
+      try {
+        const data = JSON.parse(event.payload);
+        setHeadlessWallets((prev) => {
+          // Don't add if already exists
+          if (prev.some((w) => w.wallet_id === data.wallet_id)) return prev;
+          return [...prev, {
+            wallet_id: data.wallet_id,
+            status: "starting",
+            status_code: null,
+            seed: data.seed,
+          }];
+        });
+        // Poll until wallet is ready, then load details
+        import("@/services/tauri").then((api) => {
+          const poll = async () => {
+            for (let i = 0; i < 30; i++) {
+              if (!mountedRef.current) return;
+              await new Promise((r) => setTimeout(r, 1000));
+              if (!mountedRef.current) return;
+              try {
+                const status = await api.getHeadlessWalletStatus(data.wallet_id);
+                setHeadlessWallets((prev) =>
+                  prev.map((w) =>
+                    w.wallet_id === data.wallet_id
+                      ? { ...w, status: status.status, status_code: status.status_code }
+                      : w
+                  )
+                );
+                if (status.status_code === 3) {
+                  const [balance, addresses] = await Promise.all([
+                    api.getHeadlessWalletBalance(data.wallet_id),
+                    api.getHeadlessWalletAddresses(data.wallet_id),
+                  ]);
+                  setHeadlessWallets((prev) =>
+                    prev.map((w) =>
+                      w.wallet_id === data.wallet_id ? { ...w, balance, addresses } : w
+                    )
+                  );
+                  break;
+                }
+              } catch { break; }
+            }
+          };
+          poll();
+        });
+      } catch { /* ignore parse errors */ }
+    }));
+
+    register(listen<string>("wallet-closed", (event) => {
+      try {
+        const data = JSON.parse(event.payload);
+        setHeadlessWallets((prev) => prev.filter((w) => w.wallet_id !== data.wallet_id));
+      } catch { /* ignore parse errors */ }
+    }));
+
+    register(listen<string>("wallet-funded", (event) => {
+      try {
+        const data = JSON.parse(event.payload);
+        // Trigger a refresh of the wallet's balance/addresses via the Tauri command
+        import("@/services/tauri").then((api) => {
+          Promise.all([
+            api.getHeadlessWalletBalance(data.wallet_id),
+            api.getHeadlessWalletAddresses(data.wallet_id),
+          ]).then(([balance, addresses]) => {
+            setHeadlessWallets((prev) =>
+              prev.map((w) =>
+                w.wallet_id === data.wallet_id ? { ...w, balance, addresses } : w
+              )
+            );
+          }).catch(() => { /* wallet may not be ready yet */ });
+        });
+      } catch { /* ignore parse errors */ }
+    }));
+
     return () => {
       mountedRef.current = false;
       unlistenFns.current.forEach((fn) => fn());
