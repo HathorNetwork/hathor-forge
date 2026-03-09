@@ -1,5 +1,6 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
+use tauri::Emitter;
 use tokio::io::AsyncBufReadExt;
 use tokio::sync::Mutex;
 
@@ -35,23 +36,36 @@ impl Default for LogBuffer {
     }
 }
 
-/// Spawn a background task that reads lines from an async reader and pushes them
-/// into the shared log buffer with a `[prefix]` tag.
+/// Spawn a background task that reads lines from an async reader, pushes them
+/// into the shared log buffer, and optionally emits a Tauri event per line.
 pub fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     reader: R,
     log_buf: LogBuffer,
     prefix: &'static str,
+    app_handle: Option<tauri::AppHandle>,
 ) {
+    // Map service prefix to the Tauri event name the frontend listens on.
+    let event_name = match prefix {
+        "node" => Some("node-log"),
+        "miner" => Some("miner-log"),
+        "wallet" => Some("headless-log"),
+        "tx-mining" => Some("tx-mining-log"),
+        _ => None,
+    };
+
     tokio::spawn(async move {
         let br = tokio::io::BufReader::new(reader);
         let mut lines = br.lines();
         while let Ok(Some(line)) = lines.next_line().await {
-            log_buf.push(format!("[{}] {}", prefix, line));
+            let tagged = format!("[{}] {}", prefix, line);
+            log_buf.push(tagged.clone());
+            if let (Some(handle), Some(event)) = (&app_handle, event_name) {
+                let _ = handle.emit(event, &line);
+            }
         }
     });
 }
 
-#[derive(Default)]
 pub struct AppState {
     pub node_running: bool,
     pub miner_running: bool,
@@ -65,6 +79,28 @@ pub struct AppState {
     pub explorer_shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     pub data_dir: Option<String>,
     pub log_buffer: LogBuffer,
+    /// AppHandle for emitting Tauri events from the MCP/services layer.
+    pub app_handle: Option<tauri::AppHandle>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            node_running: false,
+            miner_running: false,
+            explorer_server_running: false,
+            headless_running: false,
+            tx_mining_running: false,
+            node_child_id: None,
+            miner_child_id: None,
+            headless_child_id: None,
+            tx_mining_child_id: None,
+            explorer_shutdown: None,
+            data_dir: None,
+            log_buffer: LogBuffer::default(),
+            app_handle: None,
+        }
+    }
 }
 
 pub type SharedState = Arc<Mutex<AppState>>;

@@ -357,21 +357,13 @@ pub(crate) async fn stop_node(state: tauri::State<'_, SharedState>) -> Result<St
 pub(crate) async fn get_node_status(
     state: tauri::State<'_, SharedState>,
 ) -> Result<NodeStatus, String> {
-    {
-        let state_guard = state.lock().await;
-        if !state_guard.node_running {
-            return Ok(NodeStatus {
-                running: false,
-                block_height: None,
-                hash_rate: None,
-                peer_count: None,
-            });
-        }
-    }
-    // Lock released before making HTTP request to avoid holding it across network I/O
+    // Always probe the HTTP API regardless of tracked state, so we detect
+    // processes started externally (e.g. via the MCP server).
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(2))
+        .build()
+        .unwrap_or_default();
 
-    // Try to fetch status from the node API
-    let client = reqwest::Client::new();
     match client
         .get(format!(
             "http://127.0.0.1:{}/v1a/status",
@@ -381,6 +373,12 @@ pub(crate) async fn get_node_status(
         .await
     {
         Ok(response) => {
+            // Node is reachable — update tracked state
+            {
+                let mut state_guard = state.lock().await;
+                state_guard.node_running = true;
+            }
+
             if let Ok(json) = response.json::<serde_json::Value>().await {
                 let block_height = json
                     .get("dag")
@@ -403,25 +401,55 @@ pub(crate) async fn get_node_status(
                 })
             }
         }
-        Err(_) => Ok(NodeStatus {
-            running: true, // Process is running but API might not be ready
-            block_height: None,
-            hash_rate: None,
-            peer_count: None,
-        }),
+        Err(_) => {
+            // Node not reachable — sync tracked state
+            {
+                let mut state_guard = state.lock().await;
+                state_guard.node_running = false;
+            }
+            Ok(NodeStatus {
+                running: false,
+                block_height: None,
+                hash_rate: None,
+                peer_count: None,
+            })
+        }
     }
 }
 
-// Get miner status
+// Get miner status by checking if a cpuminer process is running on the system.
 #[tauri::command]
 pub(crate) async fn get_miner_status(
     state: tauri::State<'_, SharedState>,
 ) -> Result<MinerStatus, String> {
-    let state_guard = state.lock().await;
+    #[cfg(unix)]
+    let miner_running = {
+        std::process::Command::new("pgrep")
+            .arg("-x")
+            .arg("cpuminer")
+            .output()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+    };
+
+    #[cfg(windows)]
+    let miner_running = {
+        std::process::Command::new("tasklist")
+            .args(["/FI", "IMAGENAME eq cpuminer.exe", "/NH"])
+            .output()
+            .map(|o| String::from_utf8_lossy(&o.stdout).contains("cpuminer.exe"))
+            .unwrap_or(false)
+    };
+
+    // Sync tracked state
+    {
+        let mut state_guard = state.lock().await;
+        state_guard.miner_running = miner_running;
+    }
 
     Ok(MinerStatus {
-        running: state_guard.miner_running,
-        hash_rate: None, // TODO: Parse from miner output
+        running: miner_running,
+        hash_rate: None,
     })
 }
 
@@ -549,4 +577,14 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
             ]
         }
     }))
+}
+
+/// Returns the machine's local network IP address (the one reachable from other devices on LAN).
+#[tauri::command]
+pub(crate) fn get_local_ip() -> String {
+    // Connect a UDP socket to a public address without sending data — the OS fills in the local IP.
+    std::net::UdpSocket::bind("0.0.0.0:0")
+        .and_then(|s| { s.connect("8.8.8.8:80")?; s.local_addr() })
+        .map(|addr| addr.ip().to_string())
+        .unwrap_or_else(|_| "127.0.0.1".to_string())
 }

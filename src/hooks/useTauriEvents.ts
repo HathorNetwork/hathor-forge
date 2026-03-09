@@ -29,6 +29,10 @@ export function useTauriEvents() {
       }
     };
 
+    register(listen<void>("node-started", () => {
+      setNodeStatus("running");
+    }));
+
     register(listen<string>("node-log", (event) => {
       addLog("node", event.payload);
     }));
@@ -43,6 +47,10 @@ export function useTauriEvents() {
       if (event.payload !== 0 && event.payload !== null) {
         setError(`Node exited with code ${event.payload}`);
       }
+    }));
+
+    register(listen<void>("miner-started", () => {
+      setMinerStatus("mining");
     }));
 
     register(listen<string>("miner-log", (event) => {

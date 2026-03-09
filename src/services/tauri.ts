@@ -152,3 +152,7 @@ export function getMcpConfig() {
 export function gracefulShutdown() {
   return invoke<void>("graceful_shutdown");
 }
+
+export function getLocalIp() {
+  return invoke<string>("get_local_ip");
+}

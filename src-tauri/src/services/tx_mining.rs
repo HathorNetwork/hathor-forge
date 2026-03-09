@@ -70,14 +70,14 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
             )
         })?;
 
-    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "tx-mining");
+    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "tx-mining", state_guard.app_handle.clone());
     state_guard.tx_mining_running = true;
     state_guard.tx_mining_child_id = pid;
 
     spawn_exit_monitor(child, state.clone(), |s| {
         s.tx_mining_running = false;
         s.tx_mining_child_id = None;
-    });
+    }, |s| s.tx_mining_child_id, "tx-mining-terminated");
 
     Ok(format!(
         "tx-mining-service started on port {}",

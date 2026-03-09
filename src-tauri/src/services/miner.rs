@@ -1,4 +1,5 @@
 use std::process::Stdio;
+use tauri::Emitter;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::MinerConfig;
@@ -63,14 +64,19 @@ pub async fn start_miner_internal(
         .spawn()
         .map_err(|e| format!("Failed to spawn cpuminer at {:?}: {}", binary_path, e))?;
 
-    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "miner");
+    let app_handle = state_guard.app_handle.clone();
+    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "miner", app_handle.clone());
     state_guard.miner_running = true;
     state_guard.miner_child_id = pid;
+
+    if let Some(ref handle) = app_handle {
+        let _ = handle.emit("miner-started", ());
+    }
 
     spawn_exit_monitor(child, state.clone(), |s| {
         s.miner_running = false;
         s.miner_child_id = None;
-    });
+    }, |s| s.miner_child_id, "miner-terminated");
 
     Ok(format!("Miner started with {} threads", config.threads))
 }

@@ -70,11 +70,19 @@ pub fn run() {
             headless_wallet_call_nano_contract_method,
             graceful_shutdown,
             get_mcp_config,
+            get_local_ip,
         ])
         .setup(move |app| {
             let emitter = Box::new(TauriEventEmitter {
                 app_handle: app.handle().clone(),
             });
+
+            // Store AppHandle in AppState so the MCP/services layer can emit Tauri events.
+            {
+                let state = app.state::<SharedState>();
+                let mut guard = state.blocking_lock();
+                guard.app_handle = Some(app.handle().clone());
+            }
 
             #[cfg(target_os = "macos")]
             {
