@@ -174,10 +174,11 @@ Write-Host "  VCPKG_LIB=$env:VCPKG_LIB"
 pip install --no-build-isolation -v .
 if ($LASTEXITCODE -ne 0) { throw "python-rocksdb build failed" }
 
-# Check that _rocksdb.pyd was actually built
-Write-Host "Checking for _rocksdb extension..."
-$pydFile = python -c "import importlib.util; spec = importlib.util.find_spec('rocksdb._rocksdb'); print(spec.origin if spec else 'NOT FOUND')"
-Write-Host "  _rocksdb location: $pydFile"
+# cd out of source dir so local rocksdb/ doesn't shadow the installed package
+Set-Location $BuildDir
+
+# Add vcpkg DLLs to PATH so _rocksdb.pyd can find rocksdb.dll at import time
+$env:PATH = "$VcpkgBin;$env:PATH"
 
 # Verify it imports
 Write-Host "Verifying python-rocksdb import..."
