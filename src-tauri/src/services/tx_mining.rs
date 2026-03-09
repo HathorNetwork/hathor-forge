@@ -26,8 +26,11 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
 
     let mut state_guard = state.lock().await;
 
-    // Re-check after re-acquiring the lock to prevent TOCTOU race condition:
-    // another caller may have started tx-mining-service while we released the lock.
+    // Re-check ALL preconditions after re-acquiring the lock to prevent TOCTOU race:
+    // the node may have stopped, or another caller may have started tx-mining-service.
+    if !state_guard.node_running {
+        return Err("Node must be running before starting tx-mining-service".to_string());
+    }
     if state_guard.tx_mining_running {
         return Ok("tx-mining-service is already running".to_string());
     }

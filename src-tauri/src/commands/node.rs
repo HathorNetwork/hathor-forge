@@ -13,20 +13,28 @@ pub(crate) async fn start_node(
     config: Option<NodeConfig>,
 ) -> Result<String, String> {
     let config = config.unwrap_or_default();
-    let mut state_guard = state.lock().await;
+    // Check state and bail early if already running (without holding lock during cleanup)
+    {
+        let state_guard = state.lock().await;
+        if state_guard.node_running {
+            return Err("Node is already running".to_string());
+        }
+    }
 
+    // Kill any zombie processes from previous runs (no lock held)
+    kill_process_on_port(config.api_port);
+    kill_process_on_port(config.stratum_port);
+    kill_process_on_port(crate::config::DEFAULT_WALLET_HEADLESS_PORT);
+    kill_process_on_port(crate::config::DEFAULT_TX_MINING_API_PORT);
+    kill_process_on_port(crate::config::DEFAULT_TX_MINING_STRATUM_PORT);
+    // Give the OS a moment to release the ports
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Re-acquire lock and re-check all preconditions before proceeding
+    let mut state_guard = state.lock().await;
     if state_guard.node_running {
         return Err("Node is already running".to_string());
     }
-
-    // Kill any zombie processes from previous runs
-    kill_process_on_port(config.api_port);
-    kill_process_on_port(config.stratum_port);
-    kill_process_on_port(crate::config::DEFAULT_WALLET_HEADLESS_PORT); // wallet-headless port
-    kill_process_on_port(crate::config::DEFAULT_TX_MINING_API_PORT); // tx-mining-service port
-    kill_process_on_port(crate::config::DEFAULT_TX_MINING_STRATUM_PORT); // tx-mining-service stratum port
-                                                                         // Give the OS a moment to release the ports
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let binary_path = get_binary_path("hathor-core");
 
@@ -175,16 +183,18 @@ pub(crate) async fn stop_node(state: tauri::State<'_, SharedState>) -> Result<St
 pub(crate) async fn get_node_status(
     state: tauri::State<'_, SharedState>,
 ) -> Result<NodeStatus, String> {
-    let state_guard = state.lock().await;
-
-    if !state_guard.node_running {
-        return Ok(NodeStatus {
-            running: false,
-            block_height: None,
-            hash_rate: None,
-            peer_count: None,
-        });
+    {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Ok(NodeStatus {
+                running: false,
+                block_height: None,
+                hash_rate: None,
+                peer_count: None,
+            });
+        }
     }
+    // Lock released before making HTTP request to avoid holding it across network I/O
 
     // Try to fetch status from the node API
     let client = reqwest::Client::new();
@@ -269,22 +279,22 @@ fn get_default_data_dir() -> std::path::PathBuf {
 // Reset blockchain data (removes the data directory)
 #[tauri::command]
 pub(crate) async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<String, String> {
+    // Hold lock through the entire operation to prevent the node from starting
+    // between the check and the directory removal
     let state_guard = state.lock().await;
 
-    // Don't allow reset while node is running
     if state_guard.node_running {
         return Err("Cannot reset data while node is running. Stop the node first.".to_string());
     }
 
-    // Use the stored data dir or default
     let data_dir = state_guard
         .data_dir
         .as_ref()
         .map(std::path::PathBuf::from)
         .unwrap_or_else(get_default_data_dir);
 
-    drop(state_guard); // Release lock before file operations
-
+    // fs::remove_dir_all is synchronous but fast enough to hold across.
+    // Holding the lock prevents a concurrent start_node from racing.
     if data_dir.exists() {
         fs::remove_dir_all(&data_dir)
             .map_err(|e| format!("Failed to remove data directory: {}", e))?;
