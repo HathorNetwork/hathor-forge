@@ -94,7 +94,7 @@ export function Sidebar() {
 
   return (
     <aside className="w-72 border-r border-slate-800/50 bg-[#0d1117] flex flex-col" aria-label="Main navigation">
-      <div className="p-6 border-b border-slate-800/50">
+      <div className="pt-8 px-6 pb-6 border-b border-slate-800/50" data-tauri-drag-region>
         <div className="flex items-center gap-3">
           <img src="/app-icon.png" alt="Hathor Forge" className="w-10 h-10" />
           <div>
