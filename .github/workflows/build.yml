@@ -186,13 +186,13 @@ jobs:
           restore-keys: |
             cargo-registry-${{ runner.os }}-
 
-      - name: Cache vcpkg packages
-        uses: actions/cache@v4
+      - name: Restore vcpkg cache
+        uses: actions/cache/restore@v4
         with:
           path: |
             C:\vcpkg\installed
             C:\Users\runneradmin\AppData\Local\vcpkg\archives
-          key: vcpkg-${{ runner.os }}-rocksdb-v2
+          key: vcpkg-${{ runner.os }}-rocksdb-v3
 
       - name: Install MSYS2 (for cpuminer autotools)
         uses: msys2/setup-msys2@v2
@@ -219,6 +219,15 @@ jobs:
       - name: Build hathor-core (Windows)
         shell: pwsh
         run: .\scripts\windows\build-hathor-core.ps1
+
+      - name: Save vcpkg cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            C:\vcpkg\installed
+            C:\Users\runneradmin\AppData\Local\vcpkg\archives
+          key: vcpkg-${{ runner.os }}-rocksdb-v3
 
       - name: Build cpuminer (Windows/MSYS2)
         shell: msys2 {0}
