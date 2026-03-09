@@ -63,22 +63,58 @@ pub(crate) async fn start_node(
             &format!("[DIAG] _internal.exists() = {}", internal.exists()),
         );
         if internal.exists() {
-            // List top-level contents of _internal
+            // Check for key Python modules
+            let hathor_cli = internal.join("hathor_cli");
+            let _ = app.emit(
+                "node-log",
+                &format!(
+                    "[DIAG] _internal/hathor_cli exists = {}",
+                    hathor_cli.exists()
+                ),
+            );
+            let hathor_dir = internal.join("hathor");
+            let _ = app.emit(
+                "node-log",
+                &format!("[DIAG] _internal/hathor exists = {}", hathor_dir.exists()),
+            );
+            let hathorlib = internal.join("hathorlib");
+            let _ = app.emit(
+                "node-log",
+                &format!("[DIAG] _internal/hathorlib exists = {}", hathorlib.exists()),
+            );
+            let base_lib = internal.join("base_library.zip");
+            let _ = app.emit(
+                "node-log",
+                &format!(
+                    "[DIAG] _internal/base_library.zip exists = {}",
+                    base_lib.exists()
+                ),
+            );
+            let python_dll = internal.join("python312.dll");
+            let _ = app.emit(
+                "node-log",
+                &format!(
+                    "[DIAG] _internal/python312.dll exists = {}",
+                    python_dll.exists()
+                ),
+            );
+
+            // Count total files and list only directories (Python packages)
             if let Ok(entries) = fs::read_dir(&internal) {
-                let items: Vec<String> = entries
-                    .filter_map(|e| e.ok())
-                    .take(20)
-                    .map(|e| {
-                        format!(
-                            "{} ({})",
-                            e.file_name().to_string_lossy(),
-                            if e.path().is_dir() { "dir" } else { "file" }
-                        )
-                    })
+                let all: Vec<_> = entries.filter_map(|e| e.ok()).collect();
+                let total = all.len();
+                let dirs: Vec<String> = all
+                    .iter()
+                    .filter(|e| e.path().is_dir())
+                    .map(|e| e.file_name().to_string_lossy().to_string())
                     .collect();
                 let _ = app.emit(
                     "node-log",
-                    &format!("[DIAG] _internal contents: {:?}", items),
+                    &format!("[DIAG] _internal total entries = {}", total),
+                );
+                let _ = app.emit(
+                    "node-log",
+                    &format!("[DIAG] _internal subdirectories = {:?}", dirs),
                 );
             }
         }

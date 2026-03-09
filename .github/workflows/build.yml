@@ -13,6 +13,7 @@ env:
 
 jobs:
   build-linux:
+    if: false  # temporarily disabled — testing Windows build only
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -86,6 +87,7 @@ jobs:
           if-no-files-found: warn
 
   build-macos:
+    if: false  # temporarily disabled — testing Windows build only
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -235,8 +237,64 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Inspect hathor-core onedir before Tauri build
+        shell: pwsh
+        run: |
+          $target = "x86_64-pc-windows-msvc"
+          $onedir = "src-tauri\binaries\hathor-core-$target"
+          Write-Host "=== hathor-core onedir structure ==="
+          Write-Host "Top-level:"
+          Get-ChildItem $onedir | Select-Object Name, Length, PSIsContainer | Format-Table -AutoSize
+          Write-Host ""
+          Write-Host "=== _internal directory ==="
+          $internal = "$onedir\_internal"
+          if (Test-Path $internal) {
+            $all = Get-ChildItem $internal
+            Write-Host "Total entries: $($all.Count)"
+            Write-Host ""
+            Write-Host "Subdirectories:"
+            $all | Where-Object { $_.PSIsContainer } | Select-Object Name | Format-Table -AutoSize
+            Write-Host ""
+            Write-Host "Key modules check:"
+            Write-Host "  hathor_cli exists: $(Test-Path "$internal\hathor_cli")"
+            Write-Host "  hathor exists: $(Test-Path "$internal\hathor")"
+            Write-Host "  hathorlib exists: $(Test-Path "$internal\hathorlib")"
+            Write-Host "  base_library.zip exists: $(Test-Path "$internal\base_library.zip")"
+            Write-Host "  python312.dll exists: $(Test-Path "$internal\python312.dll")"
+            if (Test-Path "$internal\hathor_cli") {
+              Write-Host ""
+              Write-Host "  hathor_cli contents:"
+              Get-ChildItem "$internal\hathor_cli" -Recurse | Select-Object FullName | Format-Table -AutoSize
+            }
+          } else {
+            Write-Host "_internal directory NOT FOUND!"
+          }
+
       - name: Build Tauri app
         run: npm run tauri build
+
+      - name: Inspect NSIS output
+        if: always()
+        shell: pwsh
+        run: |
+          $nsisDir = "src-tauri\target\release\bundle\nsis"
+          if (Test-Path $nsisDir) {
+            Write-Host "=== NSIS output ==="
+            Get-ChildItem $nsisDir | Select-Object Name, Length | Format-Table -AutoSize
+          }
+          # Check the WiX/NSIS staging area for resource files
+          $releaseDir = "src-tauri\target\release"
+          Write-Host ""
+          Write-Host "=== release dir: binaries/ ==="
+          $relBin = "$releaseDir\binaries"
+          if (Test-Path $relBin) {
+            Get-ChildItem $relBin -Recurse | Select-Object FullName | Where-Object { $_.FullName -match "hathor" } | Format-Table -AutoSize
+          } else {
+            Write-Host "binaries/ not found in release dir"
+          }
+          Write-Host ""
+          Write-Host "=== release dir top-level hathor-core* ==="
+          Get-ChildItem $releaseDir -Filter "hathor-core*" | Select-Object Name, Length | Format-Table -AutoSize
 
       - name: Upload Windows bundle
         uses: actions/upload-artifact@v4
@@ -250,6 +308,7 @@ jobs:
 
   # Lint and test (runs quickly without needing binaries)
   check:
+    if: false  # temporarily disabled — testing Windows build only
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
