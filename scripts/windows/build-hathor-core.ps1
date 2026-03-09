@@ -31,19 +31,21 @@ if (-not (Test-Path $VcpkgExe)) {
 
 Write-Host "Using vcpkg at: $VcpkgRoot"
 
-# Install rocksdb with all compression backends
-& $VcpkgExe install rocksdb[snappy,lz4,bzip2,zlib]:x64-windows
+# Install rocksdb with all compression backends using static-md triplet
+# static-md = static libraries with dynamic CRT (/MD) — avoids DLL dependency issues
+# while remaining compatible with Python's dynamic CRT requirement
+$VcpkgTriplet = "x64-windows-static-md"
+& $VcpkgExe install "rocksdb[snappy,lz4,bzip2,zlib]:$VcpkgTriplet"
 if ($LASTEXITCODE -ne 0) { throw "vcpkg install failed" }
 
 # Locate installed files
-$VcpkgInstalled = Join-Path $VcpkgRoot "installed\x64-windows"
+$VcpkgInstalled = Join-Path $VcpkgRoot "installed\$VcpkgTriplet"
 $VcpkgInclude = Join-Path $VcpkgInstalled "include"
 $VcpkgLib = Join-Path $VcpkgInstalled "lib"
-$VcpkgBin = Join-Path $VcpkgInstalled "bin"
+# No bin dir for static triplet (no DLLs produced)
 
 Write-Host "vcpkg include: $VcpkgInclude"
 Write-Host "vcpkg lib:     $VcpkgLib"
-Write-Host "vcpkg bin:     $VcpkgBin"
 
 # Verify key files exist
 if (-not (Test-Path "$VcpkgLib\rocksdb.lib")) {
@@ -115,7 +117,7 @@ if platform.system() == "Windows":
         include_dirs.append(vcpkg_include)
     if vcpkg_lib:
         library_dirs.append(vcpkg_lib)
-    # MSVC library names (without lib prefix, .lib extension)
+    # Static libraries from vcpkg x64-windows-static-md triplet
     libraries = ["rocksdb", "snappy", "lz4", "zlib", "bz2"]
     # RocksDB on Windows also needs these system libs
     libraries.extend(["shlwapi", "rpcrt4"])
@@ -177,22 +179,8 @@ if ($LASTEXITCODE -ne 0) { throw "python-rocksdb build failed" }
 # cd out of source dir so local rocksdb/ doesn't shadow the installed package
 Set-Location $BuildDir
 
-# Python 3.8+ on Windows no longer uses PATH for DLL search.
-# Copy vcpkg DLLs into the rocksdb package directory so _rocksdb.pyd can find them.
-$RocksdbPkgDir = python -c "import site; import os; print(os.path.join(site.getsitepackages()[0], 'rocksdb'))"
-Write-Host "Copying vcpkg DLLs to $RocksdbPkgDir"
-foreach ($dll in @("rocksdb.dll", "snappy.dll", "lz4.dll", "zlib1.dll", "bz2.dll")) {
-    $src = Join-Path $VcpkgBin $dll
-    if (Test-Path $src) {
-        Copy-Item $src $RocksdbPkgDir
-        Write-Host "  Copied $dll"
-    } else {
-        Write-Host "  WARNING: $dll not found in $VcpkgBin"
-    }
-}
-
-# Also keep PATH for any transitive DLL dependencies
-$env:PATH = "$VcpkgBin;$env:PATH"
+# With static-md triplet, all libraries are statically linked into _rocksdb.pyd.
+# No DLL copying needed — only the MSVC CRT DLLs are required (provided by the OS/runner).
 
 # Verify it imports
 Write-Host "Verifying python-rocksdb import..."
@@ -260,9 +248,6 @@ for name in _missing_builtins:
         setattr(builtins, name, _DisabledBuiltin(name))
 '@ | Set-Content -Path "pyi_rth_builtins.py" -Encoding UTF8
 
-# Add vcpkg DLLs to PATH so PyInstaller can find them
-$env:PATH = "$VcpkgBin;$env:PATH"
-
 Write-Host ""
 Write-Host "Running PyInstaller..."
 pyinstaller `
@@ -288,11 +273,6 @@ pyinstaller `
     --exclude-module IPython `
     --exclude-module ipykernel `
     --exclude-module jupyter `
-    --add-binary="$VcpkgBin\rocksdb.dll;." `
-    --add-binary="$VcpkgBin\snappy.dll;." `
-    --add-binary="$VcpkgBin\lz4.dll;." `
-    --add-binary="$VcpkgBin\zlib1.dll;." `
-    --add-binary="$VcpkgBin\bz2.dll;." `
     hathor_entry.py
 
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller failed" }
