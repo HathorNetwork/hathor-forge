@@ -177,7 +177,21 @@ if ($LASTEXITCODE -ne 0) { throw "python-rocksdb build failed" }
 # cd out of source dir so local rocksdb/ doesn't shadow the installed package
 Set-Location $BuildDir
 
-# Add vcpkg DLLs to PATH so _rocksdb.pyd can find rocksdb.dll at import time
+# Python 3.8+ on Windows no longer uses PATH for DLL search.
+# Copy vcpkg DLLs into the rocksdb package directory so _rocksdb.pyd can find them.
+$RocksdbPkgDir = python -c "import site; import os; print(os.path.join(site.getsitepackages()[0], 'rocksdb'))"
+Write-Host "Copying vcpkg DLLs to $RocksdbPkgDir"
+foreach ($dll in @("rocksdb.dll", "snappy.dll", "lz4.dll", "zlib1.dll", "bz2.dll")) {
+    $src = Join-Path $VcpkgBin $dll
+    if (Test-Path $src) {
+        Copy-Item $src $RocksdbPkgDir
+        Write-Host "  Copied $dll"
+    } else {
+        Write-Host "  WARNING: $dll not found in $VcpkgBin"
+    }
+}
+
+# Also keep PATH for any transitive DLL dependencies
 $env:PATH = "$VcpkgBin;$env:PATH"
 
 # Verify it imports
