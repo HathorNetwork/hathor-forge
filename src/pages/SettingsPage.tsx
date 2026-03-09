@@ -3,11 +3,12 @@ import { AlertTriangle, Trash2, Loader2, Copy, Check, Plug } from "lucide-react"
 import { useNodeStore } from "@/store/useNodeStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { Modal } from "@/components/ui/Modal";
-import { PORTS } from "@/lib/constants";
+import { usePortsStore } from "@/store/usePortsStore";
 import * as api from "@/services/tauri";
 
 export function SettingsPage() {
   const nodeStatus = useNodeStore((s) => s.nodeStatus);
+  const PORTS = usePortsStore((s) => s.ports);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
   const [resetMessage, setResetMessage] = useState("");

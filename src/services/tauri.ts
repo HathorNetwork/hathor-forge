@@ -156,3 +156,15 @@ export function gracefulShutdown() {
 export function getLocalIp() {
   return invoke<string>("get_local_ip");
 }
+
+export function getPorts() {
+  return invoke<{
+    fullnode_api: number;
+    stratum: number;
+    wallet_headless: number;
+    tx_mining_api: number;
+    tx_mining_stratum: number;
+    explorer: number;
+    mcp_server: number;
+  }>("get_ports");
+}

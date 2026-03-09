@@ -3,7 +3,7 @@ import {
   Activity, Settings, Terminal, Zap, Compass, Wallet, BookOpen, Copy, Check, Smartphone, X,
 } from "lucide-react";
 import { useUIStore } from "@/store/useUIStore";
-import { PORTS } from "@/lib/constants";
+import { usePortsStore } from "@/store/usePortsStore";
 import { getLocalIp } from "@/services/tauri";
 import type { PageType } from "@/types";
 
@@ -41,6 +41,7 @@ function CopyableValue({ value }: { value: string }) {
 
 function WalletConnectModal({ localIp, onClose }: { localIp: string; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const PORTS = usePortsStore((s) => s.ports);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -83,6 +84,7 @@ function WalletConnectModal({ localIp, onClose }: { localIp: string; onClose: ()
 
 export function Sidebar() {
   const { currentPage, setCurrentPage, unreadLogCount } = useUIStore();
+  const PORTS = usePortsStore((s) => s.ports);
   const [localIp, setLocalIp] = useState<string>("...");
   const [showWalletConnect, setShowWalletConnect] = useState(false);
 

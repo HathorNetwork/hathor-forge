@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
-// Default Port Constants
+// Default Port Constants (preferred/fallback values)
 // ============================================================================
 
 /// Fullnode HTTP API port.
@@ -19,11 +19,70 @@ pub const DEFAULT_EXPLORER_PORT: u16 = 3001;
 /// MCP server port.
 pub const DEFAULT_MCP_SERVER_PORT: u16 = 9876;
 
+// ============================================================================
+// Dynamic port allocation
+// ============================================================================
+
+/// Try to bind `preferred`. If it's already in use, let the OS pick a free
+/// ephemeral port instead. Returns the port that is available.
+pub fn find_available_port(preferred: u16) -> u16 {
+    use std::net::TcpListener;
+    // Try the preferred port first.
+    if TcpListener::bind(("127.0.0.1", preferred)).is_ok() {
+        return preferred;
+    }
+    // Fall back to OS-assigned port.
+    TcpListener::bind(("127.0.0.1", 0))
+        .map(|l| l.local_addr().map(|a| a.port()).unwrap_or(preferred))
+        .unwrap_or(preferred)
+}
+
+/// Ports actually allocated for this run of the app.
+/// Resolved once at startup via `find_available_port`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResolvedPorts {
+    pub fullnode_api: u16,
+    pub stratum: u16,
+    pub wallet_headless: u16,
+    pub tx_mining_api: u16,
+    pub tx_mining_stratum: u16,
+    pub explorer: u16,
+    pub mcp_server: u16,
+}
+
+impl Default for ResolvedPorts {
+    fn default() -> Self {
+        Self {
+            fullnode_api: find_available_port(DEFAULT_FULLNODE_API_PORT),
+            stratum: find_available_port(DEFAULT_STRATUM_PORT),
+            wallet_headless: find_available_port(DEFAULT_WALLET_HEADLESS_PORT),
+            tx_mining_api: find_available_port(DEFAULT_TX_MINING_API_PORT),
+            tx_mining_stratum: find_available_port(DEFAULT_TX_MINING_STRATUM_PORT),
+            explorer: find_available_port(DEFAULT_EXPLORER_PORT),
+            mcp_server: find_available_port(DEFAULT_MCP_SERVER_PORT),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NodeConfig {
     pub api_port: u16,
     pub stratum_port: u16,
     pub data_dir: String,
+}
+
+impl NodeConfig {
+    pub fn from_ports(ports: &ResolvedPorts) -> Self {
+        let data_dir = dirs::data_local_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join("hathor-forge")
+            .join("data");
+        Self {
+            api_port: ports.fullnode_api,
+            stratum_port: ports.stratum,
+            data_dir: data_dir.to_string_lossy().to_string(),
+        }
+    }
 }
 
 impl Default for NodeConfig {

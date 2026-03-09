@@ -8,12 +8,13 @@ import { useWalletStore } from "@/store/useWalletStore";
 import { Modal } from "@/components/ui/Modal";
 import * as api from "@/services/tauri";
 import { formatHTR } from "@/lib/utils";
-import { PORTS } from "@/lib/constants";
+import { usePortsStore } from "@/store/usePortsStore";
 import type { HeadlessWallet } from "@/types";
 
 export function WalletPage() {
   const nodeStatus = useNodeStore((s) => s.nodeStatus);
   const setError = useUIStore((s) => s.setError);
+  const PORTS = usePortsStore((s) => s.ports);
   const [walletSendForms, setWalletSendForms] = useState<Record<string, { address: string; amount: string }>>({});
   const {
     headlessStatus, setHeadlessStatus,

@@ -1,11 +1,12 @@
 import { Play, Compass, Loader2 } from "lucide-react";
 import { useNodeStore } from "@/store/useNodeStore";
 import { useStartNetwork } from "@/hooks/useStartNetwork";
-import { PORTS } from "@/lib/constants";
+import { usePortsStore } from "@/store/usePortsStore";
 
 export function ExplorerPage() {
   const nodeStatus = useNodeStore((s) => s.nodeStatus);
   const { startNetwork, isLoading } = useStartNetwork();
+  const PORTS = usePortsStore((s) => s.ports);
 
   const handleStartNode = startNetwork;
 

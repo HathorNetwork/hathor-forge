@@ -8,7 +8,13 @@ use crate::state::SharedState;
 
 /// Start the tx-mining-service (internal version)
 pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, String> {
-    let config = TxMiningConfig::default();
+    let ports = state.lock().await.ports.clone();
+    let config = TxMiningConfig {
+        api_port: ports.tx_mining_api,
+        stratum_port: ports.tx_mining_stratum,
+        fullnode_url: format!("http://localhost:{}", ports.fullnode_api),
+        ..TxMiningConfig::default()
+    };
     let state_guard = state.lock().await;
 
     if !state_guard.node_running {

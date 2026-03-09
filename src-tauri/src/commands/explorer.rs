@@ -1,7 +1,7 @@
 use crate::*;
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, Request};
+use axum::extract::{Extension, Path, Request};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
 use axum::Router;
@@ -11,6 +11,10 @@ use tauri::Emitter;
 use tokio_tungstenite::tungstenite;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::services::ServeDir;
+
+/// Newtype so Axum's Extension layer carries the fullnode port unambiguously.
+#[derive(Clone, Copy)]
+struct FullnodePort(u16);
 
 // Get the path to the explorer-dist directory
 fn get_explorer_dist_path() -> std::path::PathBuf {
@@ -52,19 +56,18 @@ fn get_explorer_dist_path() -> std::path::PathBuf {
 }
 
 // Proxy HTTP requests to the fullnode
-async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
+async fn proxy_api(
+    Extension(FullnodePort(port)): Extension<FullnodePort>,
+    Path(path): Path<String>,
+    req: Request,
+) -> Response {
     // Include query string if present
     let query = req
         .uri()
         .query()
         .map(|q| format!("?{}", q))
         .unwrap_or_default();
-    let fullnode_url = format!(
-        "http://127.0.0.1:{}/v1a/{}{}",
-        crate::config::DEFAULT_FULLNODE_API_PORT,
-        path,
-        query
-    );
+    let fullnode_url = format!("http://127.0.0.1:{}/v1a/{}{}", port, path, query);
 
     let client = reqwest::Client::new();
     let method = req.method().clone();
@@ -163,16 +166,16 @@ async fn proxy_api(Path(path): Path<String>, req: Request) -> Response {
 }
 
 // Proxy WebSocket connections to the fullnode
-async fn proxy_ws(ws: WebSocketUpgrade) -> impl IntoResponse {
-    ws.on_upgrade(handle_ws_proxy)
+async fn proxy_ws(
+    Extension(FullnodePort(port)): Extension<FullnodePort>,
+    ws: WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ws_proxy(socket, port))
 }
 
-async fn handle_ws_proxy(mut client_ws: WebSocket) {
+async fn handle_ws_proxy(mut client_ws: WebSocket, fullnode_port: u16) {
     // Connect to fullnode WebSocket
-    let fullnode_url = &format!(
-        "ws://127.0.0.1:{}/v1a/ws/",
-        crate::config::DEFAULT_FULLNODE_API_PORT
-    );
+    let fullnode_url = &format!("ws://127.0.0.1:{}/v1a/ws/", fullnode_port);
 
     let ws_stream = match tokio_tungstenite::connect_async(fullnode_url).await {
         Ok((stream, _)) => stream,
@@ -279,12 +282,13 @@ pub(crate) async fn start_explorer_server(
     state: tauri::State<'_, SharedState>,
 ) -> Result<String, String> {
     // Check state early without holding lock across async bind
-    {
+    let (explorer_port, fullnode_port) = {
         let state_guard = state.lock().await;
         if state_guard.explorer_server_running {
             return Err("Explorer server is already running".to_string());
         }
-    }
+        (state_guard.ports.explorer, state_guard.ports.fullnode_api)
+    };
 
     let explorer_path = get_explorer_dist_path();
     if !explorer_path.exists() {
@@ -306,17 +310,14 @@ pub(crate) async fn start_explorer_server(
         .route("/v1a/*path", any(proxy_api))
         // Static files for explorer
         .fallback_service(ServeDir::new(&explorer_path).append_index_html_on_directories(true))
+        .layer(Extension(FullnodePort(fullnode_port)))
         .layer(cors);
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], crate::config::DEFAULT_EXPLORER_PORT));
+    let addr = SocketAddr::from(([127, 0, 0, 1], explorer_port));
 
     // Bind without holding the lock (async I/O)
     let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
-        format!(
-            "Failed to bind to port {}: {}",
-            crate::config::DEFAULT_EXPLORER_PORT,
-            e
-        )
+        format!("Failed to bind to port {}: {}", explorer_port, e)
     })?;
 
     // Re-acquire lock and re-check before committing state

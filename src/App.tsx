@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { useUIStore } from "./store/useUIStore";
 import { useNodeStatusPolling } from "@/hooks/useNodeStatus";
 import { useContractStatesPolling } from "@/hooks/useContractStates";
 import { useTauriEvents } from "@/hooks/useTauriEvents";
 import { useInitialStateReconciliation } from "@/hooks/useInitialStateReconciliation";
+import { usePortsStore } from "@/store/usePortsStore";
+import { getPorts } from "@/services/tauri";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Sidebar } from "@/components/layout/Sidebar";
@@ -20,6 +23,12 @@ import { ApiExplorerPage } from "@/pages/ApiExplorerPage";
 
 function App() {
   const currentPage = useUIStore((s) => s.currentPage);
+  const setPorts = usePortsStore((s) => s.setPorts);
+
+  // Fetch the dynamically-assigned ports from the Rust backend once on startup.
+  useEffect(() => {
+    getPorts().then(setPorts).catch(() => {/* keep defaults */});
+  }, [setPorts]);
 
   // Global hooks: polling, event subscriptions & initial state
   useTauriEvents();

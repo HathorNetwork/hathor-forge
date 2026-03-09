@@ -71,6 +71,7 @@ pub fn run() {
             graceful_shutdown,
             get_mcp_config,
             get_local_ip,
+            get_ports,
         ])
         .setup(move |app| {
             let emitter = Box::new(TauriEventEmitter {
@@ -78,11 +79,12 @@ pub fn run() {
             });
 
             // Store AppHandle in AppState so the MCP/services layer can emit Tauri events.
-            {
+            let mcp_port = {
                 let state = app.state::<SharedState>();
                 let mut guard = state.blocking_lock();
                 guard.app_handle = Some(app.handle().clone());
-            }
+                guard.ports.mcp_server
+            };
 
             #[cfg(target_os = "macos")]
             {
@@ -127,7 +129,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = mcp::start_mcp_server(
                     mcp_state,
-                    MCP_SERVER_PORT,
+                    mcp_port,
                     None,
                     None,
                     None,
@@ -137,7 +139,7 @@ pub fn run() {
                 {
                     error!(
                         service = "mcp",
-                        port = MCP_SERVER_PORT,
+                        port = mcp_port,
                         "Failed to start MCP server: {}",
                         e
                     );

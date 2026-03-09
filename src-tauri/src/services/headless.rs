@@ -19,7 +19,12 @@ pub async fn start_headless_internal(
     fullnode_url: Option<&str>,
     tx_mining_url: Option<&str>,
 ) -> Result<String, String> {
-    let mut config = HeadlessConfig::default();
+    let ports = state.lock().await.ports.clone();
+    let mut config = HeadlessConfig {
+        port: ports.wallet_headless,
+        fullnode_url: format!("http://localhost:{}/v1a/", ports.fullnode_api),
+        ..HeadlessConfig::default()
+    };
     if let Some(url) = fullnode_url {
         config.fullnode_url = if url.ends_with("/v1a/") {
             url.to_string()
@@ -30,7 +35,9 @@ pub async fn start_headless_internal(
         };
         config.network = detect_network_from_url(url).to_string();
     }
-    let txm_url = tx_mining_url.unwrap_or("http://localhost:8002");
+    let txm_url = tx_mining_url
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| format!("http://localhost:{}", ports.tx_mining_api));
 
     let state_guard = state.lock().await;
 
@@ -65,7 +72,7 @@ pub async fn start_headless_internal(
         return Ok("Wallet-headless is already running".to_string());
     }
 
-    generate_headless_config(&config, &headless_path, txm_url)?;
+    generate_headless_config(&config, &headless_path, &txm_url)?;
 
     let node_bin = get_node_binary_path()?;
     let entry_point = headless_path.join("dist").join("index.js");

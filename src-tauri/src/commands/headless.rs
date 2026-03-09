@@ -49,10 +49,7 @@ pub(crate) async fn start_headless(
     generate_headless_config(
         &config,
         &headless_path,
-        &format!(
-            "http://localhost:{}",
-            crate::config::DEFAULT_TX_MINING_API_PORT
-        ),
+        &format!("http://localhost:{}", state_guard.ports.tx_mining_api),
     )?;
 
     // Find node binary to run with

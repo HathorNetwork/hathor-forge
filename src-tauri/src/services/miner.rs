@@ -14,8 +14,10 @@ pub async fn start_miner_internal(
     state: &SharedState,
     address: Option<String>,
 ) -> Result<String, String> {
+    let tx_mining_stratum = state.lock().await.ports.tx_mining_stratum;
     let config = MinerConfig {
         address: address.unwrap_or_else(|| "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string()),
+        stratum_port: tx_mining_stratum,
         ..MinerConfig::default()
     };
 

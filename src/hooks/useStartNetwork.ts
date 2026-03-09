@@ -1,13 +1,14 @@
 import { useNodeStore } from "@/store/useNodeStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useWalletStore } from "@/store/useWalletStore";
+import { usePortsStore } from "@/store/usePortsStore";
 import * as api from "@/services/tauri";
-import { PORTS } from "@/lib/constants";
 
 export function useStartNetwork() {
   const { nodeStatus, setNodeStatus } = useNodeStore();
   const { setError } = useUIStore();
   const { setHeadlessStatus } = useWalletStore();
+  const ports = usePortsStore((s) => s.ports);
 
   const isLoading = nodeStatus === "starting";
 
@@ -24,7 +25,7 @@ export function useStartNetwork() {
       }
       try {
         await api.startHeadless();
-        setHeadlessStatus({ running: true, port: PORTS.WALLET_HEADLESS });
+        setHeadlessStatus({ running: true, port: ports.WALLET_HEADLESS });
       } catch (e) {
         console.warn("Wallet-headless failed to start:", e);
       }

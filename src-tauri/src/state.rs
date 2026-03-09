@@ -81,6 +81,8 @@ pub struct AppState {
     pub log_buffer: LogBuffer,
     /// AppHandle for emitting Tauri events from the MCP/services layer.
     pub app_handle: Option<tauri::AppHandle>,
+    /// Ports resolved at startup — prefer these over DEFAULT_* constants.
+    pub ports: crate::config::ResolvedPorts,
 }
 
 impl Default for AppState {
@@ -99,6 +101,7 @@ impl Default for AppState {
             data_dir: None,
             log_buffer: LogBuffer::default(),
             app_handle: None,
+            ports: crate::config::ResolvedPorts::default(),
         }
     }
 }

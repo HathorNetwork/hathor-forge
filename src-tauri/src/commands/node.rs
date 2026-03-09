@@ -509,7 +509,10 @@ pub(crate) async fn reset_data(state: tauri::State<'_, SharedState>) -> Result<S
 /// bundled Node.js binary and the stdio bridge script.
 #[cfg(feature = "tauri-app")]
 #[tauri::command]
-pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
+pub(crate) async fn get_mcp_config(
+    state: tauri::State<'_, SharedState>,
+) -> Result<serde_json::Value, String> {
+    let mcp_port = state.lock().await.ports.mcp_server;
     let node_path = crate::platform::get_node_binary_path()?;
 
     // Try dev path first, then production path next to the executable
@@ -552,7 +555,7 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
                                 "command": node_path.to_string_lossy(),
                                 "args": [
                                     win_path.to_string_lossy(),
-                                    &format!("http://127.0.0.1:{}/mcp", crate::config::DEFAULT_MCP_SERVER_PORT)
+                                    &format!("http://127.0.0.1:{}/mcp", mcp_port)
                                 ]
                             }
                         }));
@@ -573,7 +576,7 @@ pub(crate) async fn get_mcp_config() -> Result<serde_json::Value, String> {
             "command": node_path.to_string_lossy(),
             "args": [
                 bridge_path.to_string_lossy(),
-                &format!("http://127.0.0.1:{}/mcp", crate::config::DEFAULT_MCP_SERVER_PORT)
+                &format!("http://127.0.0.1:{}/mcp", mcp_port)
             ]
         }
     }))
@@ -587,4 +590,12 @@ pub(crate) fn get_local_ip() -> String {
         .and_then(|s| { s.connect("8.8.8.8:80")?; s.local_addr() })
         .map(|addr| addr.ip().to_string())
         .unwrap_or_else(|_| "127.0.0.1".to_string())
+}
+
+/// Returns the ports actually allocated for this run of the app.
+#[tauri::command]
+pub(crate) async fn get_ports(
+    state: tauri::State<'_, SharedState>,
+) -> Result<crate::config::ResolvedPorts, String> {
+    Ok(state.lock().await.ports.clone())
 }
