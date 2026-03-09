@@ -145,6 +145,10 @@ export function getState() {
   return invoke<unknown>("get_state");
 }
 
+export function getMcpConfig() {
+  return invoke<Record<string, unknown>>("get_mcp_config");
+}
+
 export function gracefulShutdown() {
   return invoke<void>("graceful_shutdown");
 }

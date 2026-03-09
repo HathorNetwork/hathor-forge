@@ -58,6 +58,7 @@ pub fn run() {
             headless_wallet_create_nano_contract,
             headless_wallet_call_nano_contract_method,
             graceful_shutdown,
+            get_mcp_config,
         ])
         .setup(move |_app| {
             #[cfg(target_os = "macos")]

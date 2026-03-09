@@ -1,8 +1,9 @@
 import { useState, useCallback } from "react";
-import { AlertTriangle, Trash2, Loader2 } from "lucide-react";
+import { AlertTriangle, Trash2, Loader2, Copy, Check, Plug } from "lucide-react";
 import { useNodeStore } from "@/store/useNodeStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { Modal } from "@/components/ui/Modal";
+import { PORTS } from "@/lib/constants";
 import * as api from "@/services/tauri";
 
 export function SettingsPage() {
@@ -10,6 +11,8 @@ export function SettingsPage() {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
   const [resetMessage, setResetMessage] = useState("");
+  const [mcpCopied, setMcpCopied] = useState(false);
+  const [mcpError, setMcpError] = useState<string | null>(null);
   const clearContracts = useNanoContractStore((s) => s.clearContracts);
 
   const closeResetModal = useCallback(() => setShowResetConfirm(false), []);
@@ -33,11 +36,99 @@ export function SettingsPage() {
     }
   };
 
+  const handleCopyMcpConfig = async () => {
+    setMcpError(null);
+    try {
+      const config = await api.getMcpConfig();
+      const json = JSON.stringify({ mcpServers: config }, null, 2);
+      await navigator.clipboard.writeText(json);
+      setMcpCopied(true);
+      setTimeout(() => setMcpCopied(false), 2000);
+    } catch (error) {
+      setMcpError(String(error));
+    }
+  };
+
+  const mcpHttpConfig = JSON.stringify({
+    mcpServers: {
+      "hathor-forge": {
+        type: "http",
+        url: `http://127.0.0.1:${PORTS.MCP_SERVER}/mcp`,
+      },
+    },
+  }, null, 2);
+
+  const handleCopyHttpConfig = async () => {
+    await navigator.clipboard.writeText(mcpHttpConfig);
+    setMcpCopied(true);
+    setTimeout(() => setMcpCopied(false), 2000);
+  };
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold text-white mb-2">Settings</h2>
         <p className="text-slate-500">Configure your local development environment</p>
+      </div>
+
+      {/* MCP Integration */}
+      <div className="border border-blue-500/30 rounded-xl bg-blue-500/5 p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Plug className="w-5 h-5 text-blue-400" aria-hidden="true" />
+          <h3 className="text-lg font-semibold text-blue-400">MCP Integration</h3>
+        </div>
+
+        <p className="text-sm text-slate-400 mb-4">
+          Connect AI assistants like Claude to control your local blockchain environment.
+        </p>
+
+        <div className="space-y-4">
+          {/* Claude Code / HTTP config */}
+          <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-white">Claude Code / .mcp.json</h4>
+              <button
+                onClick={handleCopyHttpConfig}
+                className="px-3 py-1.5 text-sm bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-500/20 transition-colors flex items-center gap-1.5"
+              >
+                {mcpCopied ? (
+                  <><Check className="w-3.5 h-3.5" /> Copied</>
+                ) : (
+                  <><Copy className="w-3.5 h-3.5" /> Copy Config</>
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-2">
+              Paste into your project's <code className="text-slate-400">.mcp.json</code> or run: <code className="text-slate-400">claude mcp add --transport http hathor-forge http://127.0.0.1:{PORTS.MCP_SERVER}/mcp</code>
+            </p>
+            <pre className="text-xs text-slate-300 font-mono bg-slate-950 rounded p-3 overflow-x-auto">{mcpHttpConfig}</pre>
+          </div>
+
+          {/* Claude Desktop / stdio config */}
+          <div className="p-4 bg-slate-900/50 rounded-lg border border-slate-800">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-medium text-white">Claude Desktop (stdio)</h4>
+              <button
+                onClick={handleCopyMcpConfig}
+                className="px-3 py-1.5 text-sm bg-blue-500/10 text-blue-400 border border-blue-500/30 rounded-lg hover:bg-blue-500/20 transition-colors flex items-center gap-1.5"
+              >
+                {mcpCopied ? (
+                  <><Check className="w-3.5 h-3.5" /> Copied</>
+                ) : (
+                  <><Copy className="w-3.5 h-3.5" /> Copy Config</>
+                )}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Copies a config snippet with resolved paths to the bundled Node.js binary and stdio bridge. Paste into Claude Desktop's config file.
+            </p>
+            {mcpError && (
+              <div className="mt-2 p-2 rounded text-xs bg-red-500/10 text-red-400 border border-red-500/30">
+                {mcpError}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Danger Zone */}
