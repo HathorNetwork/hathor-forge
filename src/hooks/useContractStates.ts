@@ -1,11 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import * as api from "@/services/tauri";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { POLLING_INTERVALS } from "@/lib/constants";
 
 export function useContractStatesPolling() {
-  const nodeStatus = useAppStore((s) => s.nodeStatus);
+  const nodeStatus = useNodeStore((s) => s.nodeStatus);
   const contracts = useNanoContractStore((s) => s.contracts);
   const updateContract = useNanoContractStore((s) => s.updateContract);
 

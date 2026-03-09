@@ -1,8 +1,8 @@
 import { Cpu, Database } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
 
 export function Header() {
-  const { nodeStatus, minerStatus, blockHeight, hashRate } = useAppStore();
+  const { nodeStatus, minerStatus, blockHeight, hashRate } = useNodeStore();
 
   return (
     <header className="h-16 border-b border-slate-800/50 bg-[#0d1117] flex items-center justify-between px-6">

@@ -3,7 +3,7 @@ import {
   Zap, Plus, Search, Copy, Clock, FileCode, RefreshCw,
   Trash2, Loader2, Play, Square,
 } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useUIStore } from "@/store/useUIStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { useBlueprints } from "@/hooks/useBlueprints";
@@ -13,7 +13,7 @@ import { formatHTR } from "@/lib/utils";
 import type { BlueprintInfo, BlueprintMethod, BlueprintArg, NanoContract } from "@/types/nano-contracts";
 
 export function NanoContractsPage() {
-  const setError = useAppStore((s) => s.setError);
+  const setError = useUIStore((s) => s.setError);
   const { headlessWallets } = useWalletStore();
   const { contracts, addContract, removeContract } = useNanoContractStore();
   const { data: blueprints = [], refetch: refetchBlueprints } = useBlueprints();

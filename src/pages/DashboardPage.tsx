@@ -1,21 +1,22 @@
 import {
   Cpu, Play, Square, Layers, Coins, FileText,
 } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
+import { useUIStore } from "@/store/useUIStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import { useStartNetwork } from "@/hooks/useStartNetwork";
 import * as api from "@/services/tauri";
 
 export function DashboardPage() {
-  const nodeStatus = useAppStore((s) => s.nodeStatus);
-  const setNodeStatus = useAppStore((s) => s.setNodeStatus);
-  const minerStatus = useAppStore((s) => s.minerStatus);
-  const setMinerStatus = useAppStore((s) => s.setMinerStatus);
-  const blockHeight = useAppStore((s) => s.blockHeight);
-  const setBlockHeight = useAppStore((s) => s.setBlockHeight);
-  const hashRate = useAppStore((s) => s.hashRate);
-  const setHashRate = useAppStore((s) => s.setHashRate);
-  const setError = useAppStore((s) => s.setError);
+  const nodeStatus = useNodeStore((s) => s.nodeStatus);
+  const setNodeStatus = useNodeStore((s) => s.setNodeStatus);
+  const minerStatus = useNodeStore((s) => s.minerStatus);
+  const setMinerStatus = useNodeStore((s) => s.setMinerStatus);
+  const blockHeight = useNodeStore((s) => s.blockHeight);
+  const setBlockHeight = useNodeStore((s) => s.setBlockHeight);
+  const hashRate = useNodeStore((s) => s.hashRate);
+  const setHashRate = useNodeStore((s) => s.setHashRate);
+  const setError = useUIStore((s) => s.setError);
   const { setHeadlessStatus } = useWalletStore();
   const { startNetwork, isLoading: isNetworkStarting } = useStartNetwork();
 

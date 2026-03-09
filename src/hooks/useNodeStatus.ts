@@ -1,12 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import * as api from "@/services/tauri";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import { POLLING_INTERVALS } from "@/lib/constants";
 
 export function useNodeStatusPolling() {
-  const nodeStatus = useAppStore((s) => s.nodeStatus);
-  const setBlockHeight = useAppStore((s) => s.setBlockHeight);
+  const nodeStatus = useNodeStore((s) => s.nodeStatus);
+  const setBlockHeight = useNodeStore((s) => s.setBlockHeight);
   const setFaucetBalance = useWalletStore((s) => s.setFaucetBalance);
 
   return useQuery({

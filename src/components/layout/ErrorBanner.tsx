@@ -1,9 +1,9 @@
 import { X } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useUIStore } from "@/store/useUIStore";
 
 export function ErrorBanner() {
-  const error = useAppStore((s) => s.error);
-  const setError = useAppStore((s) => s.setError);
+  const error = useUIStore((s) => s.error);
+  const setError = useUIStore((s) => s.setError);
 
   if (!error) return null;
 

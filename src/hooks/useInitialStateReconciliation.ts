@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import * as api from "@/services/tauri";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
 import { useWalletStore } from "@/store/useWalletStore";
 
 /**
@@ -8,9 +8,9 @@ import { useWalletStore } from "@/store/useWalletStore";
  * instead of assuming everything is stopped.
  */
 export function useInitialStateReconciliation() {
-  const setNodeStatus = useAppStore((s) => s.setNodeStatus);
-  const setMinerStatus = useAppStore((s) => s.setMinerStatus);
-  const setBlockHeight = useAppStore((s) => s.setBlockHeight);
+  const setNodeStatus = useNodeStore((s) => s.setNodeStatus);
+  const setMinerStatus = useNodeStore((s) => s.setMinerStatus);
+  const setBlockHeight = useNodeStore((s) => s.setBlockHeight);
   const setHeadlessStatus = useWalletStore((s) => s.setHeadlessStatus);
 
   useEffect(() => {

@@ -1,28 +1,12 @@
 import { create } from "zustand";
-import type {
-  NodeStatusType,
-  MinerStatusType,
-  PageType,
-  LogSource,
-  LogEntry,
-} from "@/types";
+import type { PageType, LogSource, LogEntry } from "@/types";
 import { parseLogLevel, stripAnsi } from "@/lib/utils";
 import { MAX_LOG_ENTRIES } from "@/lib/constants";
 
-interface AppState {
+interface UIState {
   // Navigation
   currentPage: PageType;
   setCurrentPage: (page: PageType) => void;
-
-  // Node & Miner status
-  nodeStatus: NodeStatusType;
-  setNodeStatus: (status: NodeStatusType) => void;
-  minerStatus: MinerStatusType;
-  setMinerStatus: (status: MinerStatusType) => void;
-  blockHeight: number;
-  setBlockHeight: (height: number) => void;
-  hashRate: string;
-  setHashRate: (rate: string) => void;
 
   // Error
   error: string | null;
@@ -39,20 +23,10 @@ interface AppState {
   toggleLogFilter: (source: LogSource) => void;
 }
 
-export const useAppStore = create<AppState>()((set, get) => ({
+export const useUIStore = create<UIState>()((set, get) => ({
   // Navigation
   currentPage: "dashboard",
   setCurrentPage: (page) => set({ currentPage: page }),
-
-  // Node & Miner status
-  nodeStatus: "stopped",
-  setNodeStatus: (status) => set({ nodeStatus: status }),
-  minerStatus: "stopped",
-  setMinerStatus: (status) => set({ minerStatus: status }),
-  blockHeight: 0,
-  setBlockHeight: (height) => set({ blockHeight: height }),
-  hashRate: "0 H/s",
-  setHashRate: (rate) => set({ hashRate: rate }),
 
   // Error
   error: null,

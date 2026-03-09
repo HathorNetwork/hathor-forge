@@ -1,12 +1,12 @@
 import { useState, useCallback } from "react";
 import { AlertTriangle, Trash2, Loader2 } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
 
 export function SettingsPage() {
-  const nodeStatus = useAppStore((s) => s.nodeStatus);
+  const nodeStatus = useNodeStore((s) => s.nodeStatus);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetStatus, setResetStatus] = useState<"idle" | "resetting" | "success" | "error">("idle");
   const [resetMessage, setResetMessage] = useState("");

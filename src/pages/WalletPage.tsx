@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Wallet, Play, Square, Send, Copy, Check, Loader2,
 } from "lucide-react";
-import { useAppStore } from "@/store/useAppStore";
+import { useNodeStore } from "@/store/useNodeStore";
+import { useUIStore } from "@/store/useUIStore";
 import { useWalletStore } from "@/store/useWalletStore";
 import { useEscapeKey } from "@/hooks/useEscapeKey";
 import * as api from "@/services/tauri";
@@ -11,8 +12,8 @@ import { PORTS } from "@/lib/constants";
 import type { HeadlessWallet } from "@/types";
 
 export function WalletPage() {
-  const nodeStatus = useAppStore((s) => s.nodeStatus);
-  const setError = useAppStore((s) => s.setError);
+  const nodeStatus = useNodeStore((s) => s.nodeStatus);
+  const setError = useUIStore((s) => s.setError);
   const [walletSendForms, setWalletSendForms] = useState<Record<string, { address: string; amount: string }>>({});
   const {
     headlessStatus, setHeadlessStatus,
