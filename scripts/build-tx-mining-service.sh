@@ -153,6 +153,8 @@ mkdir -p "$OUTPUT_DIR"
 rm -rf "$OUTPUT_DIR/tx-mining-service-$TARGET"
 cp -r "dist/tx-mining-service" "$OUTPUT_DIR/tx-mining-service-$TARGET"
 chmod +x "$OUTPUT_DIR/tx-mining-service-$TARGET/tx-mining-service"
+# Ensure all files are readable (PyInstaller bundles may have restrictive permissions)
+chmod -R u+r "$OUTPUT_DIR/tx-mining-service-$TARGET"
 
 # Copy log.conf into the bundle (tx-mining-service looks for it in cwd)
 cp "$TX_MINING_DIR/log.conf" "$OUTPUT_DIR/tx-mining-service-$TARGET/" 2>/dev/null || true

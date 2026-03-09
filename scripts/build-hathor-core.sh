@@ -159,6 +159,8 @@ mkdir -p "$OUTPUT_DIR"
 rm -rf "$OUTPUT_DIR/hathor-core-$TARGET"
 cp -r "dist/hathor-core" "$OUTPUT_DIR/hathor-core-$TARGET"
 chmod +x "$OUTPUT_DIR/hathor-core-$TARGET/hathor-core"
+# Ensure all files are readable (PyInstaller bundles may have restrictive permissions)
+chmod -R u+r "$OUTPUT_DIR/hathor-core-$TARGET"
 
 # On macOS, sign all binaries and libraries to avoid libcrypto security abort
 if [[ "$OSTYPE" == "darwin"* ]]; then
