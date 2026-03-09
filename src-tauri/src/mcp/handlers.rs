@@ -5,6 +5,117 @@ use std::time::Duration;
 
 use super::types::McpState;
 
+// ============================================================================
+// Input Validation Helpers
+// ============================================================================
+
+/// Extract a required non-empty string parameter.
+fn require_str<'a>(params: &'a Value, field: &str) -> Result<&'a str, String> {
+    let value = params
+        .get(field)
+        .and_then(|v| v.as_str())
+        .ok_or_else(|| format!("'{}' is required and must be a non-empty string", field))?;
+    if value.trim().is_empty() {
+        return Err(format!("'{}' must not be empty or whitespace-only", field));
+    }
+    Ok(value)
+}
+
+/// Extract a required positive f64 parameter.
+fn require_positive_amount(params: &Value, field: &str) -> Result<f64, String> {
+    let value = params
+        .get(field)
+        .and_then(|v| v.as_f64())
+        .ok_or_else(|| format!("'{}' is required and must be a number", field))?;
+    if value <= 0.0 {
+        return Err(format!("'{}' must be greater than 0, got {}", field, value));
+    }
+    if value > 1_000_000_000.0 {
+        return Err(format!(
+            "'{}' exceeds maximum allowed value (1,000,000,000), got {}",
+            field, value
+        ));
+    }
+    Ok(value)
+}
+
+/// Extract an optional positive f64 parameter (returns None if absent, errors if invalid).
+fn optional_positive_amount(params: &Value, field: &str) -> Result<Option<f64>, String> {
+    match params.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => {
+            let value = v
+                .as_f64()
+                .ok_or_else(|| format!("'{}' must be a number", field))?;
+            if value <= 0.0 {
+                return Err(format!("'{}' must be greater than 0, got {}", field, value));
+            }
+            if value > 1_000_000_000.0 {
+                return Err(format!(
+                    "'{}' exceeds maximum allowed value (1,000,000,000), got {}",
+                    field, value
+                ));
+            }
+            Ok(Some(value))
+        }
+    }
+}
+
+/// Extract an optional non-empty string parameter.
+fn optional_str<'a>(params: &'a Value, field: &str) -> Result<Option<&'a str>, String> {
+    match params.get(field) {
+        None | Some(Value::Null) => Ok(None),
+        Some(v) => {
+            let s = v
+                .as_str()
+                .ok_or_else(|| format!("'{}' must be a string", field))?;
+            if s.trim().is_empty() {
+                return Err(format!(
+                    "'{}' must not be empty or whitespace-only when provided",
+                    field
+                ));
+            }
+            Ok(Some(s))
+        }
+    }
+}
+
+/// Extract a positive integer count with a default and maximum.
+fn optional_count(
+    params: &Value,
+    field: &str,
+    default: usize,
+    max: usize,
+) -> Result<usize, String> {
+    match params.get(field) {
+        None | Some(Value::Null) => Ok(default),
+        Some(v) => {
+            let n = v
+                .as_i64()
+                .ok_or_else(|| format!("'{}' must be an integer", field))?;
+            if n <= 0 {
+                return Err(format!("'{}' must be a positive integer, got {}", field, n));
+            }
+            let n = n as usize;
+            if n > max {
+                return Err(format!("'{}' exceeds maximum of {}, got {}", field, max, n));
+            }
+            Ok(n)
+        }
+    }
+}
+
+/// Validate a URL string has a valid format.
+fn validate_url(url: &str, field: &str) -> Result<(), String> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(format!(
+            "'{}' must be a valid URL starting with http:// or https://, got '{}'",
+            field, url
+        ));
+    }
+    Ok(())
+}
+
 /// Execute an MCP tool by name with the given parameters.
 pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Result<String, String> {
     let client = state.http_client.clone();
@@ -40,10 +151,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
 
         // Miner Management
         "start_miner" => {
-            let address = params
-                .get("address")
-                .and_then(|v| v.as_str())
-                .map(String::from);
+            let address = optional_str(params, "address")?.map(String::from);
             crate::start_miner_internal(&state.app_state, address).await
         }
 
@@ -90,11 +198,8 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         "generate_seed" => crate::generate_seed_internal(),
 
         "create_wallet" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
-            let seed = params.get("seed").and_then(|v| v.as_str());
+            let wallet_id = require_str(params, "wallet_id")?;
+            let seed = optional_str(params, "seed")?;
 
             let wallet_seed = match seed {
                 Some(s) => s.to_string(),
@@ -152,10 +257,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_wallet_seed" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
 
             let seeds = state.wallet_seeds.lock().await;
             match seeds.get(wallet_id) {
@@ -165,10 +267,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_wallet_status" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
 
             let resp = client
                 .get(format!("{}/wallet/status", wallet_headless_url))
@@ -182,10 +281,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_wallet_balance" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
 
             let resp = client
                 .get(format!("{}/wallet/balance", wallet_headless_url))
@@ -199,10 +295,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_wallet_addresses" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
 
             let resp = client
                 .get(format!("{}/wallet/addresses", wallet_headless_url))
@@ -216,18 +309,9 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "send_from_wallet" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
-            let address = params
-                .get("address")
-                .and_then(|v| v.as_str())
-                .ok_or("address is required")?;
-            let amount = params
-                .get("amount")
-                .and_then(|v| v.as_f64())
-                .ok_or("amount is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
+            let address = require_str(params, "address")?;
+            let amount = require_positive_amount(params, "amount")?;
 
             let resp = client
                 .post(format!("{}/wallet/simple-send-tx", wallet_headless_url))
@@ -245,10 +329,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "close_wallet" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
 
             let resp = client
                 .post(format!("{}/wallet/stop", wallet_headless_url))
@@ -276,14 +357,8 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "send_from_faucet" => {
-            let address = params
-                .get("address")
-                .and_then(|v| v.as_str())
-                .ok_or("address is required")?;
-            let amount = params
-                .get("amount")
-                .and_then(|v| v.as_f64())
-                .ok_or("amount is required")?;
+            let address = require_str(params, "address")?;
+            let amount = require_positive_amount(params, "amount")?;
 
             let resp = client
                 .post(format!("{}/v1a/wallet/send_tokens/", fullnode_url))
@@ -305,11 +380,8 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "fund_wallet" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
-            let amount = params.get("amount").and_then(|v| v.as_f64());
+            let wallet_id = require_str(params, "wallet_id")?;
+            let amount = optional_positive_amount(params, "amount")?;
 
             // Get wallet's first address
             let addresses_resp = client
@@ -389,7 +461,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
 
         // Blockchain
         "get_blocks" => {
-            let count = params.get("count").and_then(|v| v.as_i64()).unwrap_or(10) as usize;
+            let count = optional_count(params, "count", 10, 100)?;
 
             let status_resp = client
                 .get(format!("{}/v1a/status/", fullnode_url))
@@ -426,10 +498,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_transaction" => {
-            let tx_id = params
-                .get("tx_id")
-                .and_then(|v| v.as_str())
-                .ok_or("tx_id is required")?;
+            let tx_id = require_str(params, "tx_id")?;
 
             let resp = client
                 .get(format!("{}/v1a/transaction?id={}", fullnode_url, tx_id))
@@ -565,10 +634,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_blueprint_info" => {
-            let blueprint_id = params
-                .get("blueprint_id")
-                .and_then(|v| v.as_str())
-                .ok_or("blueprint_id is required")?;
+            let blueprint_id = require_str(params, "blueprint_id")?;
 
             let resp = client
                 .get(format!(
@@ -584,18 +650,9 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "publish_blueprint" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
-            let code = params
-                .get("code")
-                .and_then(|v| v.as_str())
-                .ok_or("code is required")?;
-            let address = params
-                .get("address")
-                .and_then(|v| v.as_str())
-                .ok_or("address is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
+            let code = require_str(params, "code")?;
+            let address = require_str(params, "address")?;
 
             let resp = client
                 .post(format!(
@@ -616,18 +673,9 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "create_nano_contract" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
-            let blueprint_id = params
-                .get("blueprint_id")
-                .and_then(|v| v.as_str())
-                .ok_or("blueprint_id is required")?;
-            let address = params
-                .get("address")
-                .and_then(|v| v.as_str())
-                .ok_or("address is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
+            let blueprint_id = require_str(params, "blueprint_id")?;
+            let address = require_str(params, "address")?;
             let args = params.get("args").cloned().unwrap_or(json!([]));
             let actions = params.get("actions").cloned().unwrap_or(json!([]));
 
@@ -654,22 +702,10 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "execute_nano_contract" => {
-            let wallet_id = params
-                .get("wallet_id")
-                .and_then(|v| v.as_str())
-                .ok_or("wallet_id is required")?;
-            let nc_id = params
-                .get("nc_id")
-                .and_then(|v| v.as_str())
-                .ok_or("nc_id is required")?;
-            let method = params
-                .get("method")
-                .and_then(|v| v.as_str())
-                .ok_or("method is required")?;
-            let address = params
-                .get("address")
-                .and_then(|v| v.as_str())
-                .ok_or("address is required")?;
+            let wallet_id = require_str(params, "wallet_id")?;
+            let nc_id = require_str(params, "nc_id")?;
+            let method = require_str(params, "method")?;
+            let address = require_str(params, "address")?;
             let args = params.get("args").cloned().unwrap_or(json!([]));
             let actions = params.get("actions").cloned().unwrap_or(json!([]));
 
@@ -697,10 +733,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_nano_contract_state" => {
-            let nc_id = params
-                .get("nc_id")
-                .and_then(|v| v.as_str())
-                .ok_or("nc_id is required")?;
+            let nc_id = require_str(params, "nc_id")?;
 
             let resp = client
                 .get(format!(
@@ -716,10 +749,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_nano_contract_history" => {
-            let nc_id = params
-                .get("nc_id")
-                .and_then(|v| v.as_str())
-                .ok_or("nc_id is required")?;
+            let nc_id = require_str(params, "nc_id")?;
 
             let resp = client
                 .get(format!(
@@ -735,10 +765,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         }
 
         "get_nano_contract_logs" => {
-            let tx_id = params
-                .get("tx_id")
-                .and_then(|v| v.as_str())
-                .ok_or("tx_id is required")?;
+            let tx_id = require_str(params, "tx_id")?;
 
             let resp = client
                 .get(format!(
@@ -762,13 +789,16 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
         .to_string()),
 
         "set_service_urls" => {
-            if let Some(url) = params.get("fullnode_url").and_then(|v| v.as_str()) {
+            if let Some(url) = optional_str(params, "fullnode_url")? {
+                validate_url(url, "fullnode_url")?;
                 *state.fullnode_url.write().await = url.to_string();
             }
-            if let Some(url) = params.get("wallet_headless_url").and_then(|v| v.as_str()) {
+            if let Some(url) = optional_str(params, "wallet_headless_url")? {
+                validate_url(url, "wallet_headless_url")?;
                 *state.wallet_headless_url.write().await = url.to_string();
             }
-            if let Some(url) = params.get("tx_mining_url").and_then(|v| v.as_str()) {
+            if let Some(url) = optional_str(params, "tx_mining_url")? {
+                validate_url(url, "tx_mining_url")?;
                 *state.tx_mining_url.write().await = url.to_string();
             }
 
