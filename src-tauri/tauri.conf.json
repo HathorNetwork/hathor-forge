@@ -36,7 +36,8 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/cpuminer"
+      "binaries/cpuminer",
+      "binaries/node"
     ],
     "resources": [
       "explorer-dist/**/*",
