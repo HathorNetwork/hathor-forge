@@ -87,14 +87,25 @@ pub async fn start_headless_internal(
         .spawn()
         .map_err(|e| format!("Failed to spawn wallet-headless: {}", e))?;
 
-    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "wallet", state_guard.app_handle.clone());
+    let pid = setup_child_logging(
+        &mut child,
+        state_guard.log_buffer.clone(),
+        "wallet",
+        state_guard.app_handle.clone(),
+    );
     state_guard.headless_running = true;
     state_guard.headless_child_id = pid;
 
-    spawn_exit_monitor(child, state.clone(), |s| {
-        s.headless_running = false;
-        s.headless_child_id = None;
-    }, |s| s.headless_child_id, "headless-terminated");
+    spawn_exit_monitor(
+        child,
+        state.clone(),
+        |s| {
+            s.headless_running = false;
+            s.headless_child_id = None;
+        },
+        |s| s.headless_child_id,
+        "headless-terminated",
+    );
 
     Ok(format!("Wallet-headless started on port {}", config.port))
 }

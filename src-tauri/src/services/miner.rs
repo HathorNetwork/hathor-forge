@@ -67,7 +67,12 @@ pub async fn start_miner_internal(
         .map_err(|e| format!("Failed to spawn cpuminer at {:?}: {}", binary_path, e))?;
 
     let app_handle = state_guard.app_handle.clone();
-    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "miner", app_handle.clone());
+    let pid = setup_child_logging(
+        &mut child,
+        state_guard.log_buffer.clone(),
+        "miner",
+        app_handle.clone(),
+    );
     state_guard.miner_running = true;
     state_guard.miner_child_id = pid;
 
@@ -75,10 +80,16 @@ pub async fn start_miner_internal(
         let _ = handle.emit("miner-started", ());
     }
 
-    spawn_exit_monitor(child, state.clone(), |s| {
-        s.miner_running = false;
-        s.miner_child_id = None;
-    }, |s| s.miner_child_id, "miner-terminated");
+    spawn_exit_monitor(
+        child,
+        state.clone(),
+        |s| {
+            s.miner_running = false;
+            s.miner_child_id = None;
+        },
+        |s| s.miner_child_id,
+        "miner-terminated",
+    );
 
     Ok(format!("Miner started with {} threads", config.threads))
 }

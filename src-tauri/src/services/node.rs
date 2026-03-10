@@ -81,7 +81,12 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
         .map_err(|e| format!("Failed to spawn hathor-core at {:?}: {}", binary_path, e))?;
 
     let app_handle = state_guard.app_handle.clone();
-    let pid = setup_child_logging(&mut child, state_guard.log_buffer.clone(), "node", app_handle.clone());
+    let pid = setup_child_logging(
+        &mut child,
+        state_guard.log_buffer.clone(),
+        "node",
+        app_handle.clone(),
+    );
     state_guard.node_running = true;
     state_guard.node_child_id = pid;
     state_guard.data_dir = Some(config.data_dir.clone());
@@ -90,10 +95,16 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
         let _ = handle.emit("node-started", ());
     }
 
-    spawn_exit_monitor(child, state.clone(), |s| {
-        s.node_running = false;
-        s.node_child_id = None;
-    }, |s| s.node_child_id, "node-terminated");
+    spawn_exit_monitor(
+        child,
+        state.clone(),
+        |s| {
+            s.node_running = false;
+            s.node_child_id = None;
+        },
+        |s| s.node_child_id,
+        "node-terminated",
+    );
 
     Ok(format!("Node started on port {}", config.api_port))
 }

@@ -587,7 +587,10 @@ pub(crate) async fn get_mcp_config(
 pub(crate) fn get_local_ip() -> String {
     // Connect a UDP socket to a public address without sending data — the OS fills in the local IP.
     std::net::UdpSocket::bind("0.0.0.0:0")
-        .and_then(|s| { s.connect("8.8.8.8:80")?; s.local_addr() })
+        .and_then(|s| {
+            s.connect("8.8.8.8:80")?;
+            s.local_addr()
+        })
         .map(|addr| addr.ip().to_string())
         .unwrap_or_else(|_| "127.0.0.1".to_string())
 }

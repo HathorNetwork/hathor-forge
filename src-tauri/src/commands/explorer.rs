@@ -316,9 +316,9 @@ pub(crate) async fn start_explorer_server(
     let addr = SocketAddr::from(([0, 0, 0, 0], explorer_port));
 
     // Bind without holding the lock (async I/O)
-    let listener = tokio::net::TcpListener::bind(addr).await.map_err(|e| {
-        format!("Failed to bind to port {}: {}", explorer_port, e)
-    })?;
+    let listener = tokio::net::TcpListener::bind(addr)
+        .await
+        .map_err(|e| format!("Failed to bind to port {}: {}", explorer_port, e))?;
 
     // Re-acquire lock and re-check before committing state
     let mut state_guard = state.lock().await;
