@@ -13,7 +13,6 @@ env:
 
 jobs:
   build-linux:
-    if: false  # temporarily disabled — testing Windows build only
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -87,7 +86,6 @@ jobs:
           if-no-files-found: warn
 
   build-macos:
-    if: false  # temporarily disabled — testing Windows build only
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -325,7 +323,6 @@ jobs:
 
   # Lint and test (runs quickly without needing binaries)
   check:
-    if: false  # temporarily disabled — testing Windows build only
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
