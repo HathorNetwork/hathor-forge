@@ -11,6 +11,8 @@ describe("PORTS", () => {
     expect(PORTS.FULLNODE_API).toBe(8080);
     expect(PORTS.STRATUM).toBe(8000);
     expect(PORTS.WALLET_HEADLESS).toBe(8001);
+    expect(PORTS.TX_MINING_API).toBe(8002);
+    expect(PORTS.TX_MINING_STRATUM).toBe(8003);
     expect(PORTS.EXPLORER).toBe(3001);
     expect(PORTS.MCP_SERVER).toBe(9876);
     expect(PORTS.VITE_DEV).toBe(1420);
@@ -21,10 +23,12 @@ describe("PORTS", () => {
     expect(keys).toContain("FULLNODE_API");
     expect(keys).toContain("STRATUM");
     expect(keys).toContain("WALLET_HEADLESS");
+    expect(keys).toContain("TX_MINING_API");
+    expect(keys).toContain("TX_MINING_STRATUM");
     expect(keys).toContain("EXPLORER");
     expect(keys).toContain("MCP_SERVER");
     expect(keys).toContain("VITE_DEV");
-    expect(keys).toHaveLength(6);
+    expect(keys).toHaveLength(8);
   });
 
   it("all ports are positive integers", () => {
