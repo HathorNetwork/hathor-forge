@@ -248,19 +248,28 @@ for name in _missing_builtins:
         setattr(builtins, name, _DisabledBuiltin(name))
 '@ | Set-Content -Path "pyi_rth_builtins.py" -Encoding UTF8
 
-# Create runtime hook to handle missing Unix-only modules on Windows
+# Create runtime hook to stub Unix-only modules on Windows
 @'
 import sys
 import types
 import platform
 
 if platform.system() == "Windows":
-    # curses is Unix-only; hathor_cli.top imports it but is not needed on Windows.
-    # Provide a stub so the import doesn't crash the process.
-    for mod_name in ("_curses", "_curses_panel"):
+    # Stub Unix-only modules that hathor-core imports:
+    #   curses, curses.ascii  — hathor_cli/top.py (top-level, crashes on startup)
+    #   resource              — hathor_cli/run_node.py (lazy, crashes when running node)
+    #   fcntl, termios        — hathor/sysctl/core/manager.py, hathor_cli/top.py (lazy)
+    unix_only = ("_curses", "_curses_panel", "resource", "fcntl", "termios")
+    for mod_name in unix_only:
         if mod_name not in sys.modules:
-            sys.modules[mod_name] = types.ModuleType(mod_name)
-'@ | Set-Content -Path "pyi_rth_curses.py" -Encoding UTF8
+            mod = types.ModuleType(mod_name)
+            # resource.getrlimit / resource.RLIMIT_NOFILE are used in run_node.py
+            if mod_name == "resource":
+                mod.RLIMIT_NOFILE = 7  # constant value on Linux, unused on Windows
+                mod.getrlimit = lambda _: (8192, 8192)  # return generous defaults
+                mod.setrlimit = lambda *_: None
+            sys.modules[mod_name] = mod
+'@ | Set-Content -Path "pyi_rth_unix_stubs.py" -Encoding UTF8
 
 Write-Host ""
 Write-Host "Running PyInstaller..."
@@ -270,7 +279,7 @@ pyinstaller `
     --clean `
     --noconfirm `
     --runtime-hook=pyi_rth_builtins.py `
-    --runtime-hook=pyi_rth_curses.py `
+    --runtime-hook=pyi_rth_unix_stubs.py `
     --hidden-import=_contextvars `
     --hidden-import=rocksdb._rocksdb `
     --hidden-import=rocksdb.interfaces `
