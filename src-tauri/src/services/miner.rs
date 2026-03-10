@@ -32,7 +32,7 @@ pub async fn start_miner_internal(
         if !state_guard.tx_mining_running {
             drop(state_guard);
             start_tx_mining_internal(state).await?;
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
     }
 
