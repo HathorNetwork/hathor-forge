@@ -1,6 +1,6 @@
 [package]
 name = "hathor-forge"
-version = "0.1.2"
+version = "0.1.3"
 description = "A Ganache-like local blockchain for Hathor Network developers"
 authors = ["Hathor Labs"]
 edition = "2021"
