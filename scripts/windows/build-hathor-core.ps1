@@ -256,19 +256,67 @@ import platform
 
 if platform.system() == "Windows":
     # Stub Unix-only modules that hathor-core imports:
-    #   curses, curses.ascii  — hathor_cli/top.py (top-level, crashes on startup)
-    #   resource              — hathor_cli/run_node.py (lazy, crashes when running node)
-    #   fcntl, termios        — hathor/sysctl/core/manager.py, hathor_cli/top.py (lazy)
-    unix_only = ("_curses", "_curses_panel", "resource", "fcntl", "termios")
-    for mod_name in unix_only:
+    #   _curses, _curses_panel — hathor_cli/top.py (top-level via "import curses")
+    #   resource               — hathor_cli/run_node.py (lazy, checks fd limits)
+    #   fcntl, termios         — hathor/sysctl/core/manager.py (lazy, debug TTY)
+
+    # _curses stub: curses/__init__.py does "from _curses import *" then checks
+    # for has_key, error, etc. We must provide enough for that to succeed.
+    if "_curses" not in sys.modules:
+        mod = types.ModuleType("_curses")
+        mod.error = type("error", (Exception,), {})
+        mod.ERR = -1
+        mod.OK = 0
+        mod.version = b"0.0"
+        mod.has_key = lambda key: False
+        # Common constants that may be referenced
+        mod.A_NORMAL = 0
+        mod.A_BOLD = 1 << 13
+        mod.A_REVERSE = 1 << 18
+        mod.A_UNDERLINE = 1 << 17
+        mod.COLOR_BLACK = 0
+        mod.COLOR_RED = 1
+        mod.COLOR_GREEN = 2
+        mod.COLOR_YELLOW = 3
+        mod.COLOR_BLUE = 4
+        mod.COLOR_MAGENTA = 5
+        mod.COLOR_CYAN = 6
+        mod.COLOR_WHITE = 7
+        mod.LINES = 24
+        mod.COLS = 80
+        # Functions that may be called
+        mod.initscr = lambda: None
+        mod.endwin = lambda: None
+        mod.start_color = lambda: None
+        mod.use_default_colors = lambda: None
+        mod.init_pair = lambda *a: None
+        mod.color_pair = lambda n: 0
+        mod.newwin = lambda *a: None
+        mod.curs_set = lambda v: None
+        mod.noecho = lambda: None
+        mod.cbreak = lambda: None
+        mod.nocbreak = lambda: None
+        mod.echo = lambda: None
+        mod.setupterm = lambda **kw: None
+        mod.tigetstr = lambda cap: None
+        mod.tparm = lambda *a: b""
+        sys.modules["_curses"] = mod
+
+    if "_curses_panel" not in sys.modules:
+        sys.modules["_curses_panel"] = types.ModuleType("_curses_panel")
+
+    # resource stub
+    if "resource" not in sys.modules:
+        mod = types.ModuleType("resource")
+        mod.RLIMIT_NOFILE = 7
+        mod.getrlimit = lambda _: (8192, 8192)
+        mod.setrlimit = lambda *_: None
+        sys.modules["resource"] = mod
+
+    # fcntl / termios stubs
+    for mod_name in ("fcntl", "termios"):
         if mod_name not in sys.modules:
-            mod = types.ModuleType(mod_name)
-            # resource.getrlimit / resource.RLIMIT_NOFILE are used in run_node.py
-            if mod_name == "resource":
-                mod.RLIMIT_NOFILE = 7  # constant value on Linux, unused on Windows
-                mod.getrlimit = lambda _: (8192, 8192)  # return generous defaults
-                mod.setrlimit = lambda *_: None
-            sys.modules[mod_name] = mod
+            sys.modules[mod_name] = types.ModuleType(mod_name)
 '@ | Set-Content -Path "pyi_rth_unix_stubs.py" -Encoding UTF8
 
 Write-Host ""
