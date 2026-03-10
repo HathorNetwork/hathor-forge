@@ -196,7 +196,7 @@ jobs:
           path: |
             C:\vcpkg\installed
             C:\Users\runneradmin\AppData\Local\vcpkg\archives
-          key: vcpkg-${{ runner.os }}-rocksdb-v2
+          key: vcpkg-${{ runner.os }}-rocksdb-v4-static-md
 
       - name: Install MSYS2 (for cpuminer autotools)
         uses: msys2/setup-msys2@v2
