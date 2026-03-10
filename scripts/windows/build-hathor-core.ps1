@@ -311,6 +311,7 @@ if platform.system() == "Windows":
         mod.RLIMIT_NOFILE = 7
         mod.getrlimit = lambda _: (8192, 8192)
         mod.setrlimit = lambda *_: None
+        mod.getpagesize = lambda: 4096
         sys.modules["resource"] = mod
 
     # fcntl / termios stubs
