@@ -66,6 +66,7 @@ pub fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     });
 }
 
+#[derive(Default)]
 pub struct AppState {
     pub node_running: bool,
     pub miner_running: bool,
@@ -83,27 +84,6 @@ pub struct AppState {
     pub app_handle: Option<tauri::AppHandle>,
     /// Ports resolved at startup — prefer these over DEFAULT_* constants.
     pub ports: crate::config::ResolvedPorts,
-}
-
-impl Default for AppState {
-    fn default() -> Self {
-        Self {
-            node_running: false,
-            miner_running: false,
-            explorer_server_running: false,
-            headless_running: false,
-            tx_mining_running: false,
-            node_child_id: None,
-            miner_child_id: None,
-            headless_child_id: None,
-            tx_mining_child_id: None,
-            explorer_shutdown: None,
-            data_dir: None,
-            log_buffer: LogBuffer::default(),
-            app_handle: None,
-            ports: crate::config::ResolvedPorts::default(),
-        }
-    }
 }
 
 pub type SharedState = Arc<Mutex<AppState>>;

@@ -385,6 +385,7 @@ jobs:
           mkdir -p src-tauri/binaries/hathor-core-x86_64-unknown-linux-gnu
           touch src-tauri/binaries/hathor-core-x86_64-unknown-linux-gnu/hathor-core
           touch src-tauri/binaries/cpuminer-x86_64-unknown-linux-gnu
+          touch src-tauri/binaries/node-x86_64-unknown-linux-gnu
           touch src-tauri/explorer-dist/.keep
           touch src-tauri/wallet-headless-dist/.keep
           mkdir -p src-tauri/binaries/tx-mining-service-x86_64-unknown-linux-gnu
