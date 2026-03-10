@@ -397,6 +397,9 @@ jobs:
       - name: Rust tests
         run: nix develop --command cargo test --manifest-path src-tauri/Cargo.toml --features tauri-app
 
+      - name: Windows stubs tests
+        run: python3 scripts/tests/test_windows_stubs.py -v
+
       - name: Cargo audit
         run: nix develop --command bash -c "cargo install cargo-audit --quiet && cargo audit --file src-tauri/Cargo.lock"
         continue-on-error: true
