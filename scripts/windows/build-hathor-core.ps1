@@ -248,6 +248,20 @@ for name in _missing_builtins:
         setattr(builtins, name, _DisabledBuiltin(name))
 '@ | Set-Content -Path "pyi_rth_builtins.py" -Encoding UTF8
 
+# Create runtime hook to handle missing Unix-only modules on Windows
+@'
+import sys
+import types
+import platform
+
+if platform.system() == "Windows":
+    # curses is Unix-only; hathor_cli.top imports it but is not needed on Windows.
+    # Provide a stub so the import doesn't crash the process.
+    for mod_name in ("_curses", "_curses_panel"):
+        if mod_name not in sys.modules:
+            sys.modules[mod_name] = types.ModuleType(mod_name)
+'@ | Set-Content -Path "pyi_rth_curses.py" -Encoding UTF8
+
 Write-Host ""
 Write-Host "Running PyInstaller..."
 pyinstaller `
@@ -256,6 +270,7 @@ pyinstaller `
     --clean `
     --noconfirm `
     --runtime-hook=pyi_rth_builtins.py `
+    --runtime-hook=pyi_rth_curses.py `
     --hidden-import=_contextvars `
     --hidden-import=rocksdb._rocksdb `
     --hidden-import=rocksdb.interfaces `
