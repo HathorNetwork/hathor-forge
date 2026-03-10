@@ -261,14 +261,21 @@ if platform.system() == "Windows":
     class _StubModule(types.ModuleType):
         """A module stub where any unknown attribute returns a no-op callable
         or 0, so code that touches Unix-only APIs never crashes."""
-        _noop = lambda *a, **kw: None
+        class _Noop:
+            """Returns 0 in numeric contexts, no-op when called."""
+            def __call__(self, *a, **kw): return 0
+            def __int__(self): return 0
+            def __or__(self, other): return other
+            def __ror__(self, other): return other
+            def __and__(self, other): return 0
+            def __rand__(self, other): return 0
+            def __bool__(self): return False
+            def __repr__(self): return "0"
+        _noop_instance = _Noop()
         def __getattr__(self, name):
-            if name.startswith("_"):
+            if name.startswith("__") and name.endswith("__"):
                 raise AttributeError(name)
-            # Return 0 for ALLCAPS (constants), no-op for anything else
-            if name.isupper():
-                return 0
-            return self._noop
+            return self._noop_instance
 
     # _curses: curses/__init__.py does "from _curses import *" and checks
     # for has_key, error, etc.
