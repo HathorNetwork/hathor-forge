@@ -248,76 +248,54 @@ for name in _missing_builtins:
         setattr(builtins, name, _DisabledBuiltin(name))
 '@ | Set-Content -Path "pyi_rth_builtins.py" -Encoding UTF8
 
-# Create runtime hook to stub Unix-only modules on Windows
+# Create runtime hook to stub Unix-only modules on Windows.
+# Uses a catch-all __getattr__ so any unknown attribute returns a no-op
+# instead of crashing — no more whack-a-mole with missing attributes.
 @'
 import sys
 import types
 import platform
 
 if platform.system() == "Windows":
-    # Stub Unix-only modules that hathor-core imports:
-    #   _curses, _curses_panel — hathor_cli/top.py (top-level via "import curses")
-    #   resource               — hathor_cli/run_node.py (lazy, checks fd limits)
-    #   fcntl, termios         — hathor/sysctl/core/manager.py (lazy, debug TTY)
 
-    # _curses stub: curses/__init__.py does "from _curses import *" then checks
-    # for has_key, error, etc. We must provide enough for that to succeed.
+    class _StubModule(types.ModuleType):
+        """A module stub where any unknown attribute returns a no-op callable
+        or 0, so code that touches Unix-only APIs never crashes."""
+        _noop = lambda *a, **kw: None
+        def __getattr__(self, name):
+            if name.startswith("_"):
+                raise AttributeError(name)
+            # Return 0 for ALLCAPS (constants), no-op for anything else
+            if name.isupper():
+                return 0
+            return self._noop
+
+    # _curses: curses/__init__.py does "from _curses import *" and checks
+    # for has_key, error, etc.
     if "_curses" not in sys.modules:
-        mod = types.ModuleType("_curses")
+        mod = _StubModule("_curses")
         mod.error = type("error", (Exception,), {})
         mod.ERR = -1
         mod.OK = 0
         mod.version = b"0.0"
         mod.has_key = lambda key: False
-        # Common constants that may be referenced
-        mod.A_NORMAL = 0
-        mod.A_BOLD = 1 << 13
-        mod.A_REVERSE = 1 << 18
-        mod.A_UNDERLINE = 1 << 17
-        mod.COLOR_BLACK = 0
-        mod.COLOR_RED = 1
-        mod.COLOR_GREEN = 2
-        mod.COLOR_YELLOW = 3
-        mod.COLOR_BLUE = 4
-        mod.COLOR_MAGENTA = 5
-        mod.COLOR_CYAN = 6
-        mod.COLOR_WHITE = 7
         mod.LINES = 24
         mod.COLS = 80
-        # Functions that may be called
-        mod.initscr = lambda: None
-        mod.endwin = lambda: None
-        mod.start_color = lambda: None
-        mod.use_default_colors = lambda: None
-        mod.init_pair = lambda *a: None
-        mod.color_pair = lambda n: 0
-        mod.newwin = lambda *a: None
-        mod.curs_set = lambda v: None
-        mod.noecho = lambda: None
-        mod.cbreak = lambda: None
-        mod.nocbreak = lambda: None
-        mod.echo = lambda: None
-        mod.setupterm = lambda **kw: None
-        mod.tigetstr = lambda cap: None
-        mod.tparm = lambda *a: b""
         sys.modules["_curses"] = mod
 
-    if "_curses_panel" not in sys.modules:
-        sys.modules["_curses_panel"] = types.ModuleType("_curses_panel")
-
-    # resource stub
+    # resource: used by run_node.py (fd limits) and prometheus_client (getpagesize)
     if "resource" not in sys.modules:
-        mod = types.ModuleType("resource")
+        mod = _StubModule("resource")
         mod.RLIMIT_NOFILE = 7
         mod.getrlimit = lambda _: (8192, 8192)
         mod.setrlimit = lambda *_: None
         mod.getpagesize = lambda: 4096
         sys.modules["resource"] = mod
 
-    # fcntl / termios stubs
-    for mod_name in ("fcntl", "termios"):
+    # Other Unix-only modules: catch-all stubs
+    for mod_name in ("_curses_panel", "fcntl", "termios"):
         if mod_name not in sys.modules:
-            sys.modules[mod_name] = types.ModuleType(mod_name)
+            sys.modules[mod_name] = _StubModule(mod_name)
 '@ | Set-Content -Path "pyi_rth_unix_stubs.py" -Encoding UTF8
 
 Write-Host ""
