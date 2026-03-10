@@ -299,8 +299,32 @@ if platform.system() == "Windows":
         mod.getpagesize = lambda: 4096
         sys.modules["resource"] = mod
 
-    # Other Unix-only modules: catch-all stubs
-    for mod_name in ("_curses_panel", "fcntl", "termios"):
+    # termios: Python's tty module does "from termios import *" and uses
+    # constants as default parameter values (e.g. TCSAFLUSH), so __getattr__
+    # alone isn't enough — we must set them in __dict__.
+    if "termios" not in sys.modules:
+        mod = _StubModule("termios")
+        mod.error = type("error", (Exception,), {})
+        mod.tcgetattr = lambda fd: [0, 0, 0, 0, 0, 0, [b"\x00"] * 32]
+        mod.tcsetattr = lambda *a: None
+        # Constants used by tty.py (from termios import *)
+        _termios_consts = {
+            "TCSAFLUSH": 2, "TCSANOW": 0, "TCSADRAIN": 1,
+            "IGNBRK": 1, "BRKINT": 2, "IGNPAR": 4, "PARMRK": 8,
+            "INPCK": 16, "ISTRIP": 32, "INLCR": 64, "IGNCR": 128,
+            "ICRNL": 256, "IXON": 512, "IXOFF": 1024, "IXANY": 2048,
+            "OPOST": 1, "PARENB": 4096, "CSIZE": 768, "CS8": 768,
+            "ECHO": 8, "ECHOE": 2, "ECHOK": 4, "ECHONL": 16,
+            "ICANON": 256, "IEXTEN": 1024, "ISIG": 128,
+            "NOFLSH": 2147483648, "TOSTOP": 4194304,
+            "VMIN": 16, "VTIME": 17,
+        }
+        for k, v in _termios_consts.items():
+            setattr(mod, k, v)
+        sys.modules["termios"] = mod
+
+    # pty/tty: Unix-only; imported by twisted.internet.process
+    for mod_name in ("_curses_panel", "fcntl", "pty", "tty"):
         if mod_name not in sys.modules:
             sys.modules[mod_name] = _StubModule(mod_name)
 '@ | Set-Content -Path "pyi_rth_unix_stubs.py" -Encoding UTF8
