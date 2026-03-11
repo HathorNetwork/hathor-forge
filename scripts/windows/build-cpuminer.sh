@@ -30,21 +30,43 @@ echo "Running autogen..."
 ./autogen.sh
 
 echo "Running configure..."
-# Static link so the binary runs without MSYS2/MinGW DLLs on the target machine.
-# We must supply all transitive deps of libcurl because -static requires them at
-# link time (the dynamic-only check would pass but actual linking would fail).
-CURL_STATIC_LIBS=$(pkg-config --libs --static libcurl 2>/dev/null || echo "-lcurl -lssl -lcrypto -lz -lws2_32 -lcrypt32 -lwldap32 -lbcrypt")
-./configure CFLAGS="-O3" LDFLAGS="-static" LIBS="$CURL_STATIC_LIBS -lpthread"
+./configure CFLAGS="-O3"
 
 echo "Building..."
 make -j$(nproc)
 
-# Copy output
+# Copy output binary and its required MinGW DLLs into a self-contained directory.
+# cpuminer is built with MinGW/MSYS2 and dynamically links against MinGW runtime
+# DLLs that don't exist on end-user Windows machines. We bundle them alongside
+# the executable (similar to hathor-core's onedir layout) so Tauri's resource
+# bundling keeps them together.
 echo ""
-echo "Copying binary to output directory..."
-mkdir -p "$OUTPUT_DIR"
-cp minerd.exe "$OUTPUT_DIR/cpuminer-$TARGET.exe" 2>/dev/null || cp minerd "$OUTPUT_DIR/cpuminer-$TARGET.exe"
+echo "Copying binary and DLLs to output directory..."
+CPUMINER_DIR_OUT="$OUTPUT_DIR/cpuminer-$TARGET"
+rm -rf "$CPUMINER_DIR_OUT"
+mkdir -p "$CPUMINER_DIR_OUT"
+cp minerd.exe "$CPUMINER_DIR_OUT/cpuminer.exe" 2>/dev/null || cp minerd "$CPUMINER_DIR_OUT/cpuminer.exe"
+
+# Find and copy all required MinGW DLLs
+echo "Resolving runtime DLL dependencies..."
+MINGW_BIN="/mingw64/bin"
+ldd "$CPUMINER_DIR_OUT/cpuminer.exe" 2>/dev/null | \
+    grep -i "$MINGW_BIN" | \
+    awk '{print $3}' | \
+    while read -r dll; do
+        dll_name=$(basename "$dll")
+        echo "  Bundling: $dll_name"
+        cp "$dll" "$CPUMINER_DIR_OUT/$dll_name"
+    done
+
+echo ""
+echo "Contents of cpuminer bundle:"
+ls -la "$CPUMINER_DIR_OUT/"
+
+# Also create the externalBin sidecar (Tauri expects it for the sidecar protocol)
+cp "$CPUMINER_DIR_OUT/cpuminer.exe" "$OUTPUT_DIR/cpuminer-$TARGET.exe"
 
 echo ""
 echo "=== Build complete ==="
-echo "Binary: $OUTPUT_DIR/cpuminer-$TARGET.exe"
+echo "Binary: $CPUMINER_DIR_OUT/cpuminer.exe"
+echo "Sidecar: $OUTPUT_DIR/cpuminer-$TARGET.exe"

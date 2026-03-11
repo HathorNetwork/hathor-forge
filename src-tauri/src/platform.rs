@@ -95,8 +95,9 @@ pub fn get_binary_path(name: &str) -> PathBuf {
     );
 
     for binaries_dir in &binaries_dirs {
-        // hathor-core and tx-mining-service use onedir mode
-        if name == "hathor-core" || name == "tx-mining-service" {
+        // hathor-core, tx-mining-service, and cpuminer (on Windows) use onedir mode
+        // — a directory containing the binary plus its runtime dependencies (DLLs).
+        if name == "hathor-core" || name == "tx-mining-service" || name == "cpuminer" {
             let binary_name = format!("{}{}", name, exe_suffix);
             let onedir_path = binaries_dir
                 .join(format!("{}-{}", name, target))
