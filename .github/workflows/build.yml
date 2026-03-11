@@ -381,7 +381,8 @@ jobs:
 
       - name: Create stub binaries for Tauri build script
         run: |
-          mkdir -p src-tauri/binaries src-tauri/explorer-dist src-tauri/wallet-headless-dist
+          mkdir -p src-tauri/binaries src-tauri/explorer-dist src-tauri/wallet-headless-dist src-tauri/cpuminer-deps
+          touch src-tauri/cpuminer-deps/.keep
           mkdir -p src-tauri/binaries/hathor-core-x86_64-unknown-linux-gnu
           touch src-tauri/binaries/hathor-core-x86_64-unknown-linux-gnu/hathor-core
           touch src-tauri/binaries/cpuminer-x86_64-unknown-linux-gnu

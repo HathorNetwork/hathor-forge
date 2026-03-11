@@ -42,8 +42,8 @@
     "resources": [
       "explorer-dist/**/*",
       "binaries/hathor-core-*/**/*",
-      "binaries/cpuminer-*/**/*",
       "binaries/tx-mining-service-*/**/*",
+      "cpuminer-deps/**/*",
       "wallet-headless-dist/**/*",
       "mcp-stdio-bridge.mjs"
     ]

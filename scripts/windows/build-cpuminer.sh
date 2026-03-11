@@ -35,38 +35,39 @@ echo "Running configure..."
 echo "Building..."
 make -j$(nproc)
 
-# Copy output binary and its required MinGW DLLs into a self-contained directory.
+# Copy output binary and its required MinGW DLLs.
 # cpuminer is built with MinGW/MSYS2 and dynamically links against MinGW runtime
-# DLLs that don't exist on end-user Windows machines. We bundle them alongside
-# the executable (similar to hathor-core's onedir layout) so Tauri's resource
-# bundling keeps them together.
+# DLLs (libwinpthread, libcurl, etc.) that don't exist on end-user Windows machines.
+# We place the DLLs in a cpuminer-deps/ directory that gets bundled as a Tauri resource,
+# and the Rust code adds it to PATH before spawning cpuminer.
 echo ""
 echo "Copying binary and DLLs to output directory..."
-CPUMINER_DIR_OUT="$OUTPUT_DIR/cpuminer-$TARGET"
-rm -rf "$CPUMINER_DIR_OUT"
-mkdir -p "$CPUMINER_DIR_OUT"
-cp minerd.exe "$CPUMINER_DIR_OUT/cpuminer.exe" 2>/dev/null || cp minerd "$CPUMINER_DIR_OUT/cpuminer.exe"
+mkdir -p "$OUTPUT_DIR"
+cp minerd.exe "$OUTPUT_DIR/cpuminer-$TARGET.exe" 2>/dev/null || cp minerd "$OUTPUT_DIR/cpuminer-$TARGET.exe"
 
-# Find and copy all required MinGW DLLs
+# Find and copy all required MinGW DLLs into a deps directory
+DEPS_DIR="$OUTPUT_DIR/../cpuminer-deps"
+rm -rf "$DEPS_DIR"
+mkdir -p "$DEPS_DIR"
+
 echo "Resolving runtime DLL dependencies..."
 MINGW_BIN="/mingw64/bin"
-ldd "$CPUMINER_DIR_OUT/cpuminer.exe" 2>/dev/null | \
+ldd "$OUTPUT_DIR/cpuminer-$TARGET.exe" 2>/dev/null | \
     grep -i "$MINGW_BIN" | \
     awk '{print $3}' | \
     while read -r dll; do
         dll_name=$(basename "$dll")
         echo "  Bundling: $dll_name"
-        cp "$dll" "$CPUMINER_DIR_OUT/$dll_name"
+        cp "$dll" "$DEPS_DIR/$dll_name"
     done
 
-echo ""
-echo "Contents of cpuminer bundle:"
-ls -la "$CPUMINER_DIR_OUT/"
+# Create a .keep file so the resource glob always matches
+touch "$DEPS_DIR/.keep"
 
-# Also create the externalBin sidecar (Tauri expects it for the sidecar protocol)
-cp "$CPUMINER_DIR_OUT/cpuminer.exe" "$OUTPUT_DIR/cpuminer-$TARGET.exe"
+echo ""
+echo "Bundled DLLs:"
+ls -la "$DEPS_DIR/"
 
 echo ""
 echo "=== Build complete ==="
-echo "Binary: $CPUMINER_DIR_OUT/cpuminer.exe"
-echo "Sidecar: $OUTPUT_DIR/cpuminer-$TARGET.exe"
+echo "Binary: $OUTPUT_DIR/cpuminer-$TARGET.exe"

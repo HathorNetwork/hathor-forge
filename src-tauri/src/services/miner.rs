@@ -3,7 +3,7 @@ use tauri::Emitter;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::MinerConfig;
-use crate::platform::get_binary_path;
+use crate::platform::{get_binary_path, set_cpuminer_dll_path};
 use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
 use crate::state::SharedState;
 
@@ -49,7 +49,9 @@ pub async fn start_miner_internal(
 
     let binary_path = get_binary_path("cpuminer");
 
-    let mut child = TokioCommand::new(&binary_path)
+    let mut cmd = TokioCommand::new(&binary_path);
+    set_cpuminer_dll_path(&mut cmd);
+    let mut child = cmd
         .args([
             "--algo",
             "sha256d",

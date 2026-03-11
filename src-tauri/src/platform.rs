@@ -95,9 +95,8 @@ pub fn get_binary_path(name: &str) -> PathBuf {
     );
 
     for binaries_dir in &binaries_dirs {
-        // hathor-core, tx-mining-service, and cpuminer (on Windows) use onedir mode
-        // — a directory containing the binary plus its runtime dependencies (DLLs).
-        if name == "hathor-core" || name == "tx-mining-service" || name == "cpuminer" {
+        // hathor-core and tx-mining-service use onedir mode
+        if name == "hathor-core" || name == "tx-mining-service" {
             let binary_name = format!("{}{}", name, exe_suffix);
             let onedir_path = binaries_dir
                 .join(format!("{}-{}", name, target))
@@ -154,6 +153,50 @@ pub fn set_library_path_env(cmd: &mut TokioCommand, internal_dir: &std::path::Pa
         }
         cmd.env("PATH", path);
     }
+}
+
+/// Set the PATH for cpuminer to find its bundled MinGW DLLs on Windows.
+/// The DLLs are placed in a `cpuminer-deps` resource directory by the build script.
+/// On non-Windows this is a no-op.
+pub fn set_cpuminer_dll_path(cmd: &mut TokioCommand) {
+    #[cfg(target_os = "windows")]
+    {
+        // Check candidate locations for cpuminer-deps/
+        let candidates: Vec<PathBuf> = {
+            let mut c = Vec::new();
+            // Dev: next to Cargo.toml
+            let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("cpuminer-deps");
+            if dev_path.exists() {
+                c.push(dev_path);
+            }
+            // Production: next to exe, or in resources/
+            if let Some(dir) = exe_dir() {
+                let p = dir.join("cpuminer-deps");
+                if p.exists() {
+                    c.push(p);
+                }
+                let p = dir.join("resources").join("cpuminer-deps");
+                if p.exists() {
+                    c.push(p);
+                }
+            }
+            c
+        };
+
+        if let Some(deps_dir) = candidates.first() {
+            debug!(path = ?deps_dir, "Adding cpuminer-deps to PATH");
+            let mut path = std::ffi::OsString::from(deps_dir);
+            path.push(";");
+            if let Some(existing) = std::env::var_os("PATH") {
+                path.push(existing);
+            }
+            cmd.env("PATH", path);
+        }
+    }
+
+    // Suppress unused variable warning on non-Windows
+    #[cfg(not(target_os = "windows"))]
+    let _ = cmd;
 }
 
 /// Get the path to the bundled Node.js binary.
