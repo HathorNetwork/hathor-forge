@@ -30,9 +30,11 @@ echo "Running autogen..."
 ./autogen.sh
 
 echo "Running configure..."
-# Use -static to link all libraries (libcurl, libwinpthread, etc.) into the
-# binary so it runs without needing MSYS2/MinGW DLLs on the target machine.
-./configure CFLAGS="-O3" LDFLAGS="-static"
+# Static link so the binary runs without MSYS2/MinGW DLLs on the target machine.
+# We must supply all transitive deps of libcurl because -static requires them at
+# link time (the dynamic-only check would pass but actual linking would fail).
+CURL_STATIC_LIBS=$(pkg-config --libs --static libcurl 2>/dev/null || echo "-lcurl -lssl -lcrypto -lz -lws2_32 -lcrypt32 -lwldap32 -lbcrypt")
+./configure CFLAGS="-O3" LDFLAGS="-static" LIBS="$CURL_STATIC_LIBS -lpthread"
 
 echo "Building..."
 make -j$(nproc)
