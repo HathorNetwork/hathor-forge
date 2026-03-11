@@ -56,10 +56,13 @@ cd "$TX_MINING_DIR"
 pip install configargparse colorama aiohttp base58 structlog prometheus-client idna_ssl asynctest python-healthchecklib
 pip install "hathorlib[client]"
 
-# Make txstratum available as a package by installing in the venv
-pip install -e . 2>/dev/null || {
-    # If -e . fails (no setup.py/package), add source to PYTHONPATH instead
-    export PYTHONPATH="$TX_MINING_DIR:${PYTHONPATH:-}"
+# Install tx-mining-service package so PyInstaller can find txstratum.
+# The project uses package-mode=false, so editable installs fail.
+# Use non-editable install; if that also fails, copy txstratum into site-packages.
+pip install . 2>/dev/null || {
+    echo "pip install . failed, copying txstratum into site-packages..."
+    SITE_PACKAGES="$(python3 -c 'import site; print(site.getsitepackages()[0])')"
+    cp -r "$TX_MINING_DIR/txstratum" "$SITE_PACKAGES/txstratum"
 }
 
 # Install pyinstaller
@@ -135,6 +138,7 @@ pyinstaller \
     --noconfirm \
     --runtime-hook=pyi_rth_builtins.py \
     --hidden-import=_contextvars \
+    --paths "$TX_MINING_DIR" \
     --collect-all txstratum \
     --collect-all hathorlib \
     --collect-all configargparse \

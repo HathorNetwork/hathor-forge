@@ -34,11 +34,15 @@ Set-Location $TxMiningDir
 pip install configargparse colorama aiohttp base58 structlog prometheus-client idna_ssl asynctest python-healthchecklib
 pip install "hathorlib[client]"
 
-# Try editable install, fall back to PYTHONPATH
+# Install tx-mining-service package so PyInstaller can find txstratum.
+# The project uses package-mode=false, so editable installs fail.
+# Use non-editable install; if that also fails, copy txstratum into site-packages.
 try {
-    pip install -e .
+    pip install . 2>&1 | Out-Null
 } catch {
-    $env:PYTHONPATH = "$TxMiningDir;$($env:PYTHONPATH)"
+    Write-Host "pip install . failed, copying txstratum into site-packages..."
+    $SitePackages = python -c "import site; print(site.getsitepackages()[0])"
+    Copy-Item -Recurse "$TxMiningDir\txstratum" "$SitePackages\txstratum"
 }
 
 pip install pyinstaller
@@ -102,6 +106,7 @@ pyinstaller `
     --noconfirm `
     --runtime-hook=pyi_rth_builtins.py `
     --hidden-import=_contextvars `
+    --paths "$TxMiningDir" `
     --collect-all txstratum `
     --collect-all hathorlib `
     --collect-all configargparse `
