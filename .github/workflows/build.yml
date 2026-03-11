@@ -15,7 +15,7 @@ jobs:
   build-linux:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Linux dependencies
         run: |
@@ -30,13 +30,13 @@ jobs:
             experimental-features = nix-command flakes
 
       - name: Cache Nix store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /nix/store
           key: nix-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -46,7 +46,7 @@ jobs:
             cargo-registry-${{ runner.os }}-
 
       - name: Cache npm
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -88,7 +88,7 @@ jobs:
   build-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -98,13 +98,13 @@ jobs:
             experimental-features = nix-command flakes
 
       - name: Cache Nix store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /nix/store
           key: nix-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -114,7 +114,7 @@ jobs:
             cargo-registry-${{ runner.os }}-
 
       - name: Cache npm
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -156,16 +156,16 @@ jobs:
   build-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -175,7 +175,7 @@ jobs:
           targets: x86_64-pc-windows-msvc
 
       - name: Cache Cargo registry
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -185,7 +185,7 @@ jobs:
             cargo-registry-${{ runner.os }}-
 
       - name: Restore vcpkg cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: |
             C:\vcpkg\installed
@@ -220,7 +220,7 @@ jobs:
 
       - name: Save vcpkg cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             C:\vcpkg\installed
@@ -325,7 +325,7 @@ jobs:
   check:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
@@ -335,13 +335,13 @@ jobs:
             experimental-features = nix-command flakes
 
       - name: Cache Nix store
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /nix/store
           key: nix-check-v2-${{ runner.os }}-${{ hashFiles('flake.lock') }}
 
       - name: Cache Cargo registry and target
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -352,7 +352,7 @@ jobs:
             cargo-check-${{ runner.os }}-
 
       - name: Cache npm
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.npm
           key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}

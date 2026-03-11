@@ -70,6 +70,20 @@ if getattr(sys, 'frozen', False):
 if __name__ == '__main__':
     multiprocessing.freeze_support()
 
+# On Windows, asyncio does not support add_signal_handler (Unix-only).
+# Monkey-patch the event loop so tx-mining-service's register_signal_handlers
+# silently succeeds instead of raising NotImplementedError.
+if sys.platform == 'win32':
+    import asyncio
+    _orig_loop_class = asyncio.ProactorEventLoop
+    _orig_add = _orig_loop_class.add_signal_handler
+    def _noop_add_signal_handler(self, sig, callback, *args):
+        pass
+    def _noop_remove_signal_handler(self, sig):
+        return False
+    _orig_loop_class.add_signal_handler = _noop_add_signal_handler
+    _orig_loop_class.remove_signal_handler = _noop_remove_signal_handler
+
 from txstratum.cli import main
 
 if __name__ == '__main__':
