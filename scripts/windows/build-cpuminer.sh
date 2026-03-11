@@ -30,7 +30,9 @@ echo "Running autogen..."
 ./autogen.sh
 
 echo "Running configure..."
-./configure CFLAGS="-O3"
+# Use -static to link all libraries (libcurl, libwinpthread, etc.) into the
+# binary so it runs without needing MSYS2/MinGW DLLs on the target machine.
+./configure CFLAGS="-O3" LDFLAGS="-static"
 
 echo "Building..."
 make -j$(nproc)
