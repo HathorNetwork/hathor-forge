@@ -4,7 +4,7 @@ use tauri::Emitter;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::NodeConfig;
-use crate::platform::{get_binary_path, kill_process, kill_process_on_port, set_library_path_env};
+use crate::platform::{get_binary_path, kill_process, set_library_path_env};
 use crate::process::{setup_child_logging, spawn_exit_monitor};
 use crate::state::SharedState;
 
@@ -12,22 +12,12 @@ use crate::state::SharedState;
 pub async fn start_node_internal(state: &SharedState) -> Result<String, String> {
     let state_guard = state.lock().await;
     let config = NodeConfig::from_ports(&state_guard.ports);
-    let ports = state_guard.ports.clone();
 
     if state_guard.node_running {
         return Ok("Node is already running".to_string());
     }
 
-    // Kill any zombie processes from previous runs
-    kill_process_on_port(config.api_port);
-    kill_process_on_port(config.stratum_port);
-    kill_process_on_port(ports.wallet_headless);
-    kill_process_on_port(ports.tx_mining_api);
-    kill_process_on_port(ports.tx_mining_stratum);
-
     drop(state_guard);
-
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     let mut state_guard = state.lock().await;
 
@@ -71,6 +61,7 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
             "--test-mode-tx-weight",
             "--nc-exec-logs",
             "all",
+            "--nc-indexes",
             "--unsafe-mode",
             "privatenet",
         ])

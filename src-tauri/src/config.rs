@@ -5,19 +5,19 @@ use serde::{Deserialize, Serialize};
 // ============================================================================
 
 /// Fullnode HTTP API port.
-pub const DEFAULT_FULLNODE_API_PORT: u16 = 8080;
+pub const DEFAULT_FULLNODE_API_PORT: u16 = 49080;
 /// Stratum mining protocol port.
-pub const DEFAULT_STRATUM_PORT: u16 = 8000;
+pub const DEFAULT_STRATUM_PORT: u16 = 49000;
 /// Wallet-headless service port.
-pub const DEFAULT_WALLET_HEADLESS_PORT: u16 = 8001;
+pub const DEFAULT_WALLET_HEADLESS_PORT: u16 = 49001;
 /// Tx-mining-service API port.
-pub const DEFAULT_TX_MINING_API_PORT: u16 = 8002;
+pub const DEFAULT_TX_MINING_API_PORT: u16 = 49002;
 /// Tx-mining-service stratum port.
-pub const DEFAULT_TX_MINING_STRATUM_PORT: u16 = 8003;
+pub const DEFAULT_TX_MINING_STRATUM_PORT: u16 = 49003;
 /// Block explorer HTTP port.
-pub const DEFAULT_EXPLORER_PORT: u16 = 3001;
+pub const DEFAULT_EXPLORER_PORT: u16 = 49081;
 /// MCP server port.
-pub const DEFAULT_MCP_SERVER_PORT: u16 = 9876;
+pub const DEFAULT_MCP_SERVER_PORT: u16 = 49876;
 
 // ============================================================================
 // Dynamic port allocation

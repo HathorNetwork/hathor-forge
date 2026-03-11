@@ -698,6 +698,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .map_err(|e| format!("Failed to publish blueprint: {}", e))?;
 
             let text = resp.text().await.unwrap_or_default();
+            state.emit("blueprint-published", &text);
             Ok(text)
         }
 
@@ -727,6 +728,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .map_err(|e| format!("Failed to create nano contract: {}", e))?;
 
             let text = resp.text().await.unwrap_or_default();
+            state.emit("nano-contract-created", &text);
             Ok(text)
         }
 
@@ -758,6 +760,7 @@ pub async fn execute_tool(state: &McpState, name: &str, params: &Value) -> Resul
                 .map_err(|e| format!("Failed to execute nano contract: {}", e))?;
 
             let text = resp.text().await.unwrap_or_default();
+            state.emit("nano-contract-executed", &text);
             Ok(text)
         }
 

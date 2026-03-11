@@ -21,16 +21,6 @@ pub(crate) async fn start_node(
         }
     }
 
-    // Kill any zombie processes from previous runs (no lock held)
-    kill_process_on_port(config.api_port);
-    kill_process_on_port(config.stratum_port);
-    kill_process_on_port(crate::config::DEFAULT_WALLET_HEADLESS_PORT);
-    kill_process_on_port(crate::config::DEFAULT_TX_MINING_API_PORT);
-    kill_process_on_port(crate::config::DEFAULT_TX_MINING_STRATUM_PORT);
-    // Give the OS a moment to release the ports
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-    // Re-acquire lock and re-check all preconditions before proceeding
     let mut state_guard = state.lock().await;
     if state_guard.node_running {
         return Err("Node is already running".to_string());
@@ -249,6 +239,7 @@ pub(crate) async fn start_node(
             "--test-mode-tx-weight",
             "--nc-exec-logs",
             "all",
+            "--nc-indexes",
             "--unsafe-mode",
             "privatenet",
         ])

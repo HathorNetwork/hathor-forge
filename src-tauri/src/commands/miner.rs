@@ -169,11 +169,6 @@ pub(crate) async fn start_tx_mining(
         }
     }
 
-    // Kill any zombie process on the tx-mining ports (no lock held)
-    kill_process_on_port(config.api_port);
-    kill_process_on_port(config.stratum_port);
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-
     // Re-acquire lock and re-check ALL preconditions
     let mut state_guard = state.lock().await;
     if !state_guard.node_running {

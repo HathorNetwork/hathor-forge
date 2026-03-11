@@ -2,7 +2,7 @@ use std::process::Stdio;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::TxMiningConfig;
-use crate::platform::{get_binary_path, kill_process_on_port, set_library_path_env};
+use crate::platform::{get_binary_path, set_library_path_env};
 use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
 use crate::state::SharedState;
 
@@ -26,10 +26,6 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
     }
 
     drop(state_guard);
-
-    kill_process_on_port(config.api_port);
-    kill_process_on_port(config.stratum_port);
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
 
     let mut state_guard = state.lock().await;
 

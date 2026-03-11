@@ -15,10 +15,16 @@ use super::tools::get_tools;
 use super::types::{JsonRpcError, JsonRpcRequest, JsonRpcResponse, McpSharedState};
 
 /// Handle incoming MCP JSON-RPC requests.
+/// Notifications (methods starting with "notifications/") return 204 No Content.
 pub async fn handle_mcp_request(
     State(state): State<McpSharedState>,
     Json(request): Json<JsonRpcRequest>,
-) -> Json<JsonRpcResponse> {
+) -> impl IntoResponse {
+    // JSON-RPC notifications have no id and expect no response.
+    if request.method.starts_with("notifications/") {
+        return (StatusCode::NO_CONTENT, "").into_response();
+    }
+
     let response = match request.method.as_str() {
         "initialize" => JsonRpcResponse {
             jsonrpc: "2.0".to_string(),
@@ -36,13 +42,6 @@ pub async fn handle_mcp_request(
                 },
                 "instructions": include_str!("instructions.md")
             })),
-            error: None,
-        },
-
-        "notifications/initialized" => JsonRpcResponse {
-            jsonrpc: "2.0".to_string(),
-            id: request.id,
-            result: Some(json!({})),
             error: None,
         },
 
@@ -113,7 +112,7 @@ pub async fn handle_mcp_request(
         },
     };
 
-    Json(response)
+    Json(response).into_response()
 }
 
 /// Handle SSE connections for MCP event streaming.

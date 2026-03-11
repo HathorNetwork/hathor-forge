@@ -1,10 +1,11 @@
 use std::process::Stdio;
+use tauri::Emitter;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::HeadlessConfig;
 use crate::platform::{
     detect_network_from_url, generate_headless_config, get_headless_dist_path,
-    get_node_binary_path, kill_process_on_port,
+    get_node_binary_path,
 };
 use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
 use crate::state::SharedState;
@@ -57,10 +58,7 @@ pub async fn start_headless_internal(
         ));
     }
 
-    kill_process_on_port(config.port);
-
     drop(state_guard);
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
     let mut state_guard = state.lock().await;
 
     // Re-check ALL preconditions after re-acquiring the lock to prevent TOCTOU race:
@@ -95,6 +93,10 @@ pub async fn start_headless_internal(
     );
     state_guard.headless_running = true;
     state_guard.headless_child_id = pid;
+
+    if let Some(ref handle) = state_guard.app_handle {
+        let _ = handle.emit("headless-started", ());
+    }
 
     spawn_exit_monitor(
         child,

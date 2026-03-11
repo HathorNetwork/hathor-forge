@@ -32,10 +32,6 @@ pub(crate) async fn start_headless(
         ));
     }
 
-    // Kill any zombie process on the headless port (no lock held)
-    kill_process_on_port(config.port);
-    tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
-
     // Re-acquire lock and re-check ALL preconditions
     let mut state_guard = state.lock().await;
     if !state_guard.node_running {

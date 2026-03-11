@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNodeStore } from "@/store/useNodeStore";
 import { useUIStore } from "@/store/useUIStore";
 import { useWalletStore } from "@/store/useWalletStore";
@@ -12,6 +13,7 @@ export function useTauriEvents() {
   const setError = useUIStore((s) => s.setError);
   const setHeadlessStatus = useWalletStore((s) => s.setHeadlessStatus);
   const setHeadlessWallets = useWalletStore((s) => s.setHeadlessWallets);
+  const queryClient = useQueryClient();
 
   const mountedRef = useRef(true);
   const unlistenFns = useRef<(() => void)[]>([]);
@@ -70,6 +72,10 @@ export function useTauriEvents() {
     register(listen<number | null>("miner-terminated", () => {
       setMinerStatus("stopped");
       setHashRate("0 H/s");
+    }));
+
+    register(listen<void>("headless-started", () => {
+      setHeadlessStatus({ running: true, port: null });
     }));
 
     register(listen<string>("headless-log", (event) => {
@@ -157,9 +163,23 @@ export function useTauriEvents() {
       } catch { /* ignore parse errors */ }
     }));
 
+    // Nano contract / blueprint events from MCP → invalidate React Query caches
+    register(listen<string>("blueprint-published", () => {
+      queryClient.invalidateQueries({ queryKey: ["blueprints"] });
+    }));
+
+    register(listen<string>("nano-contract-created", () => {
+      queryClient.invalidateQueries({ queryKey: ["blueprints"] });
+      queryClient.invalidateQueries({ queryKey: ["contractStates"] });
+    }));
+
+    register(listen<string>("nano-contract-executed", () => {
+      queryClient.invalidateQueries({ queryKey: ["contractStates"] });
+    }));
+
     return () => {
       mountedRef.current = false;
       unlistenFns.current.forEach((fn) => fn());
     };
-  }, [addLog, setNodeStatus, setMinerStatus, setHashRate, setError, setHeadlessStatus, setHeadlessWallets]);
+  }, [addLog, setNodeStatus, setMinerStatus, setHashRate, setError, setHeadlessStatus, setHeadlessWallets, queryClient]);
 }
