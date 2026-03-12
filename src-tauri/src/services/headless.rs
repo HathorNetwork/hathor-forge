@@ -4,8 +4,7 @@ use tokio::process::Command as TokioCommand;
 
 use crate::config::HeadlessConfig;
 use crate::platform::{
-    detect_network_from_url, generate_headless_config, get_headless_dist_path,
-    get_node_binary_path,
+    detect_network_from_url, generate_headless_config, get_headless_dist_path, get_node_binary_path,
 };
 use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
 use crate::state::SharedState;

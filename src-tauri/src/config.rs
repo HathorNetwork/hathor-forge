@@ -20,25 +20,12 @@ pub const DEFAULT_EXPLORER_PORT: u16 = 49081;
 pub const DEFAULT_MCP_SERVER_PORT: u16 = 49876;
 
 // ============================================================================
-// Dynamic port allocation
+// Fixed port allocation
 // ============================================================================
 
-/// Try to bind `preferred`. If it's already in use, let the OS pick a free
-/// ephemeral port instead. Returns the port that is available.
-pub fn find_available_port(preferred: u16) -> u16 {
-    use std::net::TcpListener;
-    // Try the preferred port first.
-    if TcpListener::bind(("0.0.0.0", preferred)).is_ok() {
-        return preferred;
-    }
-    // Fall back to OS-assigned port.
-    TcpListener::bind(("0.0.0.0", 0))
-        .map(|l| l.local_addr().map(|a| a.port()).unwrap_or(preferred))
-        .unwrap_or(preferred)
-}
-
-/// Ports actually allocated for this run of the app.
-/// Resolved once at startup via `find_available_port`.
+/// Fixed ports for all services. Using the 49xxx range to avoid conflicts with
+/// common services. Ports are deterministic so that external integrations (e.g.
+/// MCP config registered in Claude Desktop) remain stable across app restarts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedPorts {
     pub fullnode_api: u16,
@@ -53,13 +40,13 @@ pub struct ResolvedPorts {
 impl Default for ResolvedPorts {
     fn default() -> Self {
         Self {
-            fullnode_api: find_available_port(DEFAULT_FULLNODE_API_PORT),
-            stratum: find_available_port(DEFAULT_STRATUM_PORT),
-            wallet_headless: find_available_port(DEFAULT_WALLET_HEADLESS_PORT),
-            tx_mining_api: find_available_port(DEFAULT_TX_MINING_API_PORT),
-            tx_mining_stratum: find_available_port(DEFAULT_TX_MINING_STRATUM_PORT),
-            explorer: find_available_port(DEFAULT_EXPLORER_PORT),
-            mcp_server: find_available_port(DEFAULT_MCP_SERVER_PORT),
+            fullnode_api: DEFAULT_FULLNODE_API_PORT,
+            stratum: DEFAULT_STRATUM_PORT,
+            wallet_headless: DEFAULT_WALLET_HEADLESS_PORT,
+            tx_mining_api: DEFAULT_TX_MINING_API_PORT,
+            tx_mining_stratum: DEFAULT_TX_MINING_STRATUM_PORT,
+            explorer: DEFAULT_EXPLORER_PORT,
+            mcp_server: DEFAULT_MCP_SERVER_PORT,
         }
     }
 }

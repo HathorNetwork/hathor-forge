@@ -29,8 +29,8 @@ npm install
 Write-Host ""
 Write-Host "Building with basic mode configuration..."
 $env:REACT_APP_EXPLORER_MODE = "basic"
-$env:REACT_APP_BASE_URL = "http://localhost:3001/v1a/"
-$env:REACT_APP_WS_URL = "ws://localhost:3001/v1a/ws/"
+$env:REACT_APP_BASE_URL = "http://localhost:49081/v1a/"
+$env:REACT_APP_WS_URL = "ws://localhost:49081/v1a/ws/"
 $env:REACT_APP_NETWORK = "local-privatenet"
 npm run build
 

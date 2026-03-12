@@ -1,25 +1,25 @@
-use crate::*;
+use crate::state::SharedState;
+use crate::types::{FullnodeBalance, SendTxRequest, WalletAddress};
 
 // Get wallet addresses with balances
 #[tauri::command]
 pub(crate) async fn get_wallet_addresses(
     state: tauri::State<'_, SharedState>,
 ) -> Result<Vec<WalletAddress>, String> {
-    let state_guard = state.lock().await;
-
-    if !state_guard.node_running {
-        return Err("Node is not running".to_string());
-    }
-
-    drop(state_guard);
+    let fullnode_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node is not running".to_string());
+        }
+        state_guard.ports.fullnode_api
+    };
 
     let client = reqwest::Client::new();
 
-    // Get current address from the wallet
     let address_response = client
         .get(format!(
             "http://127.0.0.1:{}/v1a/wallet/address",
-            crate::config::DEFAULT_FULLNODE_API_PORT
+            fullnode_port
         ))
         .send()
         .await
@@ -35,11 +35,10 @@ pub(crate) async fn get_wallet_addresses(
         .ok_or("Invalid address format")?
         .to_string();
 
-    // Get wallet balance
     let balance_response = client
         .get(format!(
             "http://127.0.0.1:{}/v1a/wallet/balance",
-            crate::config::DEFAULT_FULLNODE_API_PORT
+            fullnode_port
         ))
         .send()
         .await
@@ -52,7 +51,6 @@ pub(crate) async fn get_wallet_addresses(
 
     let balance = balance_json["balance"]["available"].as_u64();
 
-    // Return the current address with its balance
     let wallet_addresses = vec![WalletAddress {
         address: current_address,
         index: 0,
@@ -67,20 +65,20 @@ pub(crate) async fn get_wallet_addresses(
 pub(crate) async fn get_fullnode_balance(
     state: tauri::State<'_, SharedState>,
 ) -> Result<FullnodeBalance, String> {
-    let state_guard = state.lock().await;
-
-    if !state_guard.node_running {
-        return Err("Node is not running".to_string());
-    }
-
-    drop(state_guard);
+    let fullnode_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node is not running".to_string());
+        }
+        state_guard.ports.fullnode_api
+    };
 
     let client = reqwest::Client::new();
 
     let response = client
         .get(format!(
             "http://127.0.0.1:{}/v1a/wallet/balance/",
-            crate::config::DEFAULT_FULLNODE_API_PORT
+            fullnode_port
         ))
         .send()
         .await
@@ -115,21 +113,20 @@ pub(crate) async fn send_tx(
     state: tauri::State<'_, SharedState>,
     request: SendTxRequest,
 ) -> Result<String, String> {
-    let state_guard = state.lock().await;
-
-    if !state_guard.node_running {
-        return Err("Node is not running".to_string());
-    }
-
-    drop(state_guard);
+    let fullnode_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node is not running".to_string());
+        }
+        state_guard.ports.fullnode_api
+    };
 
     let client = reqwest::Client::new();
 
-    // Use the fullnode's wallet send_tokens endpoint
     let response = client
         .post(format!(
             "http://127.0.0.1:{}/v1a/wallet/send_tokens/",
-            crate::config::DEFAULT_FULLNODE_API_PORT
+            fullnode_port
         ))
         .json(&serde_json::json!({
             "data": {
@@ -169,7 +166,6 @@ pub(crate) async fn send_tx(
 pub(crate) async fn generate_seed() -> Result<String, String> {
     use bip39::{Language, Mnemonic};
 
-    // Generate 32 bytes of entropy for 24 words
     let mut entropy = [0u8; 32];
     getrandom::getrandom(&mut entropy)
         .map_err(|e| format!("Failed to generate random bytes: {}", e))?;

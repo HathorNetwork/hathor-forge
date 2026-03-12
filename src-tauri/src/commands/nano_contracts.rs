@@ -1,4 +1,4 @@
-use crate::*;
+use crate::state::SharedState;
 use base64::Engine;
 use serde::{Deserialize, Serialize};
 
@@ -23,18 +23,19 @@ pub(crate) async fn get_nano_contract_state(
     state: tauri::State<'_, SharedState>,
     id: String,
 ) -> Result<serde_json::Value, String> {
-    let state_guard = state.lock().await;
-    if !state_guard.node_running {
-        return Err("Node is not running".to_string());
-    }
-    drop(state_guard);
+    let fullnode_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node is not running".to_string());
+        }
+        state_guard.ports.fullnode_api
+    };
 
     let client = reqwest::Client::new();
     let response = client
         .get(format!(
             "http://127.0.0.1:{}/v1a/nano_contract/state?id={}",
-            crate::config::DEFAULT_FULLNODE_API_PORT,
-            id
+            fullnode_port, id
         ))
         .send()
         .await
@@ -54,18 +55,19 @@ pub(crate) async fn get_nano_contract_history(
     state: tauri::State<'_, SharedState>,
     id: String,
 ) -> Result<serde_json::Value, String> {
-    let state_guard = state.lock().await;
-    if !state_guard.node_running {
-        return Err("Node is not running".to_string());
-    }
-    drop(state_guard);
+    let fullnode_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node is not running".to_string());
+        }
+        state_guard.ports.fullnode_api
+    };
 
     let client = reqwest::Client::new();
     let response = client
         .get(format!(
             "http://127.0.0.1:{}/v1a/nano_contract/history?id={}",
-            crate::config::DEFAULT_FULLNODE_API_PORT,
-            id
+            fullnode_port, id
         ))
         .send()
         .await
@@ -84,19 +86,20 @@ pub(crate) async fn get_nano_contract_history(
 pub(crate) async fn list_blueprints(
     state: tauri::State<'_, SharedState>,
 ) -> Result<serde_json::Value, String> {
-    let state_guard = state.lock().await;
-    if !state_guard.node_running {
-        return Err("Node is not running".to_string());
-    }
-    drop(state_guard);
+    let fullnode_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node is not running".to_string());
+        }
+        state_guard.ports.fullnode_api
+    };
 
     let client = reqwest::Client::new();
 
-    // Fetch recent transactions from dashboard (version 6 = blueprint)
     let response = client
         .get(format!(
             "http://127.0.0.1:{}/v1a/dashboard_tx?tx=200&block=0",
-            crate::config::DEFAULT_FULLNODE_API_PORT
+            fullnode_port
         ))
         .send()
         .await
@@ -119,13 +122,11 @@ pub(crate) async fn list_blueprints(
                     .to_string();
                 let timestamp = tx.get("timestamp").and_then(|v| v.as_u64()).unwrap_or(0);
 
-                // Fetch full transaction to get blueprint source code and extract class name
                 let mut name = "Unknown".to_string();
                 if let Ok(tx_response) = client
                     .get(format!(
                         "http://127.0.0.1:{}/v1a/transaction?id={}",
-                        crate::config::DEFAULT_FULLNODE_API_PORT,
-                        tx_id
+                        fullnode_port, tx_id
                     ))
                     .send()
                     .await
@@ -137,7 +138,6 @@ pub(crate) async fn list_blueprints(
                             .and_then(|c| c.get("content"))
                             .and_then(|c| c.as_str())
                         {
-                            // Decode base64 + zlib to extract class name
                             if let Ok(decoded) =
                                 base64::engine::general_purpose::STANDARD.decode(code_content)
                             {
@@ -145,7 +145,6 @@ pub(crate) async fn list_blueprints(
                                     miniz_oxide::inflate::decompress_to_vec_zlib(&decoded)
                                 {
                                     if let Ok(source) = String::from_utf8(decompressed) {
-                                        // Extract class name from "class XYZ(Blueprint):"
                                         for line in source.lines() {
                                             let trimmed = line.trim();
                                             if trimmed.starts_with("class ")
@@ -188,18 +187,19 @@ pub(crate) async fn get_blueprint_information(
     state: tauri::State<'_, SharedState>,
     id: String,
 ) -> Result<serde_json::Value, String> {
-    let state_guard = state.lock().await;
-    if !state_guard.node_running {
-        return Err("Node is not running".to_string());
-    }
-    drop(state_guard);
+    let fullnode_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.node_running {
+            return Err("Node is not running".to_string());
+        }
+        state_guard.ports.fullnode_api
+    };
 
     let client = reqwest::Client::new();
     let response = client
         .get(format!(
             "http://127.0.0.1:{}/v1a/transaction?id={}",
-            crate::config::DEFAULT_FULLNODE_API_PORT,
-            id
+            fullnode_port, id
         ))
         .send()
         .await
@@ -227,13 +227,11 @@ pub(crate) async fn get_blueprint_information(
     let source = String::from_utf8(decompressed)
         .map_err(|e| format!("Invalid UTF-8 in blueprint source: {}", e))?;
 
-    // Parse class name and methods from source
     let mut class_name = "Unknown".to_string();
     let mut methods = Vec::new();
 
     for line in source.lines() {
         let trimmed = line.trim();
-        // Extract class name
         if trimmed.starts_with("class ") && trimmed.contains("Blueprint") {
             if let Some(name) = trimmed
                 .strip_prefix("class ")
@@ -242,20 +240,16 @@ pub(crate) async fn get_blueprint_information(
                 class_name = name.trim().to_string();
             }
         }
-        // Extract method signatures: "def method_name(self, ctx: Context, arg1: Type1, ...)"
         if trimmed.starts_with("def ") && trimmed.contains("(self") {
             if let Some(sig) = trimmed.strip_prefix("def ") {
                 let method_name = sig.split('(').next().unwrap_or("").trim().to_string();
-                // Skip private methods
                 if method_name.starts_with('_') {
                     continue;
                 }
                 let mut args = Vec::new();
-                // Extract args between parens
                 if let Some(params_str) = sig.split('(').nth(1).and_then(|s| s.split(')').next()) {
                     for param in params_str.split(',') {
                         let param = param.trim();
-                        // Skip self and ctx parameters
                         if param == "self" || param.starts_with("ctx") {
                             continue;
                         }
@@ -300,20 +294,20 @@ pub(crate) async fn headless_wallet_create_nano_contract(
     state: tauri::State<'_, SharedState>,
     request: CreateNanoContractRequest,
 ) -> Result<serde_json::Value, String> {
-    let state_guard = state.lock().await;
-
-    if !state_guard.headless_running {
-        return Err("Wallet-headless is not running".to_string());
-    }
-
-    drop(state_guard);
+    let headless_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.headless_running {
+            return Err("Wallet-headless is not running".to_string());
+        }
+        state_guard.ports.wallet_headless
+    };
 
     let client = reqwest::Client::new();
 
     let response = client
         .post(format!(
             "http://localhost:{}/wallet/nano-contracts/create",
-            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+            headless_port
         ))
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({
@@ -338,20 +332,20 @@ pub(crate) async fn headless_wallet_call_nano_contract_method(
     state: tauri::State<'_, SharedState>,
     request: CallNanoContractMethodRequest,
 ) -> Result<serde_json::Value, String> {
-    let state_guard = state.lock().await;
-
-    if !state_guard.headless_running {
-        return Err("Wallet-headless is not running".to_string());
-    }
-
-    drop(state_guard);
+    let headless_port = {
+        let state_guard = state.lock().await;
+        if !state_guard.headless_running {
+            return Err("Wallet-headless is not running".to_string());
+        }
+        state_guard.ports.wallet_headless
+    };
 
     let client = reqwest::Client::new();
 
     let response = client
         .post(format!(
             "http://localhost:{}/wallet/nano-contracts/execute",
-            crate::config::DEFAULT_WALLET_HEADLESS_PORT
+            headless_port
         ))
         .header("X-Wallet-Id", &request.wallet_id)
         .json(&serde_json::json!({

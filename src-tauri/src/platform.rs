@@ -348,58 +348,6 @@ pub fn generate_headless_config(
     Ok(())
 }
 
-/// Kill any process using a specific port
-pub fn kill_process_on_port(port: u16) {
-    #[cfg(unix)]
-    {
-        use std::process::Command;
-        if let Ok(output) = Command::new("lsof")
-            .args(["-ti", &format!(":{}", port)])
-            .output()
-        {
-            let pids = String::from_utf8_lossy(&output.stdout);
-            for pid in pids.lines() {
-                if let Ok(pid_num) = pid.trim().parse::<u32>() {
-                    let _ = Command::new("kill")
-                        .args(["-9", &pid_num.to_string()])
-                        .output();
-                }
-            }
-        }
-    }
-
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        // netstat -ano output: "  TCP    127.0.0.1:8080    0.0.0.0:0    LISTENING    12345"
-        // Match on ":PORT " with a trailing space/whitespace to avoid substring matches
-        // (e.g., port 80 matching ":8080").
-        let port_suffix = format!(":{}", port);
-        if let Ok(output) = Command::new("netstat").args(["-ano", "-p", "TCP"]).output() {
-            let output_str = String::from_utf8_lossy(&output.stdout);
-            for line in output_str.lines() {
-                if !line.contains("LISTENING") {
-                    continue;
-                }
-                // Parse the local address column (second whitespace-separated field)
-                let fields: Vec<&str> = line.split_whitespace().collect();
-                // Expected: [Proto, LocalAddr, ForeignAddr, State, PID]
-                if fields.len() < 5 {
-                    continue;
-                }
-                let local_addr = fields[1];
-                // Check that the port suffix is at the end of the local address
-                if local_addr.ends_with(&port_suffix) {
-                    let pid = fields[4];
-                    if pid.parse::<u32>().is_ok() {
-                        let _ = Command::new("taskkill").args(["/PID", pid, "/F"]).output();
-                    }
-                }
-            }
-        }
-    }
-}
-
 /// Kill a process by PID (graceful then force) — async version.
 ///
 /// Uses `tokio::time::sleep` instead of `std::thread::sleep` so it does not

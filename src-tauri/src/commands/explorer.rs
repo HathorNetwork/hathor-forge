@@ -356,7 +356,7 @@ pub(crate) async fn start_explorer_server(
 
     Ok(format!(
         "Explorer server started on http://localhost:{}",
-        crate::config::DEFAULT_EXPLORER_PORT
+        explorer_port
     ))
 }
 

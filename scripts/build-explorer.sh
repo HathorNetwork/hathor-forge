@@ -31,13 +31,13 @@ echo "Installing dependencies..."
 npm install
 
 # Build with basic mode + localnet config
-# Note: URLs point to localhost:3001 where our proxy server runs
-# The proxy forwards requests to the fullnode at localhost:8080
+# Note: URLs point to localhost:49081 where our proxy server runs
+# The proxy forwards requests to the fullnode at localhost:49080
 echo ""
 echo "Building with basic mode configuration..."
 REACT_APP_EXPLORER_MODE=basic \
-REACT_APP_BASE_URL=http://localhost:3001/v1a/ \
-REACT_APP_WS_URL=ws://localhost:3001/v1a/ws/ \
+REACT_APP_BASE_URL=http://localhost:49081/v1a/ \
+REACT_APP_WS_URL=ws://localhost:49081/v1a/ws/ \
 REACT_APP_NETWORK=local-privatenet \
 npm run build
 
@@ -52,4 +52,4 @@ echo ""
 echo "=== Build complete ==="
 echo "Output: $OUTPUT_DIR"
 echo ""
-echo "The explorer will be served at http://localhost:3001 when the node is running."
+echo "The explorer will be served at http://localhost:49081 when the node is running."
