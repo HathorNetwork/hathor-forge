@@ -53,7 +53,7 @@ function WalletConnectModal({ localIp, onClose }: { localIp: string; onClose: ()
 
   const items = [
     { label: "Full Node", value: `http://${localIp}:${PORTS.FULLNODE_API}/v1a` },
-    { label: "Tx Mining", value: `http://${localIp}:${PORTS.STRATUM}` },
+    { label: "Tx Mining", value: `http://${localIp}:${PORTS.TX_MINING_API}` },
     { label: "Explorer", value: `http://${localIp}:${PORTS.EXPLORER}` },
   ];
 

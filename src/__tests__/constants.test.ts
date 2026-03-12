@@ -8,13 +8,13 @@ import {
 
 describe("PORTS", () => {
   it("has expected port values", () => {
-    expect(PORTS.FULLNODE_API).toBe(8080);
-    expect(PORTS.STRATUM).toBe(8000);
-    expect(PORTS.WALLET_HEADLESS).toBe(8001);
-    expect(PORTS.TX_MINING_API).toBe(8002);
-    expect(PORTS.TX_MINING_STRATUM).toBe(8003);
-    expect(PORTS.EXPLORER).toBe(3001);
-    expect(PORTS.MCP_SERVER).toBe(9876);
+    expect(PORTS.FULLNODE_API).toBe(49080);
+    expect(PORTS.STRATUM).toBe(49000);
+    expect(PORTS.WALLET_HEADLESS).toBe(49001);
+    expect(PORTS.TX_MINING_API).toBe(49002);
+    expect(PORTS.TX_MINING_STRATUM).toBe(49003);
+    expect(PORTS.EXPLORER).toBe(49081);
+    expect(PORTS.MCP_SERVER).toBe(49876);
     expect(PORTS.VITE_DEV).toBe(1420);
   });
 

@@ -39,6 +39,18 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
         .ok_or_else(|| format!("Cannot determine parent directory of {:?}", binary_path))?
         .join("_internal");
 
+    // Write DAA config tuned for local development:
+    // - 10s block interval (vs 30s mainnet) for faster iteration
+    // - 20-block lookback (vs 134 mainnet) so DAA adapts quickly
+    let config_yaml_path = std::path::PathBuf::from(&config.data_dir).join("forge-settings.yml");
+    fs::write(
+        &config_yaml_path,
+        "extends: localnet.yml\nAVG_TIME_BETWEEN_BLOCKS: 10\nBLOCK_DIFFICULTY_N_BLOCKS: 20\n",
+    )
+    .map_err(|e| format!("Failed to write DAA config: {}", e))?;
+
+    let config_yaml_str = config_yaml_path.to_string_lossy().to_string();
+
     let mut cmd = TokioCommand::new(&binary_path);
     set_library_path_env(&mut cmd, &internal_dir);
     let mut child = cmd
@@ -64,6 +76,8 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
             "--nc-indexes",
             "--unsafe-mode",
             "privatenet",
+            "--config-yaml",
+            &config_yaml_str,
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
