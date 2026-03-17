@@ -348,6 +348,21 @@ pub fn generate_headless_config(
     Ok(())
 }
 
+/// Apply platform-specific flags to hide console windows on Windows.
+///
+/// On Windows, spawning console applications (like Python, Node.js, cpuminer)
+/// creates a visible console window by default. This sets the `CREATE_NO_WINDOW`
+/// creation flag to suppress it. No-op on non-Windows platforms.
+pub fn hide_console_window(cmd: &mut TokioCommand) {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let _ = cmd; // suppress unused warning on non-Windows
+}
+
 /// Kill a process by PID (graceful then force) — async version.
 ///
 /// Uses `tokio::time::sleep` instead of `std::thread::sleep` so it does not
@@ -380,16 +395,21 @@ pub async fn kill_process(pid: u32) {
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
         // Try graceful shutdown first (sends WM_CLOSE / CTRL_CLOSE_EVENT)
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
         // Wait up to 5 seconds for the process to exit
         for _ in 0..50 {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             let output = Command::new("tasklist")
                 .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
             if let Ok(out) = output {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -406,6 +426,7 @@ pub async fn kill_process(pid: u32) {
         );
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
     }
 }
@@ -440,15 +461,20 @@ pub fn kill_process_sync(pid: u32) {
 
     #[cfg(windows)]
     {
+        use std::os::windows::process::CommandExt;
         use std::process::Command;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
         // Try graceful shutdown first
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string()])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
         for _ in 0..50 {
             std::thread::sleep(std::time::Duration::from_millis(100));
             let output = Command::new("tasklist")
                 .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+                .creation_flags(CREATE_NO_WINDOW)
                 .output();
             if let Ok(out) = output {
                 let stdout = String::from_utf8_lossy(&out.stdout);
@@ -465,6 +491,7 @@ pub fn kill_process_sync(pid: u32) {
         );
         let _ = Command::new("taskkill")
             .args(["/PID", &pid.to_string(), "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
             .output();
     }
 }

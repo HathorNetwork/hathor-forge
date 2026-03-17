@@ -2,7 +2,7 @@ use std::process::Stdio;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::TxMiningConfig;
-use crate::platform::{get_binary_path, set_library_path_env};
+use crate::platform::{get_binary_path, hide_console_window, set_library_path_env};
 use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
 use crate::state::SharedState;
 
@@ -47,6 +47,7 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
 
     let mut cmd = TokioCommand::new(&binary_path);
     set_library_path_env(&mut cmd, &internal_dir);
+    hide_console_window(&mut cmd);
     let mut child = cmd
         .args([
             "--api-port",

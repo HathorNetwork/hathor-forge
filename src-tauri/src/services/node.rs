@@ -4,7 +4,7 @@ use tauri::Emitter;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::NodeConfig;
-use crate::platform::{get_binary_path, kill_process, set_library_path_env};
+use crate::platform::{get_binary_path, hide_console_window, kill_process, set_library_path_env};
 use crate::process::{setup_child_logging, spawn_exit_monitor};
 use crate::state::SharedState;
 
@@ -53,6 +53,7 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
 
     let mut cmd = TokioCommand::new(&binary_path);
     set_library_path_env(&mut cmd, &internal_dir);
+    hide_console_window(&mut cmd);
     let mut child = cmd
         .args([
             "run_node",
