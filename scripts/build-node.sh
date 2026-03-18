@@ -107,7 +107,8 @@ if [[ "$OS" == "Linux" ]]; then
         chmod 644 "$LIB_DIR/$lib_name"
     done
 
-    # Set rpath to look next to the binary
+    # Set rpath to look next to the binary (chmod needed since Nix copies are read-only)
+    chmod +w "$NODE_OUT"
     patchelf --set-rpath '$ORIGIN/node-dylibs' "$NODE_OUT"
 
     # Verify

@@ -13,3 +13,8 @@ Copy-Item $NodeBin (Join-Path $OutputDir "node-$Target.exe")
 
 $NodeVersion = & node --version
 Write-Host "Copied $NodeVersion -> $OutputDir\node-$Target.exe"
+
+# Create node-dylibs directory with a placeholder so the Tauri resource glob doesn't fail
+$DylibDir = Join-Path $OutputDir "node-dylibs"
+New-Item -ItemType Directory -Force -Path $DylibDir | Out-Null
+Set-Content -Path (Join-Path $DylibDir ".gitkeep") -Value ""
