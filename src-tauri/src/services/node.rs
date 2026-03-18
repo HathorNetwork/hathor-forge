@@ -4,9 +4,7 @@ use tauri::Emitter;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::NodeConfig;
-use crate::platform::{
-    get_binary_path, hide_console_window, kill_process, set_library_path_env,
-};
+use crate::platform::{get_binary_path, hide_console_window, kill_process, set_library_path_env};
 use crate::process::{setup_child_logging, spawn_exit_monitor};
 use crate::state::SharedState;
 
