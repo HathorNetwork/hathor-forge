@@ -391,6 +391,8 @@ jobs:
           touch src-tauri/wallet-headless-dist/.keep
           mkdir -p src-tauri/binaries/tx-mining-service-x86_64-unknown-linux-gnu
           touch src-tauri/binaries/tx-mining-service-x86_64-unknown-linux-gnu/tx-mining-service
+          mkdir -p src-tauri/binaries/node-dylibs
+          touch src-tauri/binaries/node-dylibs/.keep
 
       - name: Clippy
         run: nix develop --command cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings

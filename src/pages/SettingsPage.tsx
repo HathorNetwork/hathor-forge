@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { AlertTriangle, Trash2, Loader2, Copy, Check, Plug } from "lucide-react";
 import { useNodeStore } from "@/store/useNodeStore";
 import { useNanoContractStore } from "@/store/useNanoContractStore";
+import { useUIStore } from "@/store/useUIStore";
 import { Modal } from "@/components/ui/Modal";
 import { usePortsStore } from "@/store/usePortsStore";
 import * as api from "@/services/tauri";
@@ -15,6 +16,7 @@ export function SettingsPage() {
   const [mcpCopied, setMcpCopied] = useState(false);
   const [mcpError, setMcpError] = useState<string | null>(null);
   const clearContracts = useNanoContractStore((s) => s.clearContracts);
+  const clearLogs = useUIStore((s) => s.clearLogs);
 
   const closeResetModal = useCallback(() => setShowResetConfirm(false), []);
 
@@ -28,6 +30,7 @@ export function SettingsPage() {
     try {
       const result = await api.resetData();
       clearContracts();
+      clearLogs();
       setResetMessage(result);
       setResetStatus("success");
       setShowResetConfirm(false);
