@@ -78,6 +78,36 @@ pub async fn start_headless_internal(
 
     let mut cmd = TokioCommand::new(&node_bin);
     hide_console_window(&mut cmd);
+
+    // Set DYLD_FALLBACK_LIBRARY_PATH / LD_LIBRARY_PATH so the bundled Node.js
+    // binary can find its dynamic libraries (libuv, libssl, etc.)
+    // In production on macOS, node binary is in Contents/MacOS/ but dylibs are
+    // in Contents/Resources/binaries/node-dylibs/ (bundled as resources).
+    // In dev, they're in src-tauri/binaries/node-dylibs/.
+    {
+        let mut dylibs_candidates = Vec::new();
+        if let Some(bin_dir) = node_bin.parent() {
+            // Next to the binary (Linux/Windows production, or if co-located)
+            dylibs_candidates.push(bin_dir.join("node-dylibs"));
+            // macOS production: Contents/MacOS/../Resources/binaries/node-dylibs
+            #[cfg(target_os = "macos")]
+            dylibs_candidates.push(bin_dir.join("../Resources/binaries/node-dylibs"));
+        }
+        // Dev: CARGO_MANIFEST_DIR/binaries/node-dylibs
+        dylibs_candidates.push(
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries/node-dylibs"),
+        );
+        for dylibs_dir in &dylibs_candidates {
+            if dylibs_dir.exists() {
+                #[cfg(target_os = "macos")]
+                cmd.env("DYLD_FALLBACK_LIBRARY_PATH", dylibs_dir);
+                #[cfg(target_os = "linux")]
+                cmd.env("LD_LIBRARY_PATH", dylibs_dir);
+                break;
+            }
+        }
+    }
+
     let mut child = cmd
         .args([entry_point.to_string_lossy().as_ref()])
         .current_dir(&working_dir)
