@@ -4,9 +4,59 @@ use tauri::Emitter;
 use tokio::process::Command as TokioCommand;
 
 use crate::config::NodeConfig;
-use crate::platform::{get_binary_path, hide_console_window, kill_process, set_library_path_env};
+use crate::platform::{
+    get_binary_path, hide_console_window, kill_process, set_library_path_env,
+};
 use crate::process::{setup_child_logging, spawn_exit_monitor};
 use crate::state::SharedState;
+
+/// Kill any process currently listening on the given TCP port.
+/// This cleans up orphaned processes from a previous unclean shutdown.
+async fn kill_port_occupant(port: u16) {
+    #[cfg(unix)]
+    {
+        // lsof -ti tcp:<port> returns PIDs of processes using that port
+        if let Ok(output) = tokio::process::Command::new("lsof")
+            .args(["-ti", &format!("tcp:{}", port)])
+            .output()
+            .await
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines() {
+                if let Ok(pid) = line.trim().parse::<u32>() {
+                    tracing::warn!(port, pid, "Killing orphaned process on port");
+                    kill_process(pid).await;
+                }
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        if let Ok(output) = tokio::process::Command::new("netstat")
+            .args(["-ano", "-p", "TCP"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .await
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let port_str = format!(":{}", port);
+            for line in stdout.lines() {
+                if line.contains(&port_str) && line.contains("LISTENING") {
+                    if let Some(pid_str) = line.split_whitespace().last() {
+                        if let Ok(pid) = pid_str.parse::<u32>() {
+                            tracing::warn!(port, pid, "Killing orphaned process on port");
+                            kill_process(pid).await;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// Start the Hathor fullnode (internal version without Tauri AppHandle)
 pub async fn start_node_internal(state: &SharedState) -> Result<String, String> {
@@ -18,6 +68,10 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     }
 
     drop(state_guard);
+
+    // Kill any orphaned processes from a previous unclean shutdown
+    kill_port_occupant(config.api_port).await;
+    kill_port_occupant(config.stratum_port).await;
 
     let mut state_guard = state.lock().await;
 

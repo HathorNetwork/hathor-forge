@@ -153,12 +153,19 @@ export function SettingsPage() {
             <button
               onClick={() => setShowResetConfirm(true)}
               disabled={nodeStatus === "running" || resetStatus === "resetting"}
-              className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shrink-0"
             >
               <Trash2 className="w-4 h-4" aria-hidden="true" />
               Reset Data
             </button>
           </div>
+
+          {nodeStatus === "running" && (
+            <div className="p-3 rounded-lg text-sm bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0" aria-hidden="true" />
+              Stop the network before resetting data.
+            </div>
+          )}
 
           {resetStatus !== "idle" && (
             <div role="status" aria-live="polite" className={`p-3 rounded-lg text-sm ${

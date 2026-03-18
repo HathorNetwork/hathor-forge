@@ -30,6 +30,25 @@ cd "$BUILD_DIR"
 echo "Installing dependencies..."
 npm install
 
+# Patch wallet-lib bigIntReviver for WebKit/Safari compatibility.
+# Safari throws "Failed to parse String to BigInt" for float-to-BigInt,
+# but the upstream code only matches V8's error message. Broadening the
+# catch to all SyntaxErrors is safe since any SyntaxError from BigInt()
+# means the value can't be a BigInt.
+BIGINT_FILE="node_modules/@hathor/wallet-lib/lib/utils/bigint.js"
+if [ -f "$BIGINT_FILE" ]; then
+    echo "Patching wallet-lib bigIntReviver for WebKit compatibility..."
+    node -e "
+      const fs = require('fs');
+      let code = fs.readFileSync('$BIGINT_FILE', 'utf8');
+      code = code.replace(
+        /if \(e instanceof SyntaxError && \(e\.message ===.*?\)\) \{/s,
+        'if (e instanceof SyntaxError) {'
+      );
+      fs.writeFileSync('$BIGINT_FILE', code);
+    "
+fi
+
 # Build with basic mode + localnet config
 # Note: URLs point to localhost:49081 where our proxy server runs
 # The proxy forwards requests to the fullnode at localhost:49080
@@ -47,6 +66,17 @@ echo "Copying build to output directory..."
 mkdir -p "$OUTPUT_DIR"
 rm -rf "$OUTPUT_DIR"/*
 cp -r build/* "$OUTPUT_DIR/"
+
+# Inject WebKit polyfill for JSON.parse reviver context.source
+# Tauri on macOS uses WebKit which may lack context.source support (needs Safari 18.4+).
+# The wallet-lib bigIntReviver depends on it; without it BigInt(undefined) crashes.
+POLYFILL_SRC="$PROJECT_DIR/scripts/explorer-patches/webkit-bigint-polyfill.js"
+if [ -f "$POLYFILL_SRC" ]; then
+    echo "Injecting WebKit BigInt polyfill..."
+    cp "$POLYFILL_SRC" "$OUTPUT_DIR/static/js/webkit-bigint-polyfill.js"
+    sed -i.bak 's|<script defer="defer"|<script src="/static/js/webkit-bigint-polyfill.js"></script><script defer="defer"|' "$OUTPUT_DIR/index.html"
+    rm -f "$OUTPUT_DIR/index.html.bak"
+fi
 
 echo ""
 echo "=== Build complete ==="

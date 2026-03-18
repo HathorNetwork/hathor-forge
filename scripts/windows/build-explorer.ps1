@@ -25,6 +25,14 @@ Set-Location $BuildDir
 Write-Host "Installing dependencies..."
 npm install
 
+# Patch wallet-lib bigIntReviver for WebKit/Safari compatibility
+$BigIntFile = "node_modules\@hathor\wallet-lib\lib\utils\bigint.js"
+if (Test-Path $BigIntFile) {
+    Write-Host "Patching wallet-lib bigIntReviver for WebKit compatibility..."
+    $f = ($BigIntFile.Replace('\','/'))
+    node -e "const fs=require('fs');let c=fs.readFileSync('$f','utf8');c=c.replace(/if \(e instanceof SyntaxError && \(e\.message ===.*?\)\) \{/s,'if (e instanceof SyntaxError) {');fs.writeFileSync('$f',c)"
+}
+
 # Build with basic mode + localnet config
 Write-Host ""
 Write-Host "Building with basic mode configuration..."
@@ -40,6 +48,15 @@ Write-Host "Copying build to output directory..."
 if (Test-Path $OutputDir) { Remove-Item -Recurse -Force $OutputDir }
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 Copy-Item -Recurse "build\*" $OutputDir
+
+# Inject WebKit polyfill for JSON.parse reviver context.source
+$PolyfillSrc = Join-Path $ProjectDir "scripts\explorer-patches\webkit-bigint-polyfill.js"
+if (Test-Path $PolyfillSrc) {
+    Write-Host "Injecting WebKit BigInt polyfill..."
+    Copy-Item $PolyfillSrc (Join-Path $OutputDir "static\js\webkit-bigint-polyfill.js")
+    $indexHtml = Join-Path $OutputDir "index.html"
+    (Get-Content $indexHtml -Raw) -replace '<script defer="defer"', '<script src="/static/js/webkit-bigint-polyfill.js"></script><script defer="defer"' | Set-Content $indexHtml -NoNewline
+}
 
 Write-Host ""
 Write-Host "=== Build complete ==="

@@ -62,7 +62,7 @@ export function LogsPage() {
   }, []);
 
   return (
-    <>
+    <div className="flex flex-col h-full">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-2xl font-bold text-white">Logs</h2>
@@ -145,6 +145,6 @@ export function LogsPage() {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

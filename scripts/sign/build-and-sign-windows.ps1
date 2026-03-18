@@ -1,30 +1,36 @@
-# Full build + sign pipeline for Windows.
+# Full build + sign pipeline for Windows using SSL.com eSigner.
 #
-# Required env (one of):
-#   SIGN_CERT_THUMBPRINT - SHA1 thumbprint of cert in Windows cert store
-#   SIGN_PFX_PATH        - Path to PFX file (+ SIGN_PFX_PASSWORD)
+# Required env:
+#   ESIGNER_USERNAME      - SSL.com account email
+#   ESIGNER_PASSWORD      - SSL.com account password
+#   ESIGNER_TOTP_SECRET   - TOTP secret for automated OTP
+#   ESIGNER_CREDENTIAL_ID - Certificate credential ID
 #
 # Optional env:
-#   SIGN_TIMESTAMP_URL   - Timestamp server (default: http://timestamp.digicert.com)
-#   HATHOR_CORE_SRC      - Path to hathor-core source (default: ..\hathor-core)
-#   CPUMINER_SRC         - Path to cpuminer source (default: ..\cpuminer)
+#   CODESIGNTOOL_PATH     - Path to CodeSignTool directory (default: searches PATH)
+#   HATHOR_CORE_SRC       - Path to hathor-core source (default: ..\hathor-core)
+#   CPUMINER_SRC          - Path to cpuminer source (default: ..\cpuminer)
 #   etc.
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectDir = Split-Path -Parent (Split-Path -Parent $ScriptDir)
 
-# Validate signing is configured
-if (-not $env:SIGN_CERT_THUMBPRINT -and -not $env:SIGN_PFX_PATH) {
+# Validate eSigner credentials
+$requiredVars = @("ESIGNER_USERNAME", "ESIGNER_PASSWORD", "ESIGNER_TOTP_SECRET", "ESIGNER_CREDENTIAL_ID")
+$missing = $requiredVars | Where-Object { -not (Get-Item "env:$_" -ErrorAction SilentlyContinue) }
+if ($missing) {
     Write-Error @"
 
-No signing certificate configured. Set one of:
+Missing SSL.com eSigner credentials: $($missing -join ', ')
 
-  `$env:SIGN_CERT_THUMBPRINT = "your-cert-thumbprint"
-  `$env:SIGN_PFX_PATH = "C:\path\to\cert.pfx"
+Required:
+  `$env:ESIGNER_USERNAME      = "your@email.com"
+  `$env:ESIGNER_PASSWORD      = "your-password"
+  `$env:ESIGNER_TOTP_SECRET   = "your-totp-secret"
+  `$env:ESIGNER_CREDENTIAL_ID = "your-credential-id"
 
-To find your thumbprint:
-  Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Format-Table Thumbprint, Subject
+Get these from https://www.ssl.com/ > Orders > your EV certificate > eSigner
 
 "@
     exit 1

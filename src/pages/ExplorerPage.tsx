@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Play, Compass, Loader2 } from "lucide-react";
 import { useNodeStore } from "@/store/useNodeStore";
 import { useStartNetwork } from "@/hooks/useStartNetwork";
@@ -7,6 +8,8 @@ export function ExplorerPage() {
   const nodeStatus = useNodeStore((s) => s.nodeStatus);
   const { startNetwork, isLoading } = useStartNetwork();
   const PORTS = usePortsStore((s) => s.ports);
+  // Cache-busting: unique key per mount so WebKit doesn't serve stale iframe content
+  const [cacheKey] = useState(() => Date.now());
 
   const handleStartNode = startNetwork;
 
@@ -31,9 +34,9 @@ export function ExplorerPage() {
   }
 
   return (
-    <div className="h-full flex flex-col -m-6">
+    <div className="flex flex-col -m-6" style={{ height: 'calc(100% + 48px)' }}>
       <iframe
-        src={`http://localhost:${PORTS.EXPLORER}`}
+        src={`http://localhost:${PORTS.EXPLORER}?_cb=${cacheKey}`}
         className="w-full flex-1 border-0"
         title="Hathor Explorer"
       />

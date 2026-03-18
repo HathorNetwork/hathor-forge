@@ -43,13 +43,16 @@ security find-identity -v -p codesigning
 
 ### Windows
 
-1. **Code signing certificate** — EV (Extended Validation) recommended, standard OV also works
-   - Providers: DigiCert, Sectigo, GlobalSign, SSL.com
+1. **SSL.com EV Code Signing certificate** — https://www.ssl.com/certificates/ev-code-signing/
    - EV certificates eliminate SmartScreen warnings immediately
-   - OV certificates require reputation building
-2. **Windows SDK** — provides `signtool.exe`
+   - The certificate is stored in SSL.com's cloud (eSigner) — no USB token or local PFX needed
+2. **SSL.com CodeSignTool** — CLI for cloud-based signing via eSigner
+   - Download from https://www.ssl.com/developer-tools/codesigntool-command-line-tool/
+   - Extract to a known location (e.g. `C:\CodeSignTool\`)
+   - Or add to PATH
 3. **Node.js 22**, **Python 3.12**, **Rust (stable)**, **MSYS2** — for building
-4. The certificate must be installed in the Windows certificate store or available as a PFX file
+4. **TOTP secret** — for automated eSigner authentication (avoids manual OTP entry)
+   - In SSL.com dashboard: go to your EV certificate order > eSigner > enable **TOTP** and save the secret
 
 ---
 
@@ -125,14 +128,14 @@ npm run tauri build -- --bundles app
 Open **PowerShell as Administrator**:
 
 ```powershell
-# 1. Set your certificate thumbprint (from certmgr.msc or signtool)
-$env:SIGN_CERT_THUMBPRINT = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-# Or use a PFX file:
-# $env:SIGN_PFX_PATH = "C:\path\to\certificate.pfx"
-# $env:SIGN_PFX_PASSWORD = "your-password"
+# 1. Set SSL.com eSigner credentials
+$env:ESIGNER_USERNAME = "your@email.com"           # SSL.com account email
+$env:ESIGNER_PASSWORD = "your-password"             # SSL.com account password
+$env:ESIGNER_TOTP_SECRET = "your-totp-secret"       # TOTP secret from eSigner dashboard
+$env:ESIGNER_CREDENTIAL_ID = "your-credential-id"   # Certificate credential ID
 
-# 2. Set timestamp server (default: DigiCert)
-$env:SIGN_TIMESTAMP_URL = "http://timestamp.digicert.com"
+# 2. (Optional) Set CodeSignTool path if not in PATH
+$env:CODESIGNTOOL_PATH = "C:\CodeSignTool"
 
 # 3. Build and sign everything
 .\scripts\sign\build-and-sign-windows.ps1
@@ -141,7 +144,7 @@ $env:SIGN_TIMESTAMP_URL = "http://timestamp.digicert.com"
 The script will:
 1. Clone dependency repos (hathor-core, cpuminer, etc.)
 2. Build all binaries (hathor-core, cpuminer, tx-mining-service, wallet-headless, explorer, node)
-3. Sign all `.exe` and `.dll` files in the bundles
+3. Sign all `.exe` and `.dll` files using SSL.com eSigner (cloud-based EV signing)
 4. Build the Tauri app (NSIS + MSI installers)
 5. Sign the installers
 
@@ -173,21 +176,29 @@ npm run tauri build
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `SIGN_CERT_THUMBPRINT` | Yes* | SHA1 thumbprint of the certificate in the Windows cert store |
-| `SIGN_PFX_PATH` | Yes* | Path to PFX file (alternative to thumbprint) |
-| `SIGN_PFX_PASSWORD` | If PFX | Password for the PFX file |
-| `SIGN_TIMESTAMP_URL` | No | Timestamp server URL (default: `http://timestamp.digicert.com`) |
+| `ESIGNER_USERNAME` | Yes | SSL.com account email |
+| `ESIGNER_PASSWORD` | Yes | SSL.com account password |
+| `ESIGNER_TOTP_SECRET` | Yes | TOTP secret for automated OTP generation (from eSigner dashboard) |
+| `ESIGNER_CREDENTIAL_ID` | Yes | Certificate credential ID (from eSigner dashboard) |
+| `CODESIGNTOOL_PATH` | No | Path to CodeSignTool directory (default: searches PATH) |
 
-\* Provide either `SIGN_CERT_THUMBPRINT` or `SIGN_PFX_PATH`.
+### Finding Your Credential ID
 
-### Finding Your Certificate Thumbprint
+1. Log in to https://www.ssl.com/
+2. Go to **Orders** > select your EV Code Signing certificate order
+3. Click **eSigner** > the **Credential ID** is shown on that page
+4. Enable **TOTP** and save the secret — this allows automated signing without manual OTP entry
+
+### Setting Up CodeSignTool
 
 ```powershell
-# List all code signing certificates
-Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Format-Table Thumbprint, Subject
-
-# Or use signtool
-signtool list /v
+# Download from SSL.com
+# Extract to C:\CodeSignTool (or any directory)
+# Verify it works:
+C:\CodeSignTool\CodeSignTool.bat get_credential_ids `
+  -username "your@email.com" `
+  -password "your-password" `
+  -totp_secret "your-totp-secret"
 ```
 
 ---
@@ -240,8 +251,14 @@ The signing scripts enable hardened runtime (`--options runtime`) which is requi
 
 ### Windows: SmartScreen still shows warning
 
-- **EV certificates**: SmartScreen warnings are bypassed immediately.
-- **OV certificates**: SmartScreen builds reputation over time. After enough downloads, the warning goes away.
+With an EV certificate from SSL.com, SmartScreen warnings should be bypassed immediately. If you still see warnings, verify the signature is valid with `signtool verify /pa /v yourfile.exe`.
+
+### Windows: CodeSignTool errors
+
+- **"Invalid TOTP"**: The TOTP secret may have been regenerated. Log in to SSL.com dashboard and re-copy the secret.
+- **"Credential ID not found"**: Make sure you're using the credential ID from the eSigner page, not the order number.
+- **Timeout errors**: SSL.com's eSigner is cloud-based; signing requires network access. Check your internet connection and firewall.
+- **"Malware detected"**: eSigner runs a malware scan before signing. If `cpuminer.exe` is rejected, you may need to submit a false-positive report to SSL.com support.
 
 ### Windows: "cpuminer.exe" flagged by antivirus
 

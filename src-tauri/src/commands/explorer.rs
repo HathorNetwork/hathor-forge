@@ -124,9 +124,20 @@ async fn proxy_api(
                 Ok(body) => {
                     let mut builder = Response::builder().status(status.as_u16());
 
-                    // Forward response headers
+                    // Forward response headers, but skip content-encoding and
+                    // content-length because reqwest automatically decompresses
+                    // the response body (gzip/br/deflate) while the original
+                    // headers still say it's compressed. Forwarding them would
+                    // make the browser try to decompress already-decompressed data.
                     for (name, value) in headers.iter() {
-                        if let Ok(header_name) = axum::http::HeaderName::try_from(name.as_str()) {
+                        let name_str = name.as_str();
+                        if name_str == "content-encoding"
+                            || name_str == "content-length"
+                            || name_str == "transfer-encoding"
+                        {
+                            continue;
+                        }
+                        if let Ok(header_name) = axum::http::HeaderName::try_from(name_str) {
                             if let Ok(header_value) =
                                 axum::http::HeaderValue::from_bytes(value.as_bytes())
                             {
