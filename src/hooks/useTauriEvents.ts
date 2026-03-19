@@ -11,6 +11,7 @@ export function useTauriEvents() {
   const setMinerStatus = useNodeStore((s) => s.setMinerStatus);
   const setHashRate = useNodeStore((s) => s.setHashRate);
   const setError = useUIStore((s) => s.setError);
+  const setMiningStale = useUIStore((s) => s.setMiningStale);
   const setHeadlessStatus = useWalletStore((s) => s.setHeadlessStatus);
   const setHeadlessWallets = useWalletStore((s) => s.setHeadlessWallets);
   const queryClient = useQueryClient();
@@ -46,6 +47,7 @@ export function useTauriEvents() {
     register(listen<number | null>("node-terminated", (event) => {
       setNodeStatus("stopped");
       setMinerStatus("stopped");
+      setMiningStale(false);
       if (event.payload !== 0 && event.payload !== null) {
         setError(`Node exited with code ${event.payload}`);
       }
@@ -72,6 +74,11 @@ export function useTauriEvents() {
     register(listen<number | null>("miner-terminated", () => {
       setMinerStatus("stopped");
       setHashRate("0 H/s");
+      setMiningStale(false);
+    }));
+
+    register(listen<void>("mining-stale", () => {
+      setMiningStale(true);
     }));
 
     register(listen<void>("headless-started", () => {
@@ -181,5 +188,5 @@ export function useTauriEvents() {
       mountedRef.current = false;
       unlistenFns.current.forEach((fn) => fn());
     };
-  }, [addLog, setNodeStatus, setMinerStatus, setHashRate, setError, setHeadlessStatus, setHeadlessWallets, queryClient]);
+  }, [addLog, setNodeStatus, setMinerStatus, setHashRate, setError, setMiningStale, setHeadlessStatus, setHeadlessWallets, queryClient]);
 }

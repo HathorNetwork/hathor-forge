@@ -1,5 +1,6 @@
+import { useEffect, useRef } from "react";
 import {
-  Cpu, Play, Square, Layers, Coins, FileText, Activity,
+  Cpu, Play, Square, Layers, Coins, FileText, Activity, AlertTriangle,
 } from "lucide-react";
 import { useNodeStore } from "@/store/useNodeStore";
 import { useUIStore } from "@/store/useUIStore";
@@ -17,10 +18,39 @@ export function DashboardPage() {
   const hashRate = useNodeStore((s) => s.hashRate);
   const setHashRate = useNodeStore((s) => s.setHashRate);
   const setError = useUIStore((s) => s.setError);
+  const miningStale = useUIStore((s) => s.miningStale);
+  const setMiningStale = useUIStore((s) => s.setMiningStale);
   const { setHeadlessStatus } = useWalletStore();
   const { startNetwork, isLoading: isNetworkStarting } = useStartNetwork();
 
   const isLoading = isNetworkStarting || minerStatus === "starting";
+
+  // Detect stale chain: miner running but block height unchanged for 30s.
+  // Starts counting from when the miner begins — if no block is mined in
+  // 30s, the chain is likely stale from a previous session.
+  const staleTimerStart = useRef<number>(0);
+  useEffect(() => {
+    if (minerStatus !== "mining") {
+      staleTimerStart.current = 0;
+      if (miningStale) setMiningStale(false);
+      return;
+    }
+    // Block height changed — chain is healthy, reset timer
+    if (staleTimerStart.current !== 0) {
+      if (miningStale) setMiningStale(false);
+    }
+    staleTimerStart.current = Date.now();
+  }, [blockHeight, minerStatus]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (minerStatus !== "mining") return;
+    const timer = setInterval(() => {
+      if (staleTimerStart.current > 0 && Date.now() - staleTimerStart.current > 30_000) {
+        setMiningStale(true);
+      }
+    }, 5_000);
+    return () => clearInterval(timer);
+  }, [minerStatus, setMiningStale]);
 
   const handleStartNode = startNetwork;
 
@@ -64,8 +94,45 @@ export function DashboardPage() {
 
   const networkIsLive = nodeStatus === "running" || nodeStatus === "starting";
 
+  const handleResetAndRestart = async () => {
+    try {
+      await api.stopMiner().catch(() => {});
+      await api.stopHeadless().catch(() => {});
+      await api.stopExplorerServer().catch(() => {});
+      await api.stopNode();
+      setNodeStatus("stopped");
+      setMinerStatus("stopped");
+      setHeadlessStatus({ running: false, port: null });
+      setBlockHeight(0);
+      setHashRate("0 H/s");
+      setMiningStale(false);
+      // Wait for the node process to fully terminate and state to clear
+      await new Promise((r) => setTimeout(r, 1500));
+      await api.resetData();
+      await startNetwork();
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
   return (
     <>
+      {miningStale && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-3">
+          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+          <div className="flex-1">
+            <span className="text-sm text-amber-400 font-medium">Blockchain is stale — </span>
+            <span className="text-sm text-amber-400/70">mined blocks are being rejected. This happens after restarting with old data.</span>
+          </div>
+          <button
+            onClick={handleResetAndRestart}
+            className="px-3 py-1 rounded-md text-xs font-bold bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors shrink-0"
+          >
+            Reset &amp; Restart
+          </button>
+        </div>
+      )}
+
       {/* ── Action Bar ─────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-5">
         <div>

@@ -12,6 +12,10 @@ interface UIState {
   error: string | null;
   setError: (error: string | null) => void;
 
+  // Mining stale warning
+  miningStale: boolean;
+  setMiningStale: (stale: boolean) => void;
+
   // Logs
   logs: LogEntry[];
   logFilters: Set<LogSource>;
@@ -31,6 +35,10 @@ export const useUIStore = create<UIState>()((set, get) => ({
   // Error
   error: null,
   setError: (error) => set({ error }),
+
+  // Mining stale warning
+  miningStale: false,
+  setMiningStale: (stale) => set({ miningStale: stale }),
 
   // Logs
   logs: [],

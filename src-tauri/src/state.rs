@@ -56,11 +56,30 @@ pub fn spawn_log_reader<R: tokio::io::AsyncRead + Unpin + Send + 'static>(
     tokio::spawn(async move {
         let br = tokio::io::BufReader::new(reader);
         let mut lines = br.lines();
+        // Track consecutive rejected blocks for stale-chain detection
+        let mut consecutive_rejects: u32 = 0;
+        const STALE_THRESHOLD: u32 = 3;
+        let mut stale_emitted = false;
+
         while let Ok(Some(line)) = lines.next_line().await {
             let tagged = format!("[{}] {}", prefix, line);
             log_buf.push(tagged.clone());
             if let (Some(handle), Some(event)) = (&app_handle, event_name) {
                 let _ = handle.emit(event, &line);
+            }
+
+            // Detect stale mining: miner submits blocks but node rejects them all
+            if prefix == "miner" && line.contains("(booooo)") {
+                consecutive_rejects += 1;
+                if consecutive_rejects >= STALE_THRESHOLD && !stale_emitted {
+                    stale_emitted = true;
+                    if let Some(handle) = &app_handle {
+                        let _ = handle.emit("mining-stale", ());
+                    }
+                }
+            } else if prefix == "miner" && line.contains("(yay!!!)") {
+                consecutive_rejects = 0;
+                stale_emitted = false;
             }
         }
     });
