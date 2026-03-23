@@ -49,6 +49,17 @@ export function WalletPage() {
     };
   }, []);
 
+  // Fetch faucet balance on mount and periodically while node is running
+  useEffect(() => {
+    if (nodeStatus !== "running") return;
+    const fetchBalance = () => {
+      api.getFullnodeBalance().then(setFaucetBalance).catch(() => {});
+    };
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 10_000);
+    return () => clearInterval(interval);
+  }, [nodeStatus, setFaucetBalance]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const startHeadless = async () => {

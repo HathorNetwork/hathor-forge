@@ -46,6 +46,9 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
     let internal_dir = binary_parent.join("_internal");
 
     let mut cmd = TokioCommand::new(&binary_path);
+    // Force Python to use unbuffered stdout/stderr so log lines reach the
+    // Tauri event pipe immediately (PyInstaller binaries respect this).
+    cmd.env("PYTHONUNBUFFERED", "1");
     set_library_path_env(&mut cmd, &internal_dir);
     hide_console_window(&mut cmd);
     let mut child = cmd

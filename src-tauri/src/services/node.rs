@@ -104,6 +104,9 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     let config_yaml_str = config_yaml_path.to_string_lossy().to_string();
 
     let mut cmd = TokioCommand::new(&binary_path);
+    // Force Python to use unbuffered stdout/stderr so log lines reach the
+    // Tauri event pipe immediately (PyInstaller binaries respect this).
+    cmd.env("PYTHONUNBUFFERED", "1");
     set_library_path_env(&mut cmd, &internal_dir);
     hide_console_window(&mut cmd);
     let mut child = cmd

@@ -121,7 +121,10 @@ pub(crate) async fn send_tx(
         state_guard.ports.fullnode_api
     };
 
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
     let response = client
         .post(format!(
