@@ -28,7 +28,7 @@ pub(crate) async fn get_nano_contract_state(
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_api
+        state_guard.ports.fullnode_internal
     };
 
     let client = reqwest::Client::new();
@@ -60,7 +60,7 @@ pub(crate) async fn get_nano_contract_history(
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_api
+        state_guard.ports.fullnode_internal
     };
 
     let client = reqwest::Client::new();
@@ -91,7 +91,7 @@ pub(crate) async fn list_blueprints(
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_api
+        state_guard.ports.fullnode_internal
     };
 
     let client = reqwest::Client::new();
@@ -192,7 +192,7 @@ pub(crate) async fn get_blueprint_information(
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_api
+        state_guard.ports.fullnode_internal
     };
 
     let client = reqwest::Client::new();

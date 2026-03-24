@@ -23,7 +23,7 @@ pub async fn start_headless_internal(
     let ports = state.lock().await.ports.clone();
     let mut config = HeadlessConfig {
         port: ports.wallet_headless,
-        fullnode_url: format!("http://localhost:{}/v1a/", ports.fullnode_api),
+        fullnode_url: format!("http://localhost:{}/v1a/", ports.fullnode_internal),
         ..HeadlessConfig::default()
     };
     if let Some(url) = fullnode_url {

@@ -11,7 +11,7 @@ pub(crate) async fn get_wallet_addresses(
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_api
+        state_guard.ports.fullnode_internal
     };
 
     let client = reqwest::Client::new();
@@ -70,7 +70,7 @@ pub(crate) async fn get_fullnode_balance(
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_api
+        state_guard.ports.fullnode_internal
     };
 
     let client = reqwest::Client::new();
@@ -118,7 +118,7 @@ pub(crate) async fn send_tx(
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_api
+        state_guard.ports.fullnode_internal
     };
 
     let client = reqwest::Client::builder()

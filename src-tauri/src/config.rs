@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 // Default Port Constants (preferred/fallback values)
 // ============================================================================
 
-/// Fullnode HTTP API port.
+/// Fullnode HTTP API port (public, served by CORS proxy).
 pub const DEFAULT_FULLNODE_API_PORT: u16 = 49080;
+/// Fullnode internal port (hathor-core binds here, behind the CORS proxy).
+pub const DEFAULT_FULLNODE_INTERNAL_PORT: u16 = 49180;
 /// Stratum mining protocol port.
 pub const DEFAULT_STRATUM_PORT: u16 = 49000;
 /// Wallet-headless service port.
@@ -28,7 +30,10 @@ pub const DEFAULT_MCP_SERVER_PORT: u16 = 49876;
 /// MCP config registered in Claude Desktop) remain stable across app restarts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResolvedPorts {
+    /// Public-facing fullnode API port (CORS proxy listens here).
     pub fullnode_api: u16,
+    /// Internal fullnode port (hathor-core binds here, behind proxy).
+    pub fullnode_internal: u16,
     pub stratum: u16,
     pub wallet_headless: u16,
     pub tx_mining_api: u16,
@@ -41,6 +46,7 @@ impl Default for ResolvedPorts {
     fn default() -> Self {
         Self {
             fullnode_api: DEFAULT_FULLNODE_API_PORT,
+            fullnode_internal: DEFAULT_FULLNODE_INTERNAL_PORT,
             stratum: DEFAULT_STRATUM_PORT,
             wallet_headless: DEFAULT_WALLET_HEADLESS_PORT,
             tx_mining_api: DEFAULT_TX_MINING_API_PORT,
@@ -65,7 +71,7 @@ impl NodeConfig {
             .join("hathor-forge")
             .join("data");
         Self {
-            api_port: ports.fullnode_api,
+            api_port: ports.fullnode_internal,
             stratum_port: ports.stratum,
             data_dir: data_dir.to_string_lossy().to_string(),
         }

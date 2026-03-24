@@ -24,7 +24,7 @@ pub(crate) async fn stop_node(state: tauri::State<'_, SharedState>) -> Result<St
 pub(crate) async fn get_node_status(
     state: tauri::State<'_, SharedState>,
 ) -> Result<NodeStatus, String> {
-    let fullnode_port = state.lock().await.ports.fullnode_api;
+    let fullnode_port = state.lock().await.ports.fullnode_internal;
 
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(2))

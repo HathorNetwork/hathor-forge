@@ -93,7 +93,7 @@ impl McpState {
             fullnode_url: RwLock::new(fullnode_url.unwrap_or_else(|| {
                 format!(
                     "http://127.0.0.1:{}",
-                    crate::config::DEFAULT_FULLNODE_API_PORT
+                    crate::config::DEFAULT_FULLNODE_INTERNAL_PORT
                 )
             })),
             wallet_headless_url: RwLock::new(wallet_headless_url.unwrap_or_else(|| {

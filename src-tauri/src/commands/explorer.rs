@@ -298,7 +298,7 @@ pub(crate) async fn start_explorer_server(
         if state_guard.explorer_server_running {
             return Err("Explorer server is already running".to_string());
         }
-        (state_guard.ports.explorer, state_guard.ports.fullnode_api)
+        (state_guard.ports.explorer, state_guard.ports.fullnode_internal)
     };
 
     let explorer_path = get_explorer_dist_path();

@@ -12,7 +12,7 @@ pub async fn start_tx_mining_internal(state: &SharedState) -> Result<String, Str
     let config = TxMiningConfig {
         api_port: ports.tx_mining_api,
         stratum_port: ports.tx_mining_stratum,
-        fullnode_url: format!("http://localhost:{}", ports.fullnode_api),
+        fullnode_url: format!("http://localhost:{}", ports.fullnode_internal),
         ..TxMiningConfig::default()
     };
     let state_guard = state.lock().await;

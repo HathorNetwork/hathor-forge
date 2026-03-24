@@ -97,6 +97,7 @@ pub struct AppState {
     pub headless_child_id: Option<u32>,
     pub tx_mining_child_id: Option<u32>,
     pub explorer_shutdown: Option<tokio::sync::oneshot::Sender<()>>,
+    pub cors_proxy_shutdown: Option<tokio::sync::oneshot::Sender<()>>,
     pub data_dir: Option<String>,
     pub log_buffer: LogBuffer,
     /// AppHandle for emitting Tauri events from the MCP/services layer.

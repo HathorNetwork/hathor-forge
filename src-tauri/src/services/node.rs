@@ -8,6 +8,7 @@ use crate::platform::{get_binary_path, hide_console_window, kill_process, set_li
 use crate::process::{setup_child_logging, spawn_exit_monitor};
 use crate::state::SharedState;
 
+
 /// Kill any process currently listening on the given TCP port.
 /// This cleans up orphaned processes from a previous unclean shutdown.
 async fn kill_port_occupant(port: u16) {
@@ -68,6 +69,8 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     drop(state_guard);
 
     // Kill any orphaned processes from a previous unclean shutdown
+    let public_api_port = state.lock().await.ports.fullnode_api;
+    kill_port_occupant(public_api_port).await;
     kill_port_occupant(config.api_port).await;
     kill_port_occupant(config.stratum_port).await;
 
@@ -152,6 +155,11 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     state_guard.node_child_id = pid;
     state_guard.data_dir = Some(config.data_dir.clone());
 
+    // Start the CORS reverse proxy: public port (49080) → internal port (49180)
+    let public_port = state_guard.ports.fullnode_api;
+    let shutdown_tx = super::cors_proxy::start(public_port, config.api_port);
+    state_guard.cors_proxy_shutdown = Some(shutdown_tx);
+
     if let Some(ref handle) = app_handle {
         let _ = handle.emit("node-started", ());
     }
@@ -197,6 +205,11 @@ pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
 
         let node_pid = guard.node_child_id.take();
         guard.node_running = false;
+
+        // Shut down the CORS proxy
+        if let Some(tx) = guard.cors_proxy_shutdown.take() {
+            let _ = tx.send(());
+        }
 
         (miner_pid, headless_pid, tx_mining_pid, node_pid)
     };

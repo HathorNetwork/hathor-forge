@@ -9,7 +9,7 @@ pub mod tools;
 pub mod types;
 
 use axum::{
-    routing::{any, get, post},
+    routing::{get, post},
     Router,
 };
 use std::sync::Arc;
@@ -39,7 +39,6 @@ pub fn create_mcp_router(
         .route("/mcp", post(routes::handle_mcp_request))
         .route("/mcp/sse", get(routes::handle_sse))
         .route("/health", get(routes::handle_health))
-        .route("/proxy/node/{*path}", any(routes::handle_node_proxy))
         .with_state(mcp_state)
 }
 
