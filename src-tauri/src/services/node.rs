@@ -132,6 +132,7 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
             "--nc-indexes",
             "--unsafe-mode",
             "privatenet",
+            "--allow-cors",
             "--config-yaml",
             &config_yaml_str,
         ])
