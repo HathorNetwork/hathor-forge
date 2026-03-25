@@ -100,13 +100,13 @@ async fn ws_proxy(client_ws: WebSocket, upstream_url: String) {
                     tokio_tungstenite::tungstenite::Message::Text(t)
                 }
                 axum::extract::ws::Message::Binary(b) => {
-                    tokio_tungstenite::tungstenite::Message::Binary(b.into())
+                    tokio_tungstenite::tungstenite::Message::Binary(b)
                 }
                 axum::extract::ws::Message::Ping(p) => {
-                    tokio_tungstenite::tungstenite::Message::Ping(p.into())
+                    tokio_tungstenite::tungstenite::Message::Ping(p)
                 }
                 axum::extract::ws::Message::Pong(p) => {
-                    tokio_tungstenite::tungstenite::Message::Pong(p.into())
+                    tokio_tungstenite::tungstenite::Message::Pong(p)
                 }
                 axum::extract::ws::Message::Close(_) => break,
             };
@@ -124,13 +124,13 @@ async fn ws_proxy(client_ws: WebSocket, upstream_url: String) {
                     axum::extract::ws::Message::Text(t)
                 }
                 tokio_tungstenite::tungstenite::Message::Binary(b) => {
-                    axum::extract::ws::Message::Binary(b.into())
+                    axum::extract::ws::Message::Binary(b)
                 }
                 tokio_tungstenite::tungstenite::Message::Ping(p) => {
-                    axum::extract::ws::Message::Ping(p.into())
+                    axum::extract::ws::Message::Ping(p)
                 }
                 tokio_tungstenite::tungstenite::Message::Pong(p) => {
-                    axum::extract::ws::Message::Pong(p.into())
+                    axum::extract::ws::Message::Pong(p)
                 }
                 tokio_tungstenite::tungstenite::Message::Close(_) => break,
                 tokio_tungstenite::tungstenite::Message::Frame(_) => continue,
