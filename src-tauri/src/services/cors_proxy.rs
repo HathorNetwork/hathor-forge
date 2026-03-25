@@ -58,8 +58,7 @@ pub fn start(public_port: u16, internal_port: u16) -> oneshot::Sender<()> {
     }));
 
     tokio::spawn(async move {
-        let listener = match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", public_port))
-            .await
+        let listener = match tokio::net::TcpListener::bind(format!("0.0.0.0:{}", public_port)).await
         {
             Ok(l) => l,
             Err(e) => {
@@ -207,9 +206,7 @@ async fn proxy_request(req: Request, upstream_base: &str, client: &reqwest::Clie
         }
         Err(e) => cors_response(
             StatusCode::BAD_GATEWAY,
-            Body::from(
-                serde_json::json!({"success": false, "error": e.to_string()}).to_string(),
-            ),
+            Body::from(serde_json::json!({"success": false, "error": e.to_string()}).to_string()),
             Some("application/json"),
         ),
     }

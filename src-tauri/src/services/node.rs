@@ -8,7 +8,6 @@ use crate::platform::{get_binary_path, hide_console_window, kill_process, set_li
 use crate::process::{setup_child_logging, spawn_exit_monitor};
 use crate::state::SharedState;
 
-
 /// Kill any process currently listening on the given TCP port.
 /// This cleans up orphaned processes from a previous unclean shutdown.
 async fn kill_port_occupant(port: u16) {
