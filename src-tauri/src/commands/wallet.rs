@@ -86,10 +86,30 @@ pub(crate) async fn get_fullnode_balance(
         }
     };
 
+    let client = reqwest::Client::new();
+
+    // Log wallet address once per session for debugging
+    {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static ADDR_LOGGED: AtomicBool = AtomicBool::new(false);
+        if !ADDR_LOGGED.swap(true, Ordering::Relaxed) {
+            if let Ok(addr_resp) = client
+                .get(format!(
+                    "http://127.0.0.1:{}/v1a/wallet/address",
+                    fullnode_port
+                ))
+                .send()
+                .await
+            {
+                if let Ok(text) = addr_resp.text().await {
+                    emit_log(format!("Wallet address: {}", text));
+                }
+            }
+        }
+    }
+
     let url = format!("http://127.0.0.1:{}/v1a/wallet/balance/", fullnode_port);
     emit_log(format!("Fetching balance from {}", url));
-
-    let client = reqwest::Client::new();
 
     let response = match client.get(&url).send().await {
         Ok(resp) => {

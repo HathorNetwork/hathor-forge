@@ -93,13 +93,35 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
         .ok_or_else(|| format!("Cannot determine parent directory of {:?}", binary_path))?
         .join("_internal");
 
-    // Write DAA config tuned for local development:
-    // - 10s block interval (vs 30s mainnet) for faster iteration
-    // - 20-block lookback (vs 134 mainnet) so DAA adapts quickly
+    // Write full localnet config inlined (cannot use "extends: localnet.yml" because
+    // the file doesn't resolve in PyInstaller bundles on Windows).
+    // Source: hathorlib/hathorlib/conf/localnet.yml + testnet.yml merged + forge overrides.
     let config_yaml_path = std::path::PathBuf::from(&config.data_dir).join("forge-settings.yml");
     fs::write(
         &config_yaml_path,
-        "extends: localnet.yml\nAVG_TIME_BETWEEN_BLOCKS: 10\nBLOCK_DIFFICULTY_N_BLOCKS: 20\nMAX_DISTANCE_BETWEEN_BLOCKS: 31536000\nREWARD_SPEND_MIN_BLOCKS: 0\n",
+        "\
+P2PKH_VERSION_BYTE: x49\n\
+MULTISIG_VERSION_BYTE: x87\n\
+NETWORK_NAME: privatenet\n\
+BOOTSTRAP_DNS: []\n\
+GENESIS_OUTPUT_SCRIPT: 76a91466665b27f7dbc4c8c089d2f686c170c74d66f0b588ac\n\
+GENESIS_BLOCK_TIMESTAMP: 1643902665\n\
+GENESIS_BLOCK_NONCE: 4784939\n\
+GENESIS_BLOCK_HASH: 00000334a21fbb58b4db8d7ff282d018e03e2977abd3004cf378fb1d677c3967\n\
+GENESIS_TX1_NONCE: 0\n\
+GENESIS_TX1_HASH: 54165cef1fd4cf2240d702b8383c307c822c16ca407f78014bdefa189a7571c2\n\
+GENESIS_TX2_NONCE: 0\n\
+GENESIS_TX2_HASH: 039906854ce6309b3180945f2a23deb9edff369753f7082e19053f5ac11bfbae\n\
+MIN_TX_WEIGHT_K: 0\n\
+MIN_TX_WEIGHT_COEFFICIENT: 0\n\
+MIN_TX_WEIGHT: 1\n\
+REWARD_SPEND_MIN_BLOCKS: 0\n\
+CHECKPOINTS: []\n\
+ENABLE_NANO_CONTRACTS: 'enabled'\n\
+NC_ON_CHAIN_BLUEPRINT_RESTRICTED: false\n\
+AVG_TIME_BETWEEN_BLOCKS: 10\n\
+BLOCK_DIFFICULTY_N_BLOCKS: 20\n\
+MAX_DISTANCE_BETWEEN_BLOCKS: 31536000\n",
     )
     .map_err(|e| format!("Failed to write DAA config: {}", e))?;
 
