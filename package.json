@@ -26,7 +26,7 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-router-dom": "^7.13.1",
-    "swagger-ui-react": "^5.31.0",
+    "swagger-ui-react": "^5.32.1",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.9"
   },
