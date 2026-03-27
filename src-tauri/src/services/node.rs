@@ -99,7 +99,7 @@ pub async fn start_node_internal(state: &SharedState) -> Result<String, String> 
     let config_yaml_path = std::path::PathBuf::from(&config.data_dir).join("forge-settings.yml");
     fs::write(
         &config_yaml_path,
-        "extends: localnet.yml\nAVG_TIME_BETWEEN_BLOCKS: 10\nBLOCK_DIFFICULTY_N_BLOCKS: 20\nMAX_DISTANCE_BETWEEN_BLOCKS: 31536000\n",
+        "extends: localnet.yml\nAVG_TIME_BETWEEN_BLOCKS: 10\nBLOCK_DIFFICULTY_N_BLOCKS: 20\nMAX_DISTANCE_BETWEEN_BLOCKS: 31536000\nREWARD_SPEND_MIN_BLOCKS: 0\n",
     )
     .map_err(|e| format!("Failed to write DAA config: {}", e))?;
 
