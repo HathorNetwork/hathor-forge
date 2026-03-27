@@ -1,3 +1,5 @@
+use tauri::Emitter;
+
 use crate::state::SharedState;
 use crate::types::{FullnodeBalance, SendTxRequest, WalletAddress};
 
@@ -65,44 +67,78 @@ pub(crate) async fn get_wallet_addresses(
 pub(crate) async fn get_fullnode_balance(
     state: tauri::State<'_, SharedState>,
 ) -> Result<FullnodeBalance, String> {
-    let fullnode_port = {
+    let (fullnode_port, log_buf, app_handle) = {
         let state_guard = state.lock().await;
         if !state_guard.node_running {
             return Err("Node is not running".to_string());
         }
-        state_guard.ports.fullnode_internal
+        (
+            state_guard.ports.fullnode_internal,
+            state_guard.log_buffer.clone(),
+            state_guard.app_handle.clone(),
+        )
     };
+
+    let emit_log = |msg: String| {
+        log_buf.push(format!("[faucet] {}", msg));
+        if let Some(ref handle) = app_handle {
+            let _ = handle.emit("node-log", &format!("[FAUCET-DEBUG] {}", msg));
+        }
+    };
+
+    let url = format!("http://127.0.0.1:{}/v1a/wallet/balance/", fullnode_port);
+    emit_log(format!("Fetching balance from {}", url));
 
     let client = reqwest::Client::new();
 
-    let response = client
-        .get(format!(
-            "http://127.0.0.1:{}/v1a/wallet/balance/",
-            fullnode_port
-        ))
-        .send()
-        .await
-        .map_err(|e| format!("Failed to get balance: {}", e))?;
+    let response = match client.get(&url).send().await {
+        Ok(resp) => {
+            emit_log(format!("HTTP response status: {}", resp.status()));
+            resp
+        }
+        Err(e) => {
+            let msg = format!("HTTP request FAILED: {}", e);
+            emit_log(msg.clone());
+            return Err(msg);
+        }
+    };
 
-    let response_text = response
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read response: {}", e))?;
+    let response_text = match response.text().await {
+        Ok(text) => {
+            emit_log(format!("Response body: {}", text));
+            text
+        }
+        Err(e) => {
+            let msg = format!("Failed to read response body: {}", e);
+            emit_log(msg.clone());
+            return Err(msg);
+        }
+    };
 
-    let result: serde_json::Value = serde_json::from_str(&response_text)
-        .map_err(|e| format!("Failed to parse response: {} - Body: {}", e, response_text))?;
+    let result: serde_json::Value = match serde_json::from_str(&response_text) {
+        Ok(v) => v,
+        Err(e) => {
+            let msg = format!("JSON parse FAILED: {} - Body: {}", e, response_text);
+            emit_log(msg.clone());
+            return Err(msg);
+        }
+    };
 
     if result["success"].as_bool().unwrap_or(false) {
         let balance = &result["balance"];
-        Ok(FullnodeBalance {
-            available: balance["available"].as_i64().unwrap_or(0),
-            locked: balance["locked"].as_i64().unwrap_or(0),
-        })
+        let available = balance["available"].as_i64().unwrap_or(0);
+        let locked = balance["locked"].as_i64().unwrap_or(0);
+        emit_log(format!(
+            "Balance OK: available={}, locked={}",
+            available, locked
+        ));
+        Ok(FullnodeBalance { available, locked })
     } else {
         let message = result["message"]
             .as_str()
             .unwrap_or("Unknown error")
             .to_string();
+        emit_log(format!("API returned success=false: {}", message));
         Err(format!("Failed to get balance: {}", message))
     }
 }

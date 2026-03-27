@@ -14,6 +14,7 @@ import type { HeadlessWallet } from "@/types";
 export function WalletPage() {
   const nodeStatus = useNodeStore((s) => s.nodeStatus);
   const setError = useUIStore((s) => s.setError);
+  const addLog = useUIStore((s) => s.addLog);
   const PORTS = usePortsStore((s) => s.ports);
   const [walletSendForms, setWalletSendForms] = useState<Record<string, { address: string; amount: string }>>({});
   const {
@@ -40,6 +41,11 @@ export function WalletPage() {
     setImportSeed("");
   }, [setShowCreateWallet, setNewSeed, setNewWalletId, setImportSeed]);
 
+  // Debug: log faucetBalance whenever it changes
+  useEffect(() => {
+    addLog("node", `[FAUCET-DEBUG] faucetBalance state: ${JSON.stringify(faucetBalance)}`);
+  }, [faucetBalance, addLog]);
+
   // Abort controller for cancelling pollWalletStatus on unmount
   const pollAbortRef = useRef<AbortController | null>(null);
 
@@ -51,14 +57,25 @@ export function WalletPage() {
 
   // Fetch faucet balance on mount and periodically while node is running
   useEffect(() => {
-    if (nodeStatus !== "running") return;
+    if (nodeStatus !== "running") {
+      addLog("node", `[FAUCET-DEBUG] WalletPage: nodeStatus=${nodeStatus}, skipping balance fetch`);
+      return;
+    }
+    addLog("node", "[FAUCET-DEBUG] WalletPage: starting balance polling");
     const fetchBalance = () => {
-      api.getFullnodeBalance().then(setFaucetBalance).catch(() => {});
+      api.getFullnodeBalance()
+        .then((b) => {
+          addLog("node", `[FAUCET-DEBUG] WalletPage poll got: ${JSON.stringify(b)}`);
+          setFaucetBalance(b);
+        })
+        .catch((e) => {
+          addLog("node", `[FAUCET-DEBUG] WalletPage poll FAILED: ${e}`);
+        });
     };
     fetchBalance();
     const interval = setInterval(fetchBalance, 10_000);
     return () => clearInterval(interval);
-  }, [nodeStatus, setFaucetBalance]);
+  }, [nodeStatus, setFaucetBalance, addLog]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -377,9 +394,9 @@ export function WalletPage() {
                       </button>
                       <button
                         onClick={() => fundWallet(wallet.wallet_id)}
-                        disabled={wallet.status_code !== 3 || !faucetBalance?.available}
+                        disabled={wallet.status_code !== 3 || !faucetBalance || faucetBalance.available <= 0}
                         className="px-3 py-1 text-sm bg-[#9cf35b]/10 text-[#9cf35b] rounded hover:bg-[#9cf35b]/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={!faucetBalance?.available ? "Wait for blocks to be mined" : "Send funds from faucet"}
+                        title={!faucetBalance ? "Loading faucet balance..." : faucetBalance.available <= 0 ? "Faucet has no available funds yet" : "Send funds from faucet"}
                       >
                         Fund
                       </button>
