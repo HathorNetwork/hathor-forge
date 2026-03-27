@@ -147,8 +147,9 @@ jobs:
 
       - name: Create DMG
         run: |
+          VERSION=$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/')
           APP_PATH="src-tauri/target/release/bundle/macos/Hathor Forge.app"
-          DMG_PATH="src-tauri/target/release/bundle/Hathor-Forge.dmg"
+          DMG_PATH="src-tauri/target/release/bundle/Hathor Forge_${VERSION}_aarch64.dmg"
           hdiutil create -volname "Hathor Forge" -srcfolder "$APP_PATH" -ov -format UDZO "$DMG_PATH"
 
       - name: Upload artifacts
