@@ -306,7 +306,7 @@ pub(crate) async fn headless_wallet_create_nano_contract(
 
     let response = client
         .post(format!(
-            "http://localhost:{}/wallet/nano-contracts/create",
+            "http://127.0.0.1:{}/wallet/nano-contracts/create",
             headless_port
         ))
         .header("X-Wallet-Id", &request.wallet_id)
@@ -344,7 +344,7 @@ pub(crate) async fn headless_wallet_call_nano_contract_method(
 
     let response = client
         .post(format!(
-            "http://localhost:{}/wallet/nano-contracts/execute",
+            "http://127.0.0.1:{}/wallet/nano-contracts/execute",
             headless_port
         ))
         .header("X-Wallet-Id", &request.wallet_id)

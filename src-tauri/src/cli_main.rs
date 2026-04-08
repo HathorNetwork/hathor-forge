@@ -190,7 +190,7 @@ async fn main() {
     });
     let tx_mining_url_resolved = tx_mining_url.clone().unwrap_or_else(|| {
         format!(
-            "http://localhost:{}",
+            "http://127.0.0.1:{}",
             hathor_forge_lib::config::DEFAULT_TX_MINING_API_PORT
         )
     });
@@ -313,7 +313,7 @@ async fn main() {
         // TUI mode
         let fn_url = fullnode_url_resolved.clone();
         let wh_url = format!(
-            "http://localhost:{}",
+            "http://127.0.0.1:{}",
             hathor_forge_lib::config::DEFAULT_WALLET_HEADLESS_PORT
         );
         let tm_url = tx_mining_url_resolved.clone();

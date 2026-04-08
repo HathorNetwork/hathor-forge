@@ -120,7 +120,7 @@ impl Default for HeadlessConfig {
     fn default() -> Self {
         Self {
             port: DEFAULT_WALLET_HEADLESS_PORT,
-            fullnode_url: format!("http://localhost:{}/v1a/", DEFAULT_FULLNODE_API_PORT),
+            fullnode_url: format!("http://127.0.0.1:{}/v1a/", DEFAULT_FULLNODE_API_PORT),
             network: "privatenet".to_string(),
         }
     }
@@ -139,7 +139,7 @@ impl Default for TxMiningConfig {
         Self {
             api_port: DEFAULT_TX_MINING_API_PORT,
             stratum_port: DEFAULT_TX_MINING_STRATUM_PORT,
-            fullnode_url: format!("http://localhost:{}", DEFAULT_FULLNODE_API_PORT),
+            fullnode_url: format!("http://127.0.0.1:{}", DEFAULT_FULLNODE_API_PORT),
             address: "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb".to_string(),
         }
     }
@@ -171,7 +171,7 @@ mod tests {
         assert_eq!(config.port, DEFAULT_WALLET_HEADLESS_PORT);
         assert_eq!(
             config.fullnode_url,
-            format!("http://localhost:{}/v1a/", DEFAULT_FULLNODE_API_PORT)
+            format!("http://127.0.0.1:{}/v1a/", DEFAULT_FULLNODE_API_PORT)
         );
         assert_eq!(config.network, "privatenet");
     }
@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(config.stratum_port, DEFAULT_TX_MINING_STRATUM_PORT);
         assert_eq!(
             config.fullnode_url,
-            format!("http://localhost:{}", DEFAULT_FULLNODE_API_PORT)
+            format!("http://127.0.0.1:{}", DEFAULT_FULLNODE_API_PORT)
         );
         assert_eq!(config.address, "WXkMhVgRVmTXTVh47wauPKm1xcrW8Qf3Vb");
     }

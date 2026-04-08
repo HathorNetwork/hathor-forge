@@ -23,7 +23,7 @@ pub async fn start_headless_internal(
     let ports = state.lock().await.ports.clone();
     let mut config = HeadlessConfig {
         port: ports.wallet_headless,
-        fullnode_url: format!("http://localhost:{}/v1a/", ports.fullnode_internal),
+        fullnode_url: format!("http://127.0.0.1:{}/v1a/", ports.fullnode_internal),
         ..HeadlessConfig::default()
     };
     if let Some(url) = fullnode_url {
@@ -38,7 +38,7 @@ pub async fn start_headless_internal(
     }
     let txm_url = tx_mining_url
         .map(|s| s.to_string())
-        .unwrap_or_else(|| format!("http://localhost:{}", ports.tx_mining_api));
+        .unwrap_or_else(|| format!("http://127.0.0.1:{}", ports.tx_mining_api));
 
     let state_guard = state.lock().await;
 

@@ -55,7 +55,7 @@ pub(crate) async fn create_headless_wallet(
     let client = reqwest::Client::new();
 
     let response = client
-        .post(format!("http://localhost:{}/start", headless_port))
+        .post(format!("http://127.0.0.1:{}/start", headless_port))
         .json(&serde_json::json!({
             "wallet-id": request.wallet_id,
             "seed": request.seed,
@@ -101,7 +101,7 @@ pub(crate) async fn get_headless_wallet_status(
     let client = reqwest::Client::new();
 
     let response = client
-        .get(format!("http://localhost:{}/wallet/status", headless_port))
+        .get(format!("http://127.0.0.1:{}/wallet/status", headless_port))
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -142,7 +142,7 @@ pub(crate) async fn get_headless_wallet_balance(
     let client = reqwest::Client::new();
 
     let response = client
-        .get(format!("http://localhost:{}/wallet/balance", headless_port))
+        .get(format!("http://127.0.0.1:{}/wallet/balance", headless_port))
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
@@ -177,7 +177,7 @@ pub(crate) async fn get_headless_wallet_addresses(
 
     let response = client
         .get(format!(
-            "http://localhost:{}/wallet/addresses",
+            "http://127.0.0.1:{}/wallet/addresses",
             headless_port
         ))
         .header("X-Wallet-Id", &wallet_id)
@@ -220,7 +220,7 @@ pub(crate) async fn headless_wallet_send_tx(
 
     let response = client
         .post(format!(
-            "http://localhost:{}/wallet/simple-send-tx",
+            "http://127.0.0.1:{}/wallet/simple-send-tx",
             headless_port
         ))
         .header("X-Wallet-Id", &request.wallet_id)
@@ -270,7 +270,7 @@ pub(crate) async fn close_headless_wallet(
     let client = reqwest::Client::new();
 
     let response = client
-        .post(format!("http://localhost:{}/wallet/stop", headless_port))
+        .post(format!("http://127.0.0.1:{}/wallet/stop", headless_port))
         .header("X-Wallet-Id", &wallet_id)
         .send()
         .await
