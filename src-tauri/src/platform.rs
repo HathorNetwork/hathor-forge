@@ -326,7 +326,7 @@ pub fn generate_headless_config(
 
     let config_content = format!(
         r#"module.exports = {{
-  http_bind_address: 'localhost',
+  http_bind_address: '127.0.0.1',
   http_port: {},
   network: '{}',
   server: '{}',
