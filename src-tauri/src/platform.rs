@@ -367,6 +367,14 @@ pub fn hide_console_window(cmd: &mut TokioCommand) {
 ///
 /// Uses `tokio::time::sleep` instead of `std::thread::sleep` so it does not
 /// block the async runtime while waiting for the process to exit.
+///
+/// On Windows this tree-kills the target and all descendants (`taskkill /T /F`).
+/// Our services (hathor-core/tx-mining-service via PyInstaller, wallet-headless
+/// via Node, cpuminer) are all spawned with `CREATE_NO_WINDOW`, so a graceful
+/// `taskkill` that sends `WM_CLOSE` is a no-op — we go straight to force.
+/// Without `/T` the PyInstaller bootloader's child Python process and any
+/// grandchildren are orphaned, which is what was leaving hathor-core running
+/// after the app window closed.
 pub async fn kill_process(pid: u32) {
     #[cfg(unix)]
     {
@@ -399,13 +407,16 @@ pub async fn kill_process(pid: u32) {
         use std::process::Command;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        // Try graceful shutdown first (sends WM_CLOSE / CTRL_CLOSE_EVENT)
+        // Tree-kill the entire descendant chain. /T kills children, /F forces
+        // termination without waiting for WM_CLOSE (which windowless services
+        // never handle anyway).
         let _ = Command::new("taskkill")
-            .args(["/PID", &pid.to_string()])
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
-        // Wait up to 5 seconds for the process to exit
-        for _ in 0..50 {
+
+        // Give the OS a moment to tear the process tree down.
+        for _ in 0..30 {
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             let output = Command::new("tasklist")
                 .args(["/FI", &format!("PID eq {}", pid), "/NH"])
@@ -420,19 +431,14 @@ pub async fn kill_process(pid: u32) {
                 return;
             }
         }
-        warn!(
-            pid = pid,
-            "Process did not exit after graceful taskkill, forcing"
-        );
-        let _ = Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/F"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
+        warn!(pid = pid, "Process still present after taskkill /T /F");
     }
 }
 
 /// Kill a process by PID — synchronous version for non-async contexts
 /// (e.g. the Tauri `RunEvent::Exit` handler).
+///
+/// See [`kill_process`] for the rationale behind the Windows tree-kill.
 pub fn kill_process_sync(pid: u32) {
     #[cfg(unix)]
     {
@@ -465,12 +471,14 @@ pub fn kill_process_sync(pid: u32) {
         use std::process::Command;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-        // Try graceful shutdown first
+        // Tree-kill the entire descendant chain; see `kill_process` for why
+        // we skip the graceful step on Windows.
         let _ = Command::new("taskkill")
-            .args(["/PID", &pid.to_string()])
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
             .creation_flags(CREATE_NO_WINDOW)
             .output();
-        for _ in 0..50 {
+
+        for _ in 0..30 {
             std::thread::sleep(std::time::Duration::from_millis(100));
             let output = Command::new("tasklist")
                 .args(["/FI", &format!("PID eq {}", pid), "/NH"])
@@ -485,14 +493,7 @@ pub fn kill_process_sync(pid: u32) {
                 return;
             }
         }
-        warn!(
-            pid = pid,
-            "Process did not exit after graceful taskkill, forcing"
-        );
-        let _ = Command::new("taskkill")
-            .args(["/PID", &pid.to_string(), "/F"])
-            .creation_flags(CREATE_NO_WINDOW)
-            .output();
+        warn!(pid = pid, "Process still present after taskkill /T /F");
     }
 }
 
