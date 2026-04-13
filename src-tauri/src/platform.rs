@@ -359,8 +359,7 @@ pub fn generate_headless_config(
 // `CTRL_C_EVENT` so hathor-core flushes its RocksDB before we force-kill.
 
 #[cfg(windows)]
-static CONSOLE_AVAILABLE: std::sync::atomic::AtomicBool =
-    std::sync::atomic::AtomicBool::new(false);
+static CONSOLE_AVAILABLE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 #[cfg(windows)]
 mod win_console {

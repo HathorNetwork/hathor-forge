@@ -176,9 +176,7 @@ pub fn run() {
                             .creation_flags(CREATE_NO_WINDOW)
                             .output()
                         {
-                            if !String::from_utf8_lossy(&out.stdout)
-                                .contains(&pid.to_string())
-                            {
+                            if !String::from_utf8_lossy(&out.stdout).contains(&pid.to_string()) {
                                 break;
                             }
                         } else {
