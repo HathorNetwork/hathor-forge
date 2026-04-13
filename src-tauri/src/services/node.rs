@@ -5,6 +5,8 @@ use tokio::process::Command as TokioCommand;
 
 use crate::config::NodeConfig;
 use crate::platform::{get_binary_path, hide_console_window, kill_process, set_library_path_env};
+#[cfg(windows)]
+use crate::platform::send_ctrl_c_to_children;
 use crate::process::{setup_child_logging, spawn_exit_monitor};
 use crate::state::SharedState;
 
@@ -235,7 +237,41 @@ pub async fn stop_node_internal(state: &SharedState) -> Result<String, String> {
         (miner_pid, headless_pid, tx_mining_pid, node_pid)
     };
 
-    // Kill all processes without holding the lock
+    // On Windows, send CTRL_C to the shared hidden console so hathor-core
+    // (Python/Twisted) catches it as KeyboardInterrupt and flushes RocksDB
+    // before we force-kill. Without this step, taskkill /F below corrupts
+    // the storage — "The last time you executed your full node it wasn't
+    // stopped correctly". This mirrors the X-close path in RunEvent::Exit.
+    #[cfg(windows)]
+    {
+        if let Some(pid) = node_pid {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+            send_ctrl_c_to_children();
+
+            // Wait up to 5s for hathor-core to exit on its own.
+            for _ in 0..50 {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                match tokio::process::Command::new("tasklist")
+                    .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+                    .creation_flags(CREATE_NO_WINDOW)
+                    .output()
+                    .await
+                {
+                    Ok(out) => {
+                        if !String::from_utf8_lossy(&out.stdout).contains(&pid.to_string()) {
+                            break;
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        }
+    }
+
+    // Kill all processes without holding the lock. On Windows any that
+    // already exited gracefully above make these calls no-ops.
     if let Some(pid) = miner_pid {
         kill_process(pid).await;
     }
