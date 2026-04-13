@@ -24,6 +24,11 @@ pub fn run() {
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
+
+    // Allocate a hidden console so child processes can receive CTRL_C for
+    // graceful shutdown (lets hathor-core flush RocksDB before we force-kill).
+    init_console_for_children();
+
     let state = Arc::new(Mutex::new(AppState::default())) as SharedState;
     let cleanup_state = state.clone();
     let mcp_state = state.clone();
@@ -152,8 +157,37 @@ pub fn run() {
         .expect("error while building tauri application")
         .run(move |_app, event| {
             if let tauri::RunEvent::Exit = event {
+                // On Windows, send CTRL_C so hathor-core can flush its
+                // RocksDB before we resort to force-killing.
+                send_ctrl_c_to_children();
+
                 let state = cleanup_state.blocking_lock();
 
+                // Wait for hathor-core (the only stateful service) to exit
+                // gracefully after receiving CTRL_C.
+                #[cfg(windows)]
+                if let Some(pid) = state.node_child_id {
+                    use std::os::windows::process::CommandExt;
+                    const CREATE_NO_WINDOW: u32 = 0x08000000;
+                    for _ in 0..50 {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        if let Ok(out) = std::process::Command::new("tasklist")
+                            .args(["/FI", &format!("PID eq {}", pid), "/NH"])
+                            .creation_flags(CREATE_NO_WINDOW)
+                            .output()
+                        {
+                            if !String::from_utf8_lossy(&out.stdout)
+                                .contains(&pid.to_string())
+                            {
+                                break;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+                }
+
+                // Force-kill any survivors (tree-kill on Windows).
                 if let Some(pid) = state.miner_child_id {
                     info!(service = "miner", pid = pid, "Cleaning up miner process");
                     kill_process_sync(pid);

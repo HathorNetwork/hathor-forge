@@ -348,17 +348,106 @@ pub fn generate_headless_config(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Windows console helpers for graceful child shutdown
+// ---------------------------------------------------------------------------
+//
+// On Windows, GUI applications (Tauri) have no console. Without one, spawned
+// child processes cannot receive CTRL_C/CTRL_BREAK signals for graceful
+// shutdown.  By allocating a *hidden* console at startup and letting children
+// inherit it (instead of setting `CREATE_NO_WINDOW`), we can later send
+// `CTRL_C_EVENT` so hathor-core flushes its RocksDB before we force-kill.
+
+#[cfg(windows)]
+static CONSOLE_AVAILABLE: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(windows)]
+mod win_console {
+    type HWND = *mut std::ffi::c_void;
+    type BOOL = i32;
+    type DWORD = u32;
+
+    pub const CTRL_C_EVENT: DWORD = 0;
+    pub const SW_HIDE: i32 = 0;
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        pub fn AllocConsole() -> BOOL;
+        pub fn GetConsoleWindow() -> HWND;
+        pub fn SetConsoleCtrlHandler(
+            handler: Option<unsafe extern "system" fn(DWORD) -> BOOL>,
+            add: BOOL,
+        ) -> BOOL;
+        pub fn GenerateConsoleCtrlEvent(ctrl_event: DWORD, process_group_id: DWORD) -> BOOL;
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        pub fn ShowWindow(hwnd: HWND, cmd_show: i32) -> BOOL;
+    }
+}
+
+/// Allocate a hidden console so spawned children can receive `CTRL_C` for
+/// graceful shutdown.  Call once at app startup.  No-op on non-Windows.
+pub fn init_console_for_children() {
+    #[cfg(windows)]
+    {
+        use std::sync::atomic::Ordering;
+        unsafe {
+            if win_console::AllocConsole() != 0 {
+                // New console allocated — hide its window immediately.
+                let hwnd = win_console::GetConsoleWindow();
+                if !hwnd.is_null() {
+                    win_console::ShowWindow(hwnd, win_console::SW_HIDE);
+                }
+                CONSOLE_AVAILABLE.store(true, Ordering::SeqCst);
+                debug!("Allocated hidden console for child signal delivery");
+            } else {
+                // AllocConsole failed — we may already have a console (CLI).
+                let hwnd = win_console::GetConsoleWindow();
+                if !hwnd.is_null() {
+                    CONSOLE_AVAILABLE.store(true, Ordering::SeqCst);
+                }
+            }
+        }
+    }
+}
+
+/// Send `CTRL_C` to all children sharing our console.  Used during shutdown
+/// to give hathor-core a chance to flush its database.
+/// No-op on non-Windows or when no console was allocated.
+pub fn send_ctrl_c_to_children() {
+    #[cfg(windows)]
+    {
+        if !CONSOLE_AVAILABLE.load(std::sync::atomic::Ordering::SeqCst) {
+            return;
+        }
+        unsafe {
+            // Ignore CTRL_C for ourselves — we are shutting down intentionally.
+            win_console::SetConsoleCtrlHandler(None, 1);
+            win_console::GenerateConsoleCtrlEvent(win_console::CTRL_C_EVENT, 0);
+        }
+    }
+}
+
 /// Apply platform-specific flags to hide console windows on Windows.
 ///
-/// On Windows, spawning console applications (like Python, Node.js, cpuminer)
-/// creates a visible console window by default. This sets the `CREATE_NO_WINDOW`
-/// creation flag to suppress it. No-op on non-Windows platforms.
+/// When a hidden console has been allocated via [`init_console_for_children`],
+/// children inherit it silently and no flag is needed.  Otherwise falls back
+/// to `CREATE_NO_WINDOW` to suppress visible console windows.
+/// No-op on non-Windows platforms.
 pub fn hide_console_window(cmd: &mut TokioCommand) {
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        cmd.creation_flags(CREATE_NO_WINDOW);
+        if !CONSOLE_AVAILABLE.load(std::sync::atomic::Ordering::SeqCst) {
+            // No hidden console — fall back to suppressing the window.
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        // When a console IS available the child inherits it without any
+        // creation flags, enabling CTRL_C delivery for graceful shutdown.
     }
     let _ = cmd; // suppress unused warning on non-Windows
 }
