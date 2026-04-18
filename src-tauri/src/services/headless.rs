@@ -5,7 +5,7 @@ use tokio::process::Command as TokioCommand;
 use crate::config::HeadlessConfig;
 use crate::platform::{
     detect_network_from_url, generate_headless_config, get_headless_dist_path,
-    get_node_binary_path, hide_console_window,
+    get_node_binary_path, hide_console_window, HeadlessConfigLocation,
 };
 use crate::process::{setup_child_logging, spawn_exit_monitor, stop_service};
 use crate::state::SharedState;
@@ -70,7 +70,7 @@ pub async fn start_headless_internal(
         return Ok("Wallet-headless is already running".to_string());
     }
 
-    generate_headless_config(&config, &headless_path, &txm_url)?;
+    let config_location = generate_headless_config(&config, &headless_path, &txm_url)?;
 
     let node_bin = get_node_binary_path()?;
     let entry_point = headless_path.join("dist").join("index.js");
@@ -78,6 +78,13 @@ pub async fn start_headless_internal(
 
     let mut cmd = TokioCommand::new(&node_bin);
     hide_console_window(&mut cmd);
+
+    // If the config was written to a fallback directory (read-only dist), inject
+    // a preload script that redirects module resolution for config.js.
+    if let HeadlessConfigLocation::Fallback(ref preload_path) = config_location {
+        cmd.arg("--require");
+        cmd.arg(preload_path);
+    }
 
     // Ensure the bundled Node.js binary can find its dynamic libraries (libuv, etc.)
     //

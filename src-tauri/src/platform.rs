@@ -316,14 +316,28 @@ pub fn detect_network_from_url(url: &str) -> &'static str {
     }
 }
 
-/// Generate wallet-headless config file
+/// Result of headless config generation indicating where the config was written.
+pub enum HeadlessConfigLocation {
+    /// Config was written directly into the dist directory (dev / writable installs).
+    InDist,
+    /// Config was written to a writable fallback directory because the dist directory
+    /// is read-only (e.g. signed macOS .app bundle).  The contained path is the
+    /// `preload.cjs` that must be passed to Node via `--require`.
+    Fallback(std::path::PathBuf),
+}
+
+/// Generate wallet-headless config file.
+///
+/// First tries to write `config.js` directly into the bundled `dist/` directory
+/// (works in dev and writable installs).  If the filesystem is read-only (signed
+/// macOS .app, mounted DMG, etc.) it falls back to the user's data directory and
+/// generates a `preload.cjs` that redirects Node's module resolution so
+/// wallet-headless picks up the config from the writable location.
 pub fn generate_headless_config(
     config: &HeadlessConfig,
     headless_dist_path: &std::path::Path,
     tx_mining_url: &str,
-) -> Result<(), String> {
-    let config_path = headless_dist_path.join("dist").join("config.js");
-
+) -> Result<HeadlessConfigLocation, String> {
     let config_content = format!(
         r#"module.exports = {{
   http_bind_address: '127.0.0.1',
@@ -342,10 +356,48 @@ pub fn generate_headless_config(
         config.port, config.network, config.fullnode_url, tx_mining_url
     );
 
-    fs::write(&config_path, config_content)
+    // Try writing directly into the dist directory first (fast path).
+    let dist_config_path = headless_dist_path.join("dist").join("config.js");
+    if fs::write(&dist_config_path, &config_content).is_ok() {
+        return Ok(HeadlessConfigLocation::InDist);
+    }
+
+    // Fallback: write to the user's data directory.
+    let fallback_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join("hathor-forge")
+        .join("headless-config");
+
+    fs::create_dir_all(&fallback_dir)
+        .map_err(|e| format!("Failed to create headless config directory: {}", e))?;
+
+    let config_path = fallback_dir.join("config.js");
+    fs::write(&config_path, &config_content)
         .map_err(|e| format!("Failed to write headless config: {}", e))?;
 
-    Ok(())
+    // Write a preload script that redirects `require('./config.js')` to our
+    // writable copy.  The bundled wallet-headless uses Babel-transpiled dynamic
+    // `import()` which compiles down to `require()`, so patching
+    // `Module._resolveFilename` is sufficient.
+    let preload_path = fallback_dir.join("preload.cjs");
+    let preload_content = format!(
+        r#"const Module = require('module');
+const path = require('path');
+const configRealPath = path.resolve({:?});
+const orig = Module._resolveFilename;
+Module._resolveFilename = function(request, parent) {{
+  if (request === './config.js' || request === './config') {{
+    return configRealPath;
+  }}
+  return orig.apply(this, arguments);
+}};
+"#,
+        config_path.to_string_lossy()
+    );
+    fs::write(&preload_path, preload_content)
+        .map_err(|e| format!("Failed to write headless preload script: {}", e))?;
+
+    Ok(HeadlessConfigLocation::Fallback(preload_path))
 }
 
 // ---------------------------------------------------------------------------
