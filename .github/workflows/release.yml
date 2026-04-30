@@ -214,12 +214,26 @@ jobs:
 
       - name: Clone dependency repositories
         shell: pwsh
+        # SHAs must match flake.lock. Linux/macOS get these via Nix inputs;
+        # Windows doesn't use Nix, so we pin the same commits manually here
+        # to keep cross-platform builds reproducible.
+        env:
+          HATHOR_CORE_SHA:        e3bba0da013b27f87d64a9ca5f9dacdd0b16e512
+          CPUMINER_SHA:           06240a0bd91f178aa135090ada3497992e7c1ec0
+          WALLET_HEADLESS_SHA:    f79695366c753a184478a1a0d7309ff48c45eb3a
+          TX_MINING_SERVICE_SHA:  a677e3b737fbc7013d191bb22987fed1c6bf40f8
+          HATHOR_EXPLORER_SHA:    51a0ed053998b44e0b465bdffe385e3a4c0f580d
         run: |
-          git clone --depth 1 https://github.com/HathorNetwork/hathor-core.git ..\hathor-core
-          git clone --depth 1 https://github.com/HathorNetwork/cpuminer.git ..\cpuminer
-          git clone --depth 1 https://github.com/HathorNetwork/hathor-wallet-headless.git ..\hathor-wallet-headless
-          git clone --depth 1 https://github.com/HathorNetwork/tx-mining-service.git ..\tx-mining-service
-          git clone --depth 1 https://github.com/HathorNetwork/hathor-explorer.git ..\hathor-explorer
+          function Clone-Pinned($url, $dir, $sha) {
+            git clone --filter=blob:none --no-checkout $url $dir
+            git -C $dir fetch --depth 1 origin $sha
+            git -C $dir checkout $sha
+          }
+          Clone-Pinned https://github.com/HathorNetwork/hathor-core.git           ..\hathor-core           $env:HATHOR_CORE_SHA
+          Clone-Pinned https://github.com/HathorNetwork/cpuminer.git              ..\cpuminer              $env:CPUMINER_SHA
+          Clone-Pinned https://github.com/HathorNetwork/hathor-wallet-headless.git ..\hathor-wallet-headless $env:WALLET_HEADLESS_SHA
+          Clone-Pinned https://github.com/HathorNetwork/tx-mining-service.git     ..\tx-mining-service     $env:TX_MINING_SERVICE_SHA
+          Clone-Pinned https://github.com/HathorNetwork/hathor-explorer.git       ..\hathor-explorer       $env:HATHOR_EXPLORER_SHA
 
       - name: Build hathor-core (Windows)
         shell: pwsh
