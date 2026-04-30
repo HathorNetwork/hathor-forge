@@ -31,6 +31,25 @@ if (-not (Test-Path $VcpkgExe)) {
 
 Write-Host "Using vcpkg at: $VcpkgRoot"
 
+# Pin vcpkg's port tree to a commit where rocksdb is still at 10.10.1.
+# RocksDB 11.0 changed DB::Open / OpenForReadOnly / OpenAsSecondary signatures
+# (DB** -> unique_ptr<DB>*), which breaks HathorNetwork's python-rocksdb fork.
+# This pin keeps rocksdb compatible until python-rocksdb is updated for v11.
+# If you bump this SHA, also bump the cache-key suffix in .github/workflows/release.yml.
+$VcpkgPinSha = "9b4f30e02bef7b0cfb90d1810ba4cdc6b4da1728"
+$VcpkgHeadSha = (& git -C $VcpkgRoot rev-parse HEAD).Trim()
+if ($VcpkgHeadSha -ne $VcpkgPinSha) {
+    Write-Host "Pinning vcpkg from $VcpkgHeadSha to $VcpkgPinSha..."
+    & git -C $VcpkgRoot fetch --depth 1 origin $VcpkgPinSha
+    if ($LASTEXITCODE -ne 0) { throw "vcpkg fetch failed" }
+    & git -C $VcpkgRoot checkout $VcpkgPinSha
+    if ($LASTEXITCODE -ne 0) { throw "vcpkg checkout failed" }
+    & "$VcpkgRoot\bootstrap-vcpkg.bat" -disableMetrics
+    if ($LASTEXITCODE -ne 0) { throw "vcpkg bootstrap failed" }
+} else {
+    Write-Host "vcpkg already at pinned SHA"
+}
+
 # Install rocksdb with all compression backends using static-md triplet
 # static-md = static libraries with dynamic CRT (/MD) — avoids DLL dependency issues
 # while remaining compatible with Python's dynamic CRT requirement

@@ -197,7 +197,9 @@ jobs:
           path: |
             C:\vcpkg\installed
             C:\Users\runneradmin\AppData\Local\vcpkg\archives
-          key: vcpkg-${{ runner.os }}-rocksdb-v4-static-md
+          # Bump the suffix whenever VCPKG_PIN_SHA in scripts/windows/build-hathor-core.ps1 changes.
+          # Current pin: 9b4f30e0 (Feb 4 2026, rocksdb 10.10.1).
+          key: vcpkg-${{ runner.os }}-rocksdb-9b4f30e0-static-md
 
       - name: Install MSYS2 (for cpuminer autotools)
         uses: msys2/setup-msys2@v2
