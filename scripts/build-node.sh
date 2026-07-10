@@ -57,36 +57,43 @@ if [[ "$OS" == "Darwin" ]]; then
         install_name_tool -change "$dylib" "@executable_path/node-dylibs/$dylib_name" "$NODE_OUT"
     done
 
-    # Also fix dylib cross-references (dylibs that depend on other bundled dylibs)
-    for dylib_file in "$DYLIB_DIR"/*.dylib; do
-        [[ -f "$dylib_file" ]] || continue
-        # Fix the dylib's own install name
-        dylib_name="$(basename "$dylib_file")"
-        install_name_tool -id "@executable_path/node-dylibs/$dylib_name" "$dylib_file" 2>/dev/null || true
+    # Also fix dylib cross-references (dylibs that depend on other bundled dylibs).
+    # A pass over the directory can copy in new transitive deps whose own load
+    # commands still point at the Nix store, so repeat until a pass copies nothing.
+    PASS_MARKER="$OUTPUT_DIR/.dylib-pass-copied"
+    while :; do
+        rm -f "$PASS_MARKER"
+        for dylib_file in "$DYLIB_DIR"/*.dylib; do
+            [[ -f "$dylib_file" ]] || continue
+            # Fix the dylib's own install name
+            dylib_name="$(basename "$dylib_file")"
+            install_name_tool -id "@executable_path/node-dylibs/$dylib_name" "$dylib_file" 2>/dev/null || true
 
-        # Fix references to other Nix dylibs
-        otool -L "$dylib_file" | awk 'NR>1 {print $1}' | { grep '^/nix/' || true; } | while read -r dep; do
-            dep_name="$(basename "$dep")"
-            if [[ -f "$DYLIB_DIR/$dep_name" ]]; then
+            # Fix references to other Nix dylibs
+            otool -L "$dylib_file" | awk 'NR>1 {print $1}' | { grep '^/nix/' || true; } | while read -r dep; do
+                dep_name="$(basename "$dep")"
+                if [[ ! -f "$DYLIB_DIR/$dep_name" ]]; then
+                    # This dependency wasn't bundled yet — copy it
+                    echo "  Bundling transitive dep $dep_name"
+                    cp "$dep" "$DYLIB_DIR/$dep_name"
+                    chmod 644 "$DYLIB_DIR/$dep_name"
+                    touch "$PASS_MARKER"
+                fi
                 install_name_tool -change "$dep" "@executable_path/node-dylibs/$dep_name" "$dylib_file" 2>/dev/null || true
-            else
-                # This dependency wasn't bundled yet — copy it
-                echo "  Bundling transitive dep $dep_name"
-                cp "$dep" "$DYLIB_DIR/$dep_name"
-                chmod 644 "$DYLIB_DIR/$dep_name"
-                install_name_tool -change "$dep" "@executable_path/node-dylibs/$dep_name" "$dylib_file" 2>/dev/null || true
-            fi
+            done
         done
+        [[ -f "$PASS_MARKER" ]] || break
     done
+    rm -f "$PASS_MARKER"
 
-    # Verify no Nix paths remain
-    remaining=$(otool -L "$NODE_OUT" | grep '/nix/' || true)
+    # Verify no Nix paths remain in the node binary or any bundled dylib
+    remaining=$(otool -L "$NODE_OUT" "$DYLIB_DIR"/*.dylib | grep '/nix/' || true)
     if [[ -n "$remaining" ]]; then
-        echo "WARNING: Node binary still references Nix paths:"
-        echo "$remaining"
-    else
-        echo "All Nix dylib references rewritten to @executable_path/node-dylibs/"
+        echo "ERROR: Nix store references remain after rewriting:" >&2
+        echo "$remaining" >&2
+        exit 1
     fi
+    echo "All Nix dylib references rewritten to @executable_path/node-dylibs/"
 
     echo "Bundled $(ls "$DYLIB_DIR" | wc -l | tr -d ' ') dylibs into $DYLIB_DIR"
 fi
