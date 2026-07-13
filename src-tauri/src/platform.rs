@@ -379,20 +379,31 @@ pub fn generate_headless_config(
     // writable copy.  The bundled wallet-headless uses Babel-transpiled dynamic
     // `import()` which compiles down to `require()`, so patching
     // `Module._resolveFilename` is sufficient.
+    //
+    // The redirect must only apply to requires that would have resolved to the
+    // app's own dist/config.js — i.e. issued by files directly in dist/.  An
+    // unguarded redirect hijacks every `require('./config')` in the process,
+    // including winston's level tables via triple-beam, which crashes
+    // wallet-headless at startup on read-only installs (mounted DMG,
+    // translocated app, per-machine Windows installs).
     let preload_path = fallback_dir.join("preload.cjs");
     let preload_content = format!(
         r#"const Module = require('module');
 const path = require('path');
 const configRealPath = path.resolve({:?});
+const appDistDir = path.resolve({:?});
 const orig = Module._resolveFilename;
 Module._resolveFilename = function(request, parent) {{
-  if (request === './config.js' || request === './config') {{
+  if ((request === './config.js' || request === './config') &&
+      parent && parent.filename &&
+      path.dirname(parent.filename) === appDistDir) {{
     return configRealPath;
   }}
   return orig.apply(this, arguments);
 }};
 "#,
-        config_path.to_string_lossy()
+        config_path.to_string_lossy(),
+        headless_dist_path.join("dist").to_string_lossy()
     );
     fs::write(&preload_path, preload_content)
         .map_err(|e| format!("Failed to write headless preload script: {}", e))?;
