@@ -88,47 +88,24 @@ pub async fn start_headless_internal(
 
     // Ensure the bundled Node.js binary can find its dynamic libraries (libuv, etc.)
     //
-    // On macOS, DYLD_FALLBACK_LIBRARY_PATH is stripped by SIP for hardened-runtime
-    // binaries (which Tauri signs as). Instead, we create a symlink from
-    // Contents/MacOS/node-dylibs → Contents/Resources/binaries/node-dylibs
-    // so dyld finds the libs next to the binary.
+    // On macOS no runtime help is needed (or possible): build-node.sh links the
+    // binary with @rpath/@loader_path references and LC_RPATH entries covering
+    // both the dev layout (node-dylibs next to the binary) and the bundled
+    // layout (Contents/Resources/binaries/node-dylibs). Runtime workarounds
+    // don't survive signing anyway — dyld strips DYLD_* env vars for
+    // hardened-runtime binaries, and writing a symlink into the .app breaks
+    // its codesign seal (and fails outright on read-only/translocated mounts).
     //
-    // On Linux, LD_LIBRARY_PATH still works fine.
+    // On Linux the binary carries an $ORIGIN/node-dylibs rpath; LD_LIBRARY_PATH
+    // is kept as a fallback for layouts where the libs aren't next to the binary.
+    #[cfg(target_os = "linux")]
     {
         let mut dylibs_resolved = false;
         if let Some(bin_dir) = node_bin.parent() {
             let local_dylibs = bin_dir.join("node-dylibs");
-
-            #[cfg(target_os = "macos")]
-            {
-                // In production: symlink Resources/…/node-dylibs into MacOS/
-                let resources_dylibs = bin_dir.join("../Resources/binaries/node-dylibs");
-                if resources_dylibs.exists() && !local_dylibs.exists() {
-                    // Canonicalize the target so the symlink is absolute
-                    if let Ok(target) = std::fs::canonicalize(&resources_dylibs) {
-                        if let Err(e) = std::os::unix::fs::symlink(&target, &local_dylibs) {
-                            tracing::warn!(?e, "Failed to symlink node-dylibs into MacOS dir");
-                        } else {
-                            tracing::info!(?target, "Created node-dylibs symlink");
-                        }
-                    }
-                }
-                // Also set the env var as a belt-and-suspenders fallback
-                if local_dylibs.exists() {
-                    cmd.env("DYLD_FALLBACK_LIBRARY_PATH", &local_dylibs);
-                    dylibs_resolved = true;
-                } else if resources_dylibs.exists() {
-                    cmd.env("DYLD_FALLBACK_LIBRARY_PATH", &resources_dylibs);
-                    dylibs_resolved = true;
-                }
-            }
-
-            #[cfg(target_os = "linux")]
-            {
-                if local_dylibs.exists() {
-                    cmd.env("LD_LIBRARY_PATH", &local_dylibs);
-                    dylibs_resolved = true;
-                }
+            if local_dylibs.exists() {
+                cmd.env("LD_LIBRARY_PATH", &local_dylibs);
+                dylibs_resolved = true;
             }
         }
         if !dylibs_resolved {
@@ -136,9 +113,6 @@ pub async fn start_headless_internal(
             let dev_dylibs =
                 std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("binaries/node-dylibs");
             if dev_dylibs.exists() {
-                #[cfg(target_os = "macos")]
-                cmd.env("DYLD_FALLBACK_LIBRARY_PATH", &dev_dylibs);
-                #[cfg(target_os = "linux")]
                 cmd.env("LD_LIBRARY_PATH", &dev_dylibs);
             }
         }
@@ -176,6 +150,20 @@ pub async fn start_headless_internal(
         |s| s.headless_child_id,
         "headless-terminated",
     );
+
+    drop(state_guard);
+
+    // A child that dies instantly (e.g. a dyld load failure) would otherwise be
+    // reported as a successful start, with the UI silently flipping back to
+    // "Stopped". Give it a short grace period and confirm it is still alive —
+    // the exit monitor clears `headless_running` the moment the process exits.
+    tokio::time::sleep(std::time::Duration::from_millis(750)).await;
+    if !state.lock().await.headless_running {
+        return Err(
+            "Wallet-headless exited immediately after starting — check the Logs page for the error output"
+                .to_string(),
+        );
+    }
 
     Ok(format!("Wallet-headless started on port {}", config.port))
 }

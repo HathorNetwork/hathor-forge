@@ -17,6 +17,7 @@ export function WalletPage() {
   const addLog = useUIStore((s) => s.addLog);
   const PORTS = usePortsStore((s) => s.ports);
   const [walletSendForms, setWalletSendForms] = useState<Record<string, { address: string; amount: string }>>({});
+  const [startingHeadless, setStartingHeadless] = useState(false);
   const {
     headlessStatus, setHeadlessStatus,
     headlessWallets, setHeadlessWallets,
@@ -80,11 +81,14 @@ export function WalletPage() {
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const startHeadless = async () => {
+    setStartingHeadless(true);
     try {
       await api.startHeadless();
       setHeadlessStatus({ running: true, port: PORTS.WALLET_HEADLESS });
     } catch (e) {
       setError(String(e));
+    } finally {
+      setStartingHeadless(false);
     }
   };
 
@@ -326,10 +330,11 @@ export function WalletPage() {
           {!headlessStatus.running ? (
             <button
               onClick={startHeadless}
-              className="px-4 py-2 bg-[#9cf35b]/10 text-[#9cf35b] border border-[#9cf35b]/30 rounded-lg hover:bg-[#9cf35b]/20 transition-colors flex items-center gap-2"
+              disabled={startingHeadless}
+              className="px-4 py-2 bg-[#9cf35b]/10 text-[#9cf35b] border border-[#9cf35b]/30 rounded-lg hover:bg-[#9cf35b]/20 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <Play className="w-4 h-4" />
-              Start Wallet Service
+              {startingHeadless ? "Starting…" : "Start Wallet Service"}
             </button>
           ) : (
             <>

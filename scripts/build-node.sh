@@ -33,18 +33,34 @@ if [[ -z "$NODE_BIN" ]]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
+# rm first: a previous copy inherits the Nix store's read-only mode, which
+# makes both the cp and the install_name_tool edits below fail.
+rm -f "$OUTPUT_DIR/node-${TARGET}"
 cp "$NODE_BIN" "$OUTPUT_DIR/node-${TARGET}"
-chmod +x "$OUTPUT_DIR/node-${TARGET}"
+chmod u+w,+x "$OUTPUT_DIR/node-${TARGET}"
 
 echo "Copied $(node --version) -> $OUTPUT_DIR/node-${TARGET}"
 
-# On macOS, bundle Nix dylibs and rewrite rpaths so the binary is portable
+# On macOS, bundle Nix dylibs and rewrite load commands so the binary is
+# portable. The node binary references its deps via @rpath with two LC_RPATH
+# entries, so the same binary works in both layouts it ships in:
+#   dev:    src-tauri/binaries/node-<target> with sibling node-dylibs/
+#   bundle: Contents/MacOS/node with Contents/Resources/binaries/node-dylibs/
+# (Tauri places the externalBin sidecar and the node-dylibs resource in
+# different directories, and runtime fixups like DYLD_FALLBACK_LIBRARY_PATH
+# don't survive hardened-runtime signing.)
 if [[ "$OS" == "Darwin" ]]; then
     NODE_OUT="$OUTPUT_DIR/node-${TARGET}"
     DYLIB_DIR="$OUTPUT_DIR/node-dylibs"
+    # Start clean: stale dylibs from a previous run keep their old load
+    # commands (only /nix/ references are rewritten below).
+    rm -rf "$DYLIB_DIR"
     mkdir -p "$DYLIB_DIR"
 
     echo "Bundling dylibs for portable macOS binary..."
+
+    install_name_tool -add_rpath "@executable_path/node-dylibs" "$NODE_OUT"
+    install_name_tool -add_rpath "@executable_path/../Resources/binaries/node-dylibs" "$NODE_OUT"
 
     # Find all non-system dylib dependencies (Nix store paths)
     otool -L "$NODE_OUT" | awk 'NR>1 {print $1}' | { grep '^/nix/' || true; } | while read -r dylib; do
@@ -53,13 +69,15 @@ if [[ "$OS" == "Darwin" ]]; then
         cp "$dylib" "$DYLIB_DIR/$dylib_name"
         chmod 644 "$DYLIB_DIR/$dylib_name"
 
-        # Rewrite the node binary to look for this dylib via @executable_path
-        install_name_tool -change "$dylib" "@executable_path/node-dylibs/$dylib_name" "$NODE_OUT"
+        # Rewrite the node binary to find this dylib via the rpaths above
+        install_name_tool -change "$dylib" "@rpath/$dylib_name" "$NODE_OUT"
     done
 
-    # Also fix dylib cross-references (dylibs that depend on other bundled dylibs).
-    # A pass over the directory can copy in new transitive deps whose own load
-    # commands still point at the Nix store, so repeat until a pass copies nothing.
+    # Also fix dylib cross-references (dylibs that depend on other bundled
+    # dylibs) via @loader_path — the dylibs always share one directory, in
+    # both layouts. A pass over the directory can copy in new transitive deps
+    # whose own load commands still point at the Nix store, so repeat until a
+    # pass copies nothing.
     PASS_MARKER="$OUTPUT_DIR/.dylib-pass-copied"
     while :; do
         rm -f "$PASS_MARKER"
@@ -67,7 +85,7 @@ if [[ "$OS" == "Darwin" ]]; then
             [[ -f "$dylib_file" ]] || continue
             # Fix the dylib's own install name
             dylib_name="$(basename "$dylib_file")"
-            install_name_tool -id "@executable_path/node-dylibs/$dylib_name" "$dylib_file" 2>/dev/null || true
+            install_name_tool -id "@loader_path/$dylib_name" "$dylib_file" 2>/dev/null || true
 
             # Fix references to other Nix dylibs
             otool -L "$dylib_file" | awk 'NR>1 {print $1}' | { grep '^/nix/' || true; } | while read -r dep; do
@@ -79,7 +97,7 @@ if [[ "$OS" == "Darwin" ]]; then
                     chmod 644 "$DYLIB_DIR/$dep_name"
                     touch "$PASS_MARKER"
                 fi
-                install_name_tool -change "$dep" "@executable_path/node-dylibs/$dep_name" "$dylib_file" 2>/dev/null || true
+                install_name_tool -change "$dep" "@loader_path/$dep_name" "$dylib_file" 2>/dev/null || true
             done
         done
         [[ -f "$PASS_MARKER" ]] || break
@@ -93,7 +111,16 @@ if [[ "$OS" == "Darwin" ]]; then
         echo "$remaining" >&2
         exit 1
     fi
-    echo "All Nix dylib references rewritten to @executable_path/node-dylibs/"
+
+    # Verify both rpaths are present — @rpath deps cannot resolve without them
+    node_rpaths=$(otool -l "$NODE_OUT" | grep -A2 LC_RPATH | grep 'path ' || true)
+    for want in "@executable_path/node-dylibs" "@executable_path/../Resources/binaries/node-dylibs"; do
+        if ! grep -qF "$want" <<<"$node_rpaths"; then
+            echo "ERROR: node binary is missing LC_RPATH entry: $want" >&2
+            exit 1
+        fi
+    done
+    echo "All Nix dylib references rewritten (@rpath deps, @loader_path cross-refs)"
 
     echo "Bundled $(ls "$DYLIB_DIR" | wc -l | tr -d ' ') dylibs into $DYLIB_DIR"
 fi

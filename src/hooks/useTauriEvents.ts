@@ -82,16 +82,21 @@ export function useTauriEvents() {
     }));
 
     register(listen<void>("headless-started", () => {
-      setHeadlessStatus({ running: true, port: null });
+      // Preserve the port set optimistically by the caller (e.g. WalletPage)
+      const { headlessStatus } = useWalletStore.getState();
+      setHeadlessStatus({ running: true, port: headlessStatus.port });
     }));
 
     register(listen<string>("headless-log", (event) => {
       addLog("headless", event.payload);
     }));
 
-    register(listen<number | null>("headless-terminated", () => {
+    register(listen<number | null>("headless-terminated", (event) => {
       setHeadlessStatus({ running: false, port: null });
       setHeadlessWallets([]);
+      if (event.payload !== 0 && event.payload !== null) {
+        setError(`Wallet service exited with code ${event.payload}`);
+      }
     }));
 
     // MCP → frontend state sync events
